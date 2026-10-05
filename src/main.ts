@@ -13,6 +13,9 @@ import { buildConcourse } from './world/concourse';
 import { buildProps } from './world/props';
 import { buildShed } from './world/shed';
 import { buildSky } from './world/sky';
+import { buildHotel } from './world/hotel';
+import { buildGates } from './world/gates';
+import { buildFootbridge } from './world/footbridge';
 import { buildTrains } from './trains/scheduler';
 
 /**
@@ -125,6 +128,9 @@ async function boot(): Promise<void> {
     buildSky(ctx),
     buildLighting(ctx),
     buildAtmosphere(ctx),
+    buildHotel(ctx),
+    buildGates(ctx),
+    buildFootbridge(ctx),
     buildTrains(ctx),
   ]);
   setProgress(0.85);

@@ -127,6 +127,12 @@ export interface AudioEngine {
   createTrainVoice(obj: THREE.Object3D): TrainVoice;
   /** Per frame: update listener from camera, distance-based gains, etc. */
   update(f: FrameInfo): void;
+  /** Phase 4: concierge brass service bell (long hall echo). */
+  bell(): void;
+  /** Phase 4: ticket collected (soft paper slide + stamp). */
+  ticket(): void;
+  /** Phase 4: gate paddles opening (true) or closing (false) at a world position. */
+  gate(position: THREE.Vector3, open: boolean): void;
 }
 
 // ---------------------------------------------------------------------------

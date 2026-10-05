@@ -251,3 +251,88 @@ export const START_POSE = {
   yaw: Math.PI,
   pitchDeg: -8,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Phase 4 (docs/superpowers/specs/2026-10-05-grand-meridian-phase4-hotel-ritual.md)
+// ---------------------------------------------------------------------------
+
+/** Ticket barrier gates across the concourse in front of the three north arches. */
+export const GATES = {
+  lineZ: 95,
+  /** Cabinets occupy this z band; navigation blocks it except open lanes. */
+  zMin: 94.4,
+  zMax: 95.6,
+  bankCentersX: [-20, 0, 20] as const,
+  lanesPerBank: 7,
+  laneWidth: 1.1,
+  cabinetWidth: 0.3,
+  /** Lane i (0..6) center x = bankX + (i - 3) * lanePitch. */
+  lanePitch: 1.4,
+  /** Bank width = 7 * 1.1 + 8 * 0.3. */
+  bankWidth: 10.1,
+  /** Player-center corridor half-width inside an open lane. */
+  laneCorridorHalf: 0.2,
+  /** Brass-framed glass screens fill the band between banks and out to the walls. */
+  screenHeight: 1.3,
+  screenXMin: -29.6,
+  screenXMax: 29.6,
+  /** Keep-clear approach zone in front of each bank (both sides). */
+  approachZMin: 88,
+} as const;
+
+export const gateLaneCentersX = (): number[] =>
+  GATES.bankCentersX.flatMap((bx) => Array.from({ length: GATES.lanesPerBank }, (_, i) => bx + (i - 3) * GATES.lanePitch));
+
+/** Booking office: west under-balcony frontage, facing +Z at the balcony face plane z = 8. */
+export const BOOKING_OFFICE = {
+  faceZ: 8,
+  xMin: -29.6,
+  xMax: -10.6,
+  windowCentersX: [-25.5, -20.5, -15.5] as const,
+  counterHeight: 1.05,
+  windowWidth: 1.6,
+  windowHeight: 1.4,
+  /** Interaction zone per window: |x - windowX| < halfWidth and z in [zMin, zMax] at floor level. */
+  interact: { halfWidth: 1.0, zMin: 8.4, zMax: 10.2 },
+} as const;
+
+/** Concierge: east under-balcony frontage + freestanding reception desk. */
+export const CONCIERGE = {
+  faceZ: 8,
+  xMin: 10.6,
+  xMax: 29.6,
+  desk: { xMin: 15, xMax: 25, zMin: 9.4, zMax: 10.6 },
+  bell: [20, 1.1, 9.6] as Vec3,
+  interact: { centerX: 20, halfWidth: 1.5, zMin: 10.6, zMax: 12.2 },
+} as const;
+
+/** Ornate iron footbridge across the train shed. */
+export const FOOTBRIDGE = {
+  centerZ: 228,
+  zMin: 226.2,
+  zMax: 229.8,
+  deckTopY: 7.0,
+  soffitY: 6.2,
+  /** Walkable deck extent. */
+  walkXMin: -21.4,
+  walkXMax: 21.4,
+  /** Visual structure may extend to the shed walls. */
+  structureXMin: -31.5,
+  structureXMax: 31.5,
+  /** One stair per island, centered on the island, descending SOUTH. */
+  stairCentersX: [-20, 0, 20] as const,
+  stairHalfWidth: 1.4,
+  stairTopZ: 226.2,
+  stairBottomZ: 214.2,
+} as const;
+
+/** First-class lounge on the balcony (y = BALCONY.topY). Central zone stays clear. */
+export const LOUNGE = {
+  y: BALCONY.topY,
+  wings: [
+    { xMin: -29.6, xMax: -11, zMin: 0.4, zMax: 7.6 },
+    { xMin: 11, xMax: 29.6, zMin: 0.4, zMax: 7.6 },
+  ] as const,
+  clearXMin: -10,
+  clearXMax: 10,
+} as const;
