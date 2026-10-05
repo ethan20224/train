@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import {
   ARCHES,
+  BOOKING_OFFICE,
+  CONCIERGE,
   CONCOURSE,
+  FOOTBRIDGE,
+  GATES,
+  LOUNGE,
   ISLANDS,
   KIOSK,
   PLAYER,
@@ -18,7 +23,22 @@ import {
  * Each is a deliberate composition, see `intent`. Camera is placed at `position` and looks at `target`.
  */
 
-export const PRESET_NAMES = ['balcony', 'concourse', 'kiosk', 'window', 'arches', 'platform', 'shed', 'haze'] as const;
+export const PRESET_NAMES = [
+  'balcony',
+  'concourse',
+  'kiosk',
+  'window',
+  'arches',
+  'platform',
+  'shed',
+  'haze',
+  'lounge',
+  'booking',
+  'concierge',
+  'gates',
+  'bridge',
+  'bridgedeck',
+] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
 export interface CameraPreset {
@@ -87,6 +107,36 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
     position: [islandB.centerX, EYE, 330],
     target: [islandB.centerX, 3.2, 700],
     intent: 'Island B near the shed end, looking north where tracks dissolve into golden fog.',
+  },
+  lounge: {
+    position: [LOUNGE.wings[0].xMax - 1, LOUNGE.y + EYE, 1.2],
+    target: [LOUNGE.wings[0].xMin + 2, LOUNGE.y + 0.6, 6.5],
+    intent: 'Balcony west wing: the first-class lounge, looking across the armchairs toward the hall rail.',
+  },
+  booking: {
+    position: [BOOKING_OFFICE.windowCentersX[1] + 4, EYE, BOOKING_OFFICE.faceZ + 7],
+    target: [BOOKING_OFFICE.windowCentersX[1] - 1, 1.6, BOOKING_OFFICE.faceZ],
+    intent: 'Three-quarter view of the booking office ticket windows under the balcony.',
+  },
+  concierge: {
+    position: [CONCIERGE.interact.centerX - 4, EYE, CONCIERGE.desk.zMax + 6],
+    target: [CONCIERGE.interact.centerX + 1, 1.4, CONCIERGE.faceZ],
+    intent: 'Three-quarter view of the concierge desk, bell and key-box wall.',
+  },
+  gates: {
+    position: [-6, EYE + 0.4, GATES.zMin - 9],
+    target: [0, 1.2, GATES.lineZ + 4],
+    intent: 'Approaching the centre bank of ticket gates, arches and board beyond.',
+  },
+  bridge: {
+    position: [islandB.centerX + 3, EYE, FOOTBRIDGE.stairBottomZ - 26],
+    target: [islandB.centerX, FOOTBRIDGE.deckTopY - 1, FOOTBRIDGE.centerZ],
+    intent: 'From island B looking north at the footbridge spanning the shed, stair rising toward it.',
+  },
+  bridgedeck: {
+    position: [6, FOOTBRIDGE.deckTopY + EYE, FOOTBRIDGE.centerZ],
+    target: [-12, 0, FOOTBRIDGE.centerZ - 40],
+    intent: 'On the bridge deck looking down and south over the tracks toward the concourse.',
   },
 };
 
