@@ -1,0 +1,26 @@
+{
+  "name": "grand-meridian-terminal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "fetch-textures": "node scripts/fetch-textures.mjs",
+    "shot": "node scripts/shot.mjs",
+    "nav-test": "tsx scripts/nav-test.ts"
+  },
+  "dependencies": {
+    "n8ao": "2.0.1",
+    "postprocessing": "6.39.5",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0",
+    "playwright": "1.63.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vite": "8.3.2"
+  }
+}

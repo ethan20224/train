@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grand Meridian</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Italiana&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --gold: #d4b06a;
+        --gold-dim: rgba(212, 176, 106, 0.55);
+        --display: 'Italiana', 'Didot', 'Bodoni 72', 'Times New Roman', serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+      body { font-family: var(--display); color: var(--gold); -webkit-font-smoothing: antialiased; }
+      canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+
+      #intro {
+        position: fixed; inset: 0; z-index: 20; background: #000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.2rem;
+        transition: background-color 2s ease-in-out;
+      }
+      #intro.entering { background-color: rgba(0, 0, 0, 0); pointer-events: none; }
+      #intro .content { display: flex; flex-direction: column; align-items: center; gap: 2.2rem; transition: opacity 0.9s ease; }
+      #intro.entering .content { opacity: 0; }
+      #intro h1 {
+        margin: 0; font-weight: 400; font-size: clamp(1.9rem, 5.2vw, 4.2rem);
+        letter-spacing: 0.34em; padding-left: 0.34em; /* optically re-centre tracked caps */
+      }
+      #intro .rule { width: min(360px, 60vw); height: 1px; background: rgba(212, 176, 106, 0.18); position: relative; overflow: hidden; }
+      #intro .rule i { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: var(--gold); transition: transform 0.35s ease-out; }
+      #intro .prompt {
+        font-size: 1.05rem; letter-spacing: 0.4em; padding-left: 0.4em; text-transform: uppercase;
+        opacity: 0; transition: opacity 0.8s ease; cursor: pointer; background: none; border: 0; color: var(--gold); font-family: inherit;
+        padding-top: 0.5rem; padding-bottom: 0.5rem;
+      }
+      #intro.ready .prompt { opacity: 1; animation: breathe 3.2s ease-in-out infinite; }
+      #intro.ready .rule i { transform: scaleX(1); }
+      #intro .prompt:focus-visible { outline: 1px solid var(--gold-dim); outline-offset: 8px; }
+      @keyframes breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) { #intro.ready .prompt { animation: none; } }
+      #intro .fail { max-width: 40ch; text-align: center; font-size: 0.95rem; letter-spacing: 0.08em; color: #e8b8a0; }
+
+      #pause {
+        position: fixed; inset: 0; z-index: 15; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem;
+        background: rgba(6, 4, 2, 0.62); backdrop-filter: blur(3px); cursor: pointer;
+      }
+      #pause.show { display: flex; }
+      #pause h2 { margin: 0; font-weight: 400; font-size: 1.9rem; letter-spacing: 0.4em; padding-left: 0.4em; }
+      #pause p { margin: 0; font-size: 0.95rem; letter-spacing: 0.22em; color: var(--gold-dim); text-transform: uppercase; }
+
+      #debug {
+        position: fixed; left: 8px; top: 8px; z-index: 30; display: none; margin: 0; padding: 6px 8px;
+        font: 11px/1.45 ui-monospace, 'SF Mono', Menlo, monospace; color: #cfe8cf; background: rgba(0, 0, 0, 0.62);
+        pointer-events: none; white-space: pre;
+      }
+      #debug.show { display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene" tabindex="-1"></canvas>
+    <div id="intro" role="dialog" aria-label="Grand Meridian">
+      <div class="content">
+        <h1>GRAND MERIDIAN</h1>
+        <div class="rule" aria-hidden="true"><i></i></div>
+        <button class="prompt" type="button" disabled>Click to enter</button>
+      </div>
+    </div>
+    <div id="pause" role="dialog" aria-label="Paused">
+      <h2>PAUSED</h2>
+      <p>W A S D / arrows to walk &nbsp;&middot;&nbsp; Shift to run &nbsp;&middot;&nbsp; mouse to look</p>
+      <p>Click to resume</p>
+    </div>
+    <pre id="debug"></pre>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
