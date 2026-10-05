@@ -1,5 +1,5 @@
 // Screenshot + perf harness. Usage:
-//   npm run shot -- <preset|all> [more presets] [--headed] [--bundled] [--q=high|med|low|auto] [--wait=3000]
+//   npm run shot -- <preset|all> [more presets] [--headed] [--bundled] [--q=high|med|low|auto] [--wait=3000] [--out=<subdir of shots/>]
 // Starts the Vite dev server on :5173 if it is not already running (and stops it afterwards),
 // opens /?cam=<preset>&autostart=1&debug=1&q=<q>, waits for window.__meridian.ready, waits ~3 s,
 // saves shots/<preset>.png at 1440x900 and prints fps / draw calls / triangles + the WebGL renderer string.
@@ -87,7 +87,8 @@ if (!browser) {
 }
 console.log(`browser: ${launched}, ${headless ? 'headless' : 'headed'}, quality=${quality}`);
 
-await fs.mkdir(path.join(root, 'shots'), { recursive: true });
+const outDir = path.join(root, 'shots', opt('out', ''));
+await fs.mkdir(outDir, { recursive: true });
 let exitCode = 0;
 try {
   let printedGpu = false;
@@ -115,7 +116,7 @@ try {
       printedGpu = true;
     }
 
-    const out = path.join(root, 'shots', `${name}.png`);
+    const out = path.join(outDir, `${name}.png`);
     await page.screenshot({ path: out });
     const m = await page.evaluate(() => window.__meridian);
     console.log(
