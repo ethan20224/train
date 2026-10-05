@@ -30,5 +30,13 @@ Legend: [x] done & verified · [~] in progress · [ ] todo
 - [x] Walk test end to end through the real controls (`node scripts/walk-test.mjs`: stair, kiosk/column/track bumps, island B z > 300, 0 console errors)
 - [x] Train cycle verified live incl. depart (`node scripts/train-test.mjs`, `?timescale=N`)
 - [x] Floor mottling root-caused (env reflection) and fixed; trains never baked into shadow map; ashlar scale; north wall emblem panels
-- [ ] Adversarial review of code (bugs, leaks, edge cases)
+- [x] Adversarial review of code (bugs, leaks, edge cases)
 - [ ] Final screenshots + report to user
+
+## Phase 4 — Hotel feel + ticket ritual (spec: `docs/superpowers/specs/2026-10-05-grand-meridian-phase4-hotel-ritual.md`)
+- [x] Questions answered, addendum spec written & approved
+- [ ] Shared prep: layout constants, ticket store, module stubs wired (director)
+- [ ] 4A Systems: layered navigation, gate lanes, interaction (E), ticket flow + ticket card UI, scheduler requestTrain, board hook, bell/ticket audio
+- [ ] 4B Hotel: balcony first-class lounge, booking office, concierge desk, hall restyle (runners, aisle lounges)
+- [ ] 4C Structures: brass-and-glass ticket gates (animated paddles), ornate iron footbridge + stairs
+- [ ] Director review: screenshots, extended nav/walk tests, perf
