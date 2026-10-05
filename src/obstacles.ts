@@ -1,5 +1,6 @@
 import { propObstacles } from './world/props/layout';
 
+import { footbridgeObstacles } from './world/footbridge/data';
 import { shedObstacles } from './world/shed/layoutData';
 
 /**
@@ -31,4 +32,4 @@ export const SHED_OBSTACLES: readonly PropObstacle[] = shedObstacles();
 export const HOTEL_OBSTACLES: readonly PropObstacle[] = [];
 
 /** Owned by world/footbridge.ts (Phase 4C: piers on the islands at level 0, anything on the deck at level 7). */
-export const FOOTBRIDGE_OBSTACLES: readonly PropObstacle[] = [];
+export const FOOTBRIDGE_OBSTACLES: readonly PropObstacle[] = footbridgeObstacles();
