@@ -258,6 +258,11 @@ export const START_POSE = {
 
 /** Ticket barrier gates across the concourse in front of the three north arches. */
 export const GATES = {
+  /**
+   * TEMPORARY (user request 2026-10-05): false = gates open for everyone, no ticket needed.
+   * Set back to true to restore the ticket ritual (navigation + gate paddles both honour it).
+   */
+  requireTicket: false,
   lineZ: 95,
   /** Cabinets occupy this z band; navigation blocks it except open lanes. */
   zMin: 94.4,

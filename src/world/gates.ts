@@ -155,7 +155,7 @@ export async function buildGates(ctx: BuildContext): Promise<WorldModule> {
 
   const update = (f: FrameInfo): void => {
     const cam = f.camera.position;
-    const held = demo || tickets.held !== null;
+    const held = demo || !GATES.requireTicket || tickets.held !== null;
     const grounded = cam.y < 3.5 && Math.abs(cam.z - GATES.lineZ) < 12;
     // nearest lane in line with the player
     let nearest = -1;

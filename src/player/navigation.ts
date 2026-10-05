@@ -5,36 +5,53 @@ import {
   COLONNADE,
   CONCOURSE,
   CROSS_PLATFORM,
+  FOOTBRIDGE,
+  GATES,
   ISLANDS,
   KIOSK,
   PLAYER,
   STAIR,
+  gateLaneCentersX,
   type Rect,
 } from '../layout';
+import { tickets } from '../core/ticket';
 import { CONCOURSE_OBSTACLES, FOOTBRIDGE_OBSTACLES, HOTEL_OBSTACLES, SHED_OBSTACLES } from '../obstacles';
 
 /**
- * Walkable-surface queries, built ONLY from layout.ts (spec section 3 "Player").
+ * Walkable-surface queries, built ONLY from layout.ts (spec section 3 "Player" + Phase 4 "Systems").
  *
- * Model: the walkable area is a union of axis-aligned rectangles (each with a ground height or a
- * ramp), minus circular obstacles (columns, kiosk). Tracks and everything else are simply outside
- * the union, so they can never be entered. Platform edges are therefore hard boundaries.
+ * Model: the walkable area is a union of axis-aligned rectangles, each carrying a ground height (flat or
+ * a ramp), minus circular obstacles (columns, kiosk, props). Regions overlap in plan view on different
+ * LEVELS (footbridge deck over the islands). A point is resolved to the region whose ground there is
+ * within LEVEL_TOLERANCE of the player's current feet y, so stairs / ramps connect levels and the deck
+ * can never be entered from the ground except by its stairs. Tracks and everything else are simply
+ * outside the union, so they can never be entered. Edges (platform, deck, balcony) are hard boundaries.
+ *
+ * Gate lanes are dynamic regions: walkable only while a ticket is held (core/ticket.ts).
  *
  * Coordinates returned are FEET positions (ground height). The controller adds eye height.
  */
 
 const C = PLAYER.wallClearance;
 
+/** Feet y must be within this of a region's ground there for the region to apply (stairs connect levels). */
+const LEVEL_TOLERANCE = 0.6;
+/** A prop obstacle with a `level` only applies when |ground - level| is under this. */
+const OBSTACLE_LEVEL_TOLERANCE = 1.0;
+
 interface Region extends Rect {
   /** Ground height; for ramps see `ramp`. */
   readonly y: number;
   readonly ramp?: { readonly zFrom: number; readonly zTo: number; readonly yFrom: number; readonly yTo: number };
+  /** Gate lane corridor: only walkable while a ticket is held. */
+  readonly gate?: boolean;
 }
 
 interface Circle {
   readonly x: number;
   readonly z: number;
   readonly r: number;
+  readonly level?: number;
 }
 
 const COLUMN_REACH = COLONNADE.shaftDiameter / 2 + PLAYER.radius; // 1.0 + 0.35
@@ -43,7 +60,11 @@ const KIOSK_REACH = KIOSK.footprintRadius + PLAYER.radius; // 3.5 + 0.35
 const stairHalfOpening = STAIR.xMax - C; // 9.6: inside the stair balustrades
 const stairBalustradeBlock = STAIR.xMax + PLAYER.radius; // 10.35: floor beside the stair is open from here
 
-/** Everything walkable, in priority order for height lookup (first containing region wins). */
+/** Bridge stair: walkable half-width (inside the balustrades) and the ground keep-out half-width beneath it. */
+const BRIDGE_STAIR_WALK = FOOTBRIDGE.stairHalfWidth - C; // 1.0
+const BRIDGE_STAIR_BLOCK = FOOTBRIDGE.stairHalfWidth + PLAYER.radius; // 1.75
+
+/** All regions. Overlap in plan is fine: they are told apart by ground height. */
 const REGIONS: readonly Region[] = (() => {
   const r: Region[] = [];
 
@@ -73,14 +94,6 @@ const REGIONS: readonly Region[] = (() => {
     ramp: { zFrom: STAIR.zMin, zTo: STAIR.zMax, yFrom: STAIR.topY, yTo: STAIR.bottomY },
   });
 
-  // Concourse floor south of the stair foot (z >= stair end): full width.
-  r.push({
-    xMin: CONCOURSE.xMin + C,
-    xMax: CONCOURSE.xMax - C,
-    zMin: STAIR.zMax,
-    zMax: CONCOURSE.zMax - C,
-    y: CONCOURSE.floorY,
-  });
   // Concourse floor beside the stair (excludes the stair footprint and its balustrades), both sides.
   r.push({
     xMin: CONCOURSE.xMin + C,
@@ -96,6 +109,34 @@ const REGIONS: readonly Region[] = (() => {
     zMax: STAIR.zMax,
     y: CONCOURSE.floorY,
   });
+
+  // Concourse floor, split at the ticket-gate band: south of it and north of it. Nothing crosses the band
+  // except the lane corridors below (the cabinets / glass screens fill the rest of the band).
+  r.push({
+    xMin: CONCOURSE.xMin + C,
+    xMax: CONCOURSE.xMax - C,
+    zMin: STAIR.zMax,
+    zMax: GATES.zMin - C,
+    y: CONCOURSE.floorY,
+  });
+  r.push({
+    xMin: CONCOURSE.xMin + C,
+    xMax: CONCOURSE.xMax - C,
+    zMin: GATES.zMax + C,
+    y: CONCOURSE.floorY,
+    zMax: CONCOURSE.zMax - C,
+  });
+  // Gate lanes: corridor of the player's centre through each lane, walkable only with a ticket.
+  for (const lx of gateLaneCentersX()) {
+    r.push({
+      xMin: lx - GATES.laneCorridorHalf,
+      xMax: lx + GATES.laneCorridorHalf,
+      zMin: GATES.zMin - C - 0.01,
+      zMax: GATES.zMax + C + 0.01,
+      y: CONCOURSE.floorY,
+      gate: true,
+    });
+  }
 
   // North wall arch openings (x +-4.6 about each arch center), linking floor, wall thickness and cross platform.
   for (const cx of ARCHES.centersX) {
@@ -118,40 +159,60 @@ const REGIONS: readonly Region[] = (() => {
   });
 
   // Island platforms: inset 0.6 from the long edges, joined to the cross platform, ending at z = 379.5.
-  for (const isl of ISLANDS) {
+  // The ground beneath each footbridge stair is NOT walkable: the island is routed around the stair footprint.
+  ISLANDS.forEach((isl, idx) => {
+    const xl = isl.xMin + PLAYER.platformEdgeInset;
+    const xr = isl.xMax - PLAYER.platformEdgeInset;
+    const zs = CROSS_PLATFORM.zMax - PLAYER.platformEdgeInset - 0.01;
+    const ze = isl.zMax - PLAYER.platformEndInset;
+    const c = FOOTBRIDGE.stairCentersX[idx] ?? isl.centerX;
+    const bot = FOOTBRIDGE.stairBottomZ;
+    const top = FOOTBRIDGE.stairTopZ;
+    r.push({ xMin: xl, xMax: xr, zMin: zs, zMax: bot, y: isl.topY });
+    r.push({ xMin: xl, xMax: c - BRIDGE_STAIR_BLOCK, zMin: bot, zMax: top, y: isl.topY });
+    r.push({ xMin: c + BRIDGE_STAIR_BLOCK, xMax: xr, zMin: bot, zMax: top, y: isl.topY });
+    r.push({ xMin: xl, xMax: xr, zMin: top, zMax: ze, y: isl.topY });
+
+    // The stair: a straight ramp 0 -> deck height, climbing NORTH (south end at the ground, north end at the deck).
     r.push({
-      xMin: isl.xMin + PLAYER.platformEdgeInset,
-      xMax: isl.xMax - PLAYER.platformEdgeInset,
-      zMin: CROSS_PLATFORM.zMax - PLAYER.platformEdgeInset - 0.01,
-      zMax: isl.zMax - PLAYER.platformEndInset,
+      xMin: c - BRIDGE_STAIR_WALK,
+      xMax: c + BRIDGE_STAIR_WALK,
+      zMin: bot,
+      zMax: top,
       y: isl.topY,
+      ramp: { zFrom: bot, zTo: top, yFrom: isl.topY, yTo: FOOTBRIDGE.deckTopY },
     });
-  }
+    // Landing where the stair meets the deck (through the deck's south rail).
+    r.push({
+      xMin: c - BRIDGE_STAIR_WALK,
+      xMax: c + BRIDGE_STAIR_WALK,
+      zMin: top - 0.01,
+      zMax: FOOTBRIDGE.zMin + C + 0.01,
+      y: FOOTBRIDGE.deckTopY,
+    });
+  });
+
+  // Footbridge deck: hard edges (rail clearance on all four sides).
+  r.push({
+    xMin: FOOTBRIDGE.walkXMin + C,
+    xMax: FOOTBRIDGE.walkXMax - C,
+    zMin: FOOTBRIDGE.zMin + C,
+    zMax: FOOTBRIDGE.zMax - C,
+    y: FOOTBRIDGE.deckTopY,
+  });
   return r;
 })();
 
 const OBSTACLES: readonly Circle[] = [
   ...COLONNADE.xs.flatMap((x) => COLONNADE.zs.map((z): Circle => ({ x, z, r: COLUMN_REACH }))),
   { x: KIOSK.center[0], z: KIOSK.center[1], r: KIOSK_REACH },
-  ...[...CONCOURSE_OBSTACLES, ...SHED_OBSTACLES, ...HOTEL_OBSTACLES, ...FOOTBRIDGE_OBSTACLES].map((o): Circle => ({ x: o.x, z: o.z, r: o.r + PLAYER.radius })),
+  ...[...CONCOURSE_OBSTACLES, ...SHED_OBSTACLES, ...HOTEL_OBSTACLES, ...FOOTBRIDGE_OBSTACLES].map(
+    (o): Circle => ({ x: o.x, z: o.z, r: o.r + PLAYER.radius, level: o.level }),
+  ),
 ];
 
 function inRect(r: Rect, x: number, z: number): boolean {
   return x >= r.xMin && x <= r.xMax && z >= r.zMin && z <= r.zMax;
-}
-
-function regionAt(x: number, z: number): Region | null {
-  for (const r of REGIONS) if (inRect(r, x, z)) return r;
-  return null;
-}
-
-function inObstacle(x: number, z: number): boolean {
-  for (const o of OBSTACLES) {
-    const dx = x - o.x;
-    const dz = z - o.z;
-    if (dx * dx + dz * dz < o.r * o.r) return true;
-  }
-  return false;
 }
 
 function groundY(r: Region, z: number): number {
@@ -161,23 +222,73 @@ function groundY(r: Region, z: number): number {
   return ramp.yFrom + (ramp.yTo - ramp.yFrom) * t;
 }
 
-/** Ground (feet) height at (x, z), or null where it is not walkable (void, tracks, walls, obstacles). */
-export function heightAt(x: number, z: number): number | null {
-  const r = regionAt(x, z);
-  if (!r || inObstacle(x, z)) return null;
-  return groundY(r, z);
+/** True when a circular obstacle blocks (x, z) for a player standing on ground height `y`. */
+function inObstacle(x: number, z: number, y: number): boolean {
+  for (const o of OBSTACLES) {
+    if (o.level !== undefined && Math.abs(y - o.level) >= OBSTACLE_LEVEL_TOLERANCE) continue;
+    const dx = x - o.x;
+    const dz = z - o.z;
+    if (dx * dx + dz * dz < o.r * o.r) return true;
+  }
+  return false;
 }
 
-const walkable = (x: number, z: number): boolean => heightAt(x, z) !== null;
+/**
+ * Ground height at (x, z) for a player whose feet are at `nearY` (undefined = no preference: the LOWEST
+ * level there). `lanes`: gate lane corridors count as walkable.
+ */
+function groundAt(x: number, z: number, nearY: number | undefined, lanes: boolean): number | null {
+  let best: number | null = null;
+  let bestD = Infinity;
+  for (const r of REGIONS) {
+    if (r.gate && !lanes) continue;
+    if (!inRect(r, x, z)) continue;
+    const g = groundY(r, z);
+    const d = nearY === undefined ? g : Math.abs(g - nearY);
+    if (nearY !== undefined && d > LEVEL_TOLERANCE) continue;
+    if (d >= bestD) continue;
+    if (inObstacle(x, z, g)) continue;
+    best = g;
+    bestD = d;
+  }
+  return best;
+}
+
+let requireTicketOverride: boolean | null = null;
+/** Test-only: force the ticket requirement on/off (null = follow GATES.requireTicket). */
+export function setRequireTicketOverride(v: boolean | null): void {
+  requireTicketOverride = v;
+}
+/** Whether a ticket is currently required to pass the gates. */
+export const ticketRequired = (): boolean => requireTicketOverride ?? GATES.requireTicket;
+const lanesOpen = (): boolean => !ticketRequired() || tickets.held !== null;
+
+/** True when (x, z) is inside a gate lane corridor (used so nobody is ever trapped in a lane that closes). */
+function inLane(x: number, z: number): boolean {
+  // Strictly past the floor regions' edges (z = zMin - C and zMax + C): standing ON the edge is not "in" the lane.
+  if (z <= GATES.zMin - C + 0.005 || z >= GATES.zMax + C - 0.005) return false;
+  for (const r of REGIONS) if (r.gate && inRect(r, x, z)) return true;
+  return false;
+}
+
+/**
+ * Ground (feet) height at (x, z), or null where it is not walkable (void, tracks, walls, obstacles).
+ * `nearY`: the player's current feet y, selecting the level where regions overlap (footbridge deck over
+ * the islands). Omitted = the lowest level at that point.
+ */
+export function heightAt(x: number, z: number, nearY?: number): number | null {
+  return groundAt(x, z, nearY, lanesOpen());
+}
 
 /** Max XZ distance moved per collision sub-step. Smaller than any obstacle, so nothing can be tunnelled. */
 const MAX_STEP = 0.1;
 
-/** Push (x, z) out of any circular obstacle it is inside; returns the corrected point. */
-function pushOutOfObstacles(x: number, z: number): [number, number] {
+/** Push (x, z) out of any circular obstacle (on level `y`) it is inside; returns the corrected point. */
+function pushOutOfObstacles(x: number, z: number, y: number): [number, number] {
   for (let iter = 0; iter < 3; iter++) {
     let moved = false;
     for (const o of OBSTACLES) {
+      if (o.level !== undefined && Math.abs(y - o.level) >= OBSTACLE_LEVEL_TOLERANCE) continue;
       const dx = x - o.x;
       const dz = z - o.z;
       const d2 = dx * dx + dz * dz;
@@ -196,16 +307,18 @@ function pushOutOfObstacles(x: number, z: number): [number, number] {
 }
 
 /**
- * Resolve a desired move from `prev` to `next` (feet positions) against the walkable area.
- * Moves in sub-steps <= 0.1 m (never tunnels), slides along boundaries (axis-separated for rectangle
- * edges, tangential for circles), and returns the final feet position with y = ground height.
+ * Resolve a desired move from `prev` to `next` (feet positions; y of `prev` selects the level) against the
+ * walkable area. Moves in sub-steps <= 0.1 m (never tunnels), slides along boundaries (axis-separated for
+ * rectangle edges, tangential for circles), and returns the final feet position with y = ground height.
  * `prev` should be walkable; if it is not, the nearest handling is to return `prev` unchanged.
  */
 export function resolve(prev: Vector3, next: Vector3): Vector3 {
   const out = new Vector3(prev.x, prev.y, prev.z);
-  const startGround = heightAt(prev.x, prev.z);
-  if (startGround === null) return out;
-  out.y = startGround;
+  // Never trap anybody in a lane: while standing in one, lanes stay walkable even if the ticket went away.
+  const lanes = lanesOpen() || inLane(prev.x, prev.z);
+  let y = groundAt(prev.x, prev.z, prev.y, lanes) ?? groundAt(prev.x, prev.z, undefined, lanes) ?? null;
+  if (y === null) return out;
+  out.y = y;
 
   const dx = next.x - prev.x;
   const dz = next.z - prev.z;
@@ -228,10 +341,12 @@ export function resolve(prev: Vector3, next: Vector3): Vector3 {
     let advanced = false;
     for (const [mx, mz] of candidates) {
       if (mx === 0 && mz === 0) continue;
-      const [px, pz] = pushOutOfObstacles(x + mx, z + mz);
-      if (walkable(px, pz)) {
+      const [px, pz] = pushOutOfObstacles(x + mx, z + mz, y);
+      const g = groundAt(px, pz, y, lanes);
+      if (g !== null) {
         x = px;
         z = pz;
+        y = g;
         advanced = true;
         break;
       }
@@ -243,14 +358,15 @@ export function resolve(prev: Vector3, next: Vector3): Vector3 {
       let hi = 1;
       for (let k = 0; k < 8; k++) {
         const mid = (lo + hi) / 2;
-        const [px, pz] = pushOutOfObstacles(x + sx * mid, z + sz * mid);
-        if (walkable(px, pz)) lo = mid;
+        const [px, pz] = pushOutOfObstacles(x + sx * mid, z + sz * mid, y);
+        if (groundAt(px, pz, y, lanes) !== null) lo = mid;
         else hi = mid;
       }
       if (lo > 0) {
-        const [px, pz] = pushOutOfObstacles(x + sx * lo, z + sz * lo);
+        const [px, pz] = pushOutOfObstacles(x + sx * lo, z + sz * lo, y);
         x = px;
         z = pz;
+        y = groundAt(x, z, y, lanes) ?? y;
       }
       break;
     }
@@ -258,7 +374,7 @@ export function resolve(prev: Vector3, next: Vector3): Vector3 {
 
   out.x = x;
   out.z = z;
-  out.y = heightAt(x, z) ?? startGround;
+  out.y = y;
   return out;
 }
 
