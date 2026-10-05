@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ARCHES, LUNETTE, VAULT, WINDOW } from '../../layout';
 import {
-  GeoBag, Soup, archPath, arcFrames, at, boxMM, lineFrames, sweep, v3, type Frame, type P2,
+  GeoBag, Soup, archPath, arcFrames, at, boxMM, lineFrames, rotatedBoxZ, sweep, v3, type Frame, type P2,
 } from './geo';
 import { BLIND_Z, END_WALLS, SIDE_WALLS, WALLS, WALL_CORNICE, uOfZ, type WallFrame } from './frames';
 
@@ -310,8 +310,57 @@ function northRelief(bags: Bags): void {
     bags.dark.add(boxMM(x0 - 4.0, 29 + 5 - 4.0, 0.22, x0 + 4.0, 29 + 5 + 4.0, 0.3), m);
     bags.col.add(boxMM(x0 - 3.3, 29 + 5 - 3.3, 0.3, x0 + 3.3, 29 + 5 + 3.3, 0.34), m);
     bags.dark.add(boxMM(x0 - 2.9, 29 + 5 - 2.9, 0.34, x0 + 2.9, 29 + 5 + 2.9, 0.38), m);
+    // brass keylines: one around the black field, one just inside the stone frame
+    for (const [half, t] of [[2.9, 0.1], [4.0, 0.12]] as const) {
+      const z0 = half === 2.9 ? 0.34 : 0.22;
+      const z1 = z0 + (half === 2.9 ? 0.1 : 0.14);
+      bags.brass.add(boxMM(x0 - half - t, 34 - half - t, z0, x0 + half + t, 34 - half, z1), m);
+      bags.brass.add(boxMM(x0 - half - t, 34 + half, z0, x0 + half + t, 34 + half + t, z1), m);
+      bags.brass.add(boxMM(x0 - half - t, 34 - half, z0, x0 - half, 34 + half, z1), m);
+      bags.brass.add(boxMM(x0 + half, 34 - half, z0, x0 + half + t, 34 + half, z1), m);
+    }
+    wingedWheel(bags, m, x0, 34.15);
   }
   void ARCHES;
+}
+
+/** Art Deco winged-wheel railway emblem in low brass relief on the black field (field surface is at w = 0.38). */
+function wingedWheel(bags: Bags, m: THREE.Matrix4, cx: number, cy: number): void {
+  const W0 = 0.38;
+  const relief = (shape: THREE.Shape, depth: number): THREE.BufferGeometry =>
+    new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 48 }).translate(0, 0, W0);
+  // wheel rim
+  const rim = new THREE.Shape();
+  rim.absarc(cx, cy, 0.95, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  hole.absarc(cx, cy, 0.78, 0, Math.PI * 2, true);
+  rim.holes.push(hole);
+  bags.brass.add(relief(rim, 0.09), m);
+  // spokes and hub
+  for (let i = 0; i < 8; i++) bags.brass.add(rotatedBoxZ(1.56, 0.07, 0.06, cx, cy, W0 + 0.03, (i / 8) * Math.PI), m);
+  const hub = new THREE.Shape();
+  hub.absarc(cx, cy, 0.24, 0, Math.PI * 2, false);
+  bags.brass.add(relief(hub, 0.13), m);
+  // wings: five stacked tapering feathers per side, longest at the bottom, sweeping gently upward
+  for (const sg of [-1, 1]) {
+    for (let k = 0; k < 5; k++) {
+      const y = cy + 0.02 + k * 0.2;
+      const x0 = 1.02;
+      const L = 1.95 - k * 0.2;
+      const f = new THREE.Shape();
+      f.moveTo(cx + sg * x0, y - 0.07);
+      f.lineTo(cx + sg * (x0 + L), y + 0.14 + k * 0.05);
+      f.lineTo(cx + sg * (x0 + L - 0.07), y + 0.21 + k * 0.05);
+      f.lineTo(cx + sg * x0, y + 0.07);
+      f.closePath();
+      bags.brass.add(relief(f, 0.07), m);
+    }
+  }
+  // two Deco chevrons below the wheel
+  for (let k = 0; k < 2; k++) {
+    const y = cy - 1.75 - k * 0.32;
+    for (const sg of [-1, 1]) bags.brass.add(rotatedBoxZ(1.5, 0.09, 0.06, cx + sg * 0.6, y + 0.22, W0 + 0.03, sg * -0.42), m);
+  }
 }
 
 function lunetteRing(bags: Bags): void {
