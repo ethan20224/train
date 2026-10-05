@@ -87,3 +87,20 @@ Date: 2026-10-05 · Extends `2026-10-05-grand-meridian-design.md` (all its rules
   descend. Ticket UI shown; board row flips; the train arrives on the ticket's platform.
 - Screens: lounge, booking office, concierge, gates (closed/open), bridge views — art-director review.
 - Perf: auto quality still ≥ 50 fps; budgets: draw calls < 180, triangles < 2.2 M.
+
+## Phase 4D — Platform safety (user decisions, 2026-10-05)
+Goal: modern platform safety that looks like it was always part of the 1930s luxury design.
+- **Half-height platform edge doors** (~1.3 m): bevelled-glass panels in brass frames (same vocabulary
+  as the ticket gates) along BOTH long edges of every island, barrier line 0.35 m inside the island edge,
+  from the cross platform (z 108) to the platform end (z 380). Sliding door leaves line up with the
+  train's carriage doors at the stopping position (nose z = 111); fixed panels elsewhere. The cross
+  platform's north edge facing the buffer stops gets fixed panels (no doors).
+- Doors open for **every** stopped train (same behaviour for all; ~1.5 s after the train stops, eased
+  slide ~1.2 s) and close ~6 s before departure; closed whenever no train is dwelling.
+- **Glowing edge line**: a warm light strip set into the marble coping just inside the barrier
+  (~0.7 m from the edge), dim when idle; brightens and slowly pulses amber while a train approaches that
+  track (from when it begins braking until stopped), fades back after it stops; also during departure.
+- Train carriages show matching door outlines at the positions the platform doors use (single source
+  of truth for door z offsets in layout.ts).
+- Nav: unchanged (the edge inset already keeps the player off the barrier line).
+- Footbridge parts stay ≥ 1.0 m clear of island long edges.

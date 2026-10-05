@@ -35,8 +35,9 @@ Legend: [x] done & verified · [~] in progress · [ ] todo
 
 ## Phase 4 — Hotel feel + ticket ritual (spec: `docs/superpowers/specs/2026-10-05-grand-meridian-phase4-hotel-ritual.md`)
 - [x] Questions answered, addendum spec written & approved
-- [ ] Shared prep: layout constants, ticket store, module stubs wired (director)
-- [ ] 4A Systems: layered navigation, gate lanes, interaction (E), ticket flow + ticket card UI, scheduler requestTrain, board hook, bell/ticket audio
-- [ ] 4B Hotel: balcony first-class lounge, booking office, concierge desk, hall restyle (runners, aisle lounges)
-- [ ] 4C Structures: brass-and-glass ticket gates (animated paddles), ornate iron footbridge + stairs
+- [x] Shared prep: layout constants, ticket store, module stubs, audio hooks, obstacle arrays, camera presets (director)
+- [~] 4A Systems: layered navigation, gate lanes, interaction (E), ticket flow + ticket card UI, scheduler requestTrain, board hook, bell/ticket audio
+- [~] 4B Hotel: balcony first-class lounge, booking office, concierge desk, hall restyle (runners, aisle lounges)
+- [~] 4C Structures: brass-and-glass ticket gates (animated paddles), ornate iron footbridge + stairs
 - [ ] Director review: screenshots, extended nav/walk tests, perf
+- [ ] 4D Platform safety: half-height brass-and-glass platform edge doors (open for every stopped train) + glowing amber edge line on approach (starts after 4A/4C finish — shares scheduler + island edges)
