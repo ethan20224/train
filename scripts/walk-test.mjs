@@ -62,12 +62,18 @@ async function goto(tx, tz, { run = false, tol = 0.8, strafe = null, maxMs = 600
   if (strafe) await page.keyboard.down(strafe);
   const t0 = Date.now();
   let last = null;
+  let still = Date.now(), stillPos = null;
   for (;;) {
     const s = await state();
+    // bump runs end when the player has stopped moving for 2 s (robust to slow frame rates), not on a fixed wall clock
+    if (bump) {
+      if (!stillPos || Math.hypot(s.fx - stillPos.fx, s.fz - stillPos.fz) > 0.05) { stillPos = s; still = Date.now(); }
+      else if (Date.now() - still > 2000) break;
+    }
     samples.push({ ...s, label });
     const dx = tx - s.fx, dz = tz - s.fz;
     if (Math.hypot(dx, dz) < tol) break;
-    if (Date.now() - t0 > maxMs) { if (!bump) check(false, `timeout walking to (${tx},${tz}) from (${s.fx.toFixed(1)},${s.fz.toFixed(1)})`); break; }
+    if (Date.now() - t0 > (bump ? Math.max(maxMs, 40000) : maxMs)) { if (!bump) check(false, `timeout walking to (${tx},${tz}) from (${s.fx.toFixed(1)},${s.fz.toFixed(1)})`); break; }
     const want = Math.atan2(-dx, -dz);
     let err = wrap(want - s.yaw);
     // Strafing offsets the heading: compensate so the net travel still points at the target.
