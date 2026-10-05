@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import type { BuildContext, WorldModule } from '../core/types';
-import { BAYS, CONCOURSE, SHED, VAULT, WINDOW } from '../layout';
-import { HAZE_COLOR, SUN_COLOR, SUN_DIR, lookShared } from './shared';
+import { BAYS, CONCOURSE, SHED, VAULT } from '../layout';
+import { SUN_COLOR, SUN_DIR, lookShared } from './shared';
 
 /**
  * Golden-hour rig: one static shadow-casting sun, one-time environment capture (reflections + diffuse bounce),
@@ -10,9 +10,9 @@ import { HAZE_COLOR, SUN_COLOR, SUN_DIR, lookShared } from './shared';
  * Everything is real-time; nothing here runs per frame (the sun never moves).
  */
 
-const SUN_INTENSITY = 9.5;
-const ENV_INTENSITY = 0.55;
-const PROBE_INTENSITY = 0.5;
+const SUN_INTENSITY = 8.5;
+const ENV_INTENSITY = 1.1;
+const PROBE_INTENSITY = 0.9;
 const CAPTURE_SIZE = 256;
 /** Total shadow texels (4096^2); the aspect of the light-space box decides the split. */
 const SHADOW_TEXELS = 4096 * 4096;
@@ -69,7 +69,7 @@ function addBounceLights(root: THREE.Object3D): void {
   const poolX = CONCOURSE.xMin + d.x * t;
   for (const z0 of BAYS.windowCentersZ) {
     const poolZ = z0 + d.z * t;
-    const s = new THREE.SpotLight(0xffb866, 260, 55, 1.38, 1, 2);
+    const s = new THREE.SpotLight(0xffb866, 520, 60, 1.38, 1, 2);
     s.position.set(poolX, 0.25, poolZ);
     s.target.position.set(poolX, 30, poolZ);
     s.castShadow = false;
@@ -103,7 +103,7 @@ export async function buildLighting(ctx: BuildContext): Promise<WorldModule> {
   lookShared.sun = sun;
 
   // Cool sky fill: shade reads slightly bluer than the gold light (split-tone contrast).
-  const fill = new THREE.HemisphereLight(0x9db2d6, 0x6d5238, 0.28);
+  const fill = new THREE.HemisphereLight(0x9fb8ec, 0x7a5a3c, 0.85);
   fill.name = 'skyFill';
   root.add(fill);
 
@@ -183,6 +183,5 @@ export async function buildLighting(ctx: BuildContext): Promise<WorldModule> {
     renderer.shadowMap.needsUpdate = true;
   };
 
-  void HAZE_COLOR; void WINDOW;
   return { name: 'lighting', object: root, finalize };
 }

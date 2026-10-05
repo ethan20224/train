@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BuildContext, WorldModule } from '../core/types';
-import { CONCOURSE, FOG, SHED } from '../layout';
+import { CONCOURSE, SHED } from '../layout';
 import { HAZE_COLOR, SUN_COLOR, sunShadowTexture, lookShared } from './shared';
 
 /**
@@ -13,12 +13,14 @@ import { HAZE_COLOR, SUN_COLOR, sunShadowTexture, lookShared } from './shared';
  * whether it is in direct light and only glows then, so the air is visibly dusty only inside the sun shafts.
  */
 
-const CONCOURSE_DUST = 34000;
-const SHED_DUST = 8000;
+/** Spec says ~0.004; 0.0048 makes the platforms fully dissolve by ~350 m so no ground band shows against the horizon. */
+const FOG_DENSITY = 0.0048;
+const CONCOURSE_DUST = 26000;
+const SHED_DUST = 4000;
 
 export async function buildAtmosphere(ctx: BuildContext): Promise<WorldModule> {
   // Fog colour is HDR (components may exceed 1) and identical to the sky horizon so distance dissolves into sky.
-  ctx.scene.fog = new THREE.FogExp2(HAZE_COLOR.getHex(), FOG.density);
+  ctx.scene.fog = new THREE.FogExp2(HAZE_COLOR.getHex(), FOG_DENSITY);
   (ctx.scene.fog as THREE.FogExp2).color.copy(HAZE_COLOR);
   ctx.scene.background = HAZE_COLOR.clone();
 
@@ -49,7 +51,7 @@ export async function buildAtmosphere(ctx: BuildContext): Promise<WorldModule> {
     uShadow: { value: null as THREE.Texture | null },
     uShadowMatrix: { value: new THREE.Matrix4() },
     uPixelScale: { value: 800 },
-    uFogDensity: { value: FOG.density },
+    uFogDensity: { value: FOG_DENSITY },
     uSunColor: { value: SUN_COLOR.clone().lerp(new THREE.Color(1, 0.9, 0.7), 0.4) },
     uOn: { value: 0 },
   };
@@ -88,7 +90,7 @@ export async function buildAtmosphere(ctx: BuildContext): Promise<WorldModule> {
 
         vec4 mv = viewMatrix * vec4(p, 1.0);
         float dist = max(-mv.z, 0.01);
-        float raw = (0.035 + aRand.y * 0.05) * uPixelScale / dist;
+        float raw = (0.024 + aRand.y * 0.036) * uPixelScale / dist;
         float size = clamp(raw, 1.7, 6.0);
         gl_PointSize = size;
         // Scintillation: motes catch the light and dim again, slowly.
@@ -105,7 +107,7 @@ export async function buildAtmosphere(ctx: BuildContext): Promise<WorldModule> {
         vec2 c = gl_PointCoord - 0.5;
         float d = dot(c, c) * 4.0;
         float a = exp(-d * 3.2) * (1.0 - smoothstep(0.85, 1.0, d));
-        vec3 col = uSunColor * vLight * 3.2;
+        vec3 col = uSunColor * vLight * 1.7;
         gl_FragColor = vec4(col, a * vFade);
       }`,
   });

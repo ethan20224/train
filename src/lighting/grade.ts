@@ -59,11 +59,11 @@ export class GoldenGradeEffect extends Effect {
       {
         blendFunction: BlendFunction.NORMAL,
         uniforms: new Map<string, THREE.Uniform>([
-          ['uShadowTint', new THREE.Uniform(new THREE.Color(0.9, 0.97, 1.1))],
-          ['uHighlightTint', new THREE.Uniform(new THREE.Color(1.08, 1.0, 0.86))],
-          ['uSplit', new THREE.Uniform(1.0)],
-          ['uContrast', new THREE.Uniform(0.55)],
-          ['uSaturation', new THREE.Uniform(1.05)],
+          ['uShadowTint', new THREE.Uniform(new THREE.Color(0.8, 0.94, 1.22))],
+          ['uHighlightTint', new THREE.Uniform(new THREE.Color(1.1, 1.0, 0.84))],
+          ['uSplit', new THREE.Uniform(1.15)],
+          ['uContrast', new THREE.Uniform(0.4)],
+          ['uSaturation', new THREE.Uniform(1.1)],
           ['uLift', new THREE.Uniform(new THREE.Color(0.0, 0.0, 0.004))],
           ['uGain', new THREE.Uniform(new THREE.Color(1, 1, 1))],
         ]),

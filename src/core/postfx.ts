@@ -35,6 +35,7 @@ export class PostFX {
   readonly noise: NoiseEffect;
   readonly smaa: SMAAEffect;
   readonly godRays: GodRayPass;
+  private readonly godRayComposite: EffectPass;
   readonly exposure: ExposureEffect;
   readonly grade: GoldenGradeEffect;
 
@@ -65,7 +66,8 @@ export class PostFX {
     // BEFORE bloom so the brightest beams can glow. See lighting/godrays.ts.
     this.godRays = new GodRayPass(camera);
     this.composer.addPass(this.godRays);
-    this.composer.addPass(new EffectPass(camera, new GodRayComposite(this.godRays, camera)));
+    this.godRayComposite = new EffectPass(camera, new GodRayComposite(this.godRays, camera));
+    this.composer.addPass(this.godRayComposite);
 
     // Only genuinely bright pixels (sky through windows, sun, emissives) bloom. Scene is linear HDR here.
     this.bloom = new BloomEffect({
@@ -76,8 +78,8 @@ export class PostFX {
       radius: 0.78,
       levels: 7,
     });
-    this.exposure = new ExposureEffect(1);
-    this.toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
+    this.exposure = new ExposureEffect(0.78);
+    this.toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
     this.grade = new GoldenGradeEffect();
     this.vignette = new VignetteEffect({ offset: 0.32, darkness: 0.45 });
     this.noise = new NoiseEffect({ premultiply: true, blendFunction: BlendFunction.SCREEN });
@@ -87,6 +89,36 @@ export class PostFX {
 
     this.smaa = new SMAAEffect({ preset: SMAAPreset.HIGH });
     this.composer.addPass(new EffectPass(camera, this.smaa));
+
+    // Debug switches for A/B profiling: ?nogr=1 (god rays), ?noao=1 (ambient occlusion).
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('nogr') === '1') this.setGodRaysEnabled(false);
+    if (q.get('noao') === '1') this.setAOEnabled(false);
+    // Look-dev overrides, e.g. ?exp=0.9&tm=aces&bloom=0.5&grade=sat:1.2,con:0.7,split:1.3
+    const exp = q.get('exp');
+    if (exp) this.exposure.exposure = Number(exp);
+    const tm = q.get('tm');
+    if (tm === 'aces') this.toneMapping.mode = ToneMappingMode.ACES_FILMIC;
+    if (tm === 'neutral') this.toneMapping.mode = ToneMappingMode.NEUTRAL;
+    const bl = q.get('bloom');
+    if (bl) this.bloom.intensity = Number(bl);
+    const gr = q.get('grade');
+    if (gr) {
+      const map: Record<string, string> = { sat: 'uSaturation', con: 'uContrast', split: 'uSplit' };
+      for (const kv of gr.split(',')) {
+        const [k, v] = kv.split(':');
+        const u = k ? map[k] : undefined;
+        if (u && v) this.grade.u<number>(u).value = Number(v);
+      }
+    }
+    const gri = q.get('gr');
+    if (gri) this.godRays.intensity = Number(gri);
+  }
+
+  /** Volumetric god rays on/off (quality tiers / debugging). */
+  setGodRaysEnabled(enabled: boolean): void {
+    this.godRays.enabled = enabled;
+    this.godRayComposite.enabled = enabled;
   }
 
   /** Quality setter: N8AO at half resolution (cheaper) or full. */

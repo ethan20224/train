@@ -43,6 +43,8 @@ export async function buildSky(_ctx: BuildContext): Promise<WorldModule> {
 
         // Vertical gradient: white-gold horizon -> apricot -> blue-violet zenith.
         vec3 col = mix(horizon, apricot, smoothstep(0.0, 0.22, h));
+        // Below the horizon: the same haze, a touch deeper, matching the fogged ground the eye meets there.
+        col *= mix(1.0, 0.9, smoothstep(0.0, 0.05, -d.y));
         col = mix(col, zenith, pow(smoothstep(0.08, 0.95, h), 0.85));
         // Sun-side horizon swells brighter and whiter; the anti-solar side stays on the fog colour.
         float side = pow(0.5 + 0.5 * dot(normalize(d.xz + 1e-5), normalize(sunDir.xz)), 3.0);

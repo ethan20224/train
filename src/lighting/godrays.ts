@@ -58,7 +58,7 @@ const FRAG = /* glsl */ `
     // Slowly drifting low-frequency density: cheap sine-product noise (no hashing, no textures).
     float a = sin(p.x * 0.21 + p.z * 0.09 + t * 0.045) + sin(p.y * 0.33 - p.z * 0.14 + t * 0.037);
     float b = sin(p.x * 0.53 - p.y * 0.41 + t * 0.06) * sin(p.z * 0.37 + t * 0.03);
-    return clamp(0.8 + 0.28 * a + 0.22 * b, 0.25, 1.6);
+    return clamp(0.9 + 0.14 * a + 0.1 * b, 0.4, 1.4);
   }
 
   void main() {
@@ -89,7 +89,8 @@ const FRAG = /* glsl */ `
         vec4 sc = uShadowMatrix * vec4(p, 1.0);
         vec3 s = sc.xyz / sc.w;
         float lit = texture(uShadow, vec3(s.xy, s.z - 0.0003));
-        float dens = uDensity * haze(p, uTime) * exp(-max(p.y, 0.0) * 0.022);
+        float zone = mix(1.9, 0.55, smoothstep(96.0, 112.0, p.z)); // dusty concourse, airier shed
+        float dens = uDensity * zone * haze(p, uTime) * exp(-max(p.y, 0.0) * 0.022);
         acc += uSunColor * (lit * dens * phase * dt) * T;
         T *= exp(-dens * 0.012 * dt);
       }
@@ -130,9 +131,9 @@ export class GodRayPass extends Pass {
       uSunDir: { value: SUN_DIR.clone() },
       uSunColor: { value: SUN_COLOR.clone() },
       uTime: { value: 0 },
-      uMaxDist: { value: 260 },
+      uMaxDist: { value: 200 },
       uDensity: { value: 1 },
-      uIntensity: { value: 0.09 },
+      uIntensity: { value: 0.1 },
       uNear: { value: 0.1 },
       uFar: { value: 3000 },
     };
