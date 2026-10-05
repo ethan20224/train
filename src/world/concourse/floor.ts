@@ -114,7 +114,7 @@ export function buildFloor(bags: Bags): void {
   }
   // ---- balcony deck (y = BALCONY.topY) ----------------------------------------------------------
   const y = BALCONY.topY;
-  bags.dark.add(planarShape([-30, 0, 30, 8], [rectPts(-29.3, 0.7, 29.3, 7.3)], y));
+  bags.col.add(planarShape([-30, 0, 30, 8], [rectPts(-29.3, 0.7, 29.3, 7.3)], y));
   bags.brass.add(planarShape([-29.3, 0.7, 29.3, 7.3], [rectPts(-29.24, 0.76, 29.24, 7.24)], y));
   bags.floor.add(planarShape([-29.24, 0.76, 29.24, 7.24], [], y));
   void at;

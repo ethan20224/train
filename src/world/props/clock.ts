@@ -127,8 +127,8 @@ export function secondHandOffsetDeg(time: number): number {
   if (ph < 0.5) {
     const t = ph;
     // underdamped step response, period ~ 0.12 s, peaks ~ +26 % at ~ 50 ms, settles by ~ 0.2 s
-    const w = (Math.PI * 2) / 0.12;
-    const z = 0.42;
+    const w = (Math.PI * 2) / 0.1;
+    const z = 0.45;
     const wd = w * Math.sqrt(1 - z * z);
     const step = 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + ((z * w) / wd) * Math.sin(wd * t));
     return 6 * step;

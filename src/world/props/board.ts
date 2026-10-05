@@ -82,12 +82,15 @@ export function buildBoard(renderer: THREE.WebGLRenderer): BoardRig {
 
   const drawCell = (x: number, y: number, ch: string, color: string): void => {
     // flap body
-    g.fillStyle = '#12100e';
+    g.fillStyle = '#25211c';
     g.beginPath();
     g.roundRect(x + 1.5, y, cellW - 3, cellH, 5);
     g.fill();
+    g.strokeStyle = '#0a0908';
+    g.lineWidth = 2;
+    g.stroke();
     // upper half slightly lighter, lower darker (two flaps)
-    g.fillStyle = 'rgba(255,240,210,0.045)';
+    g.fillStyle = 'rgba(255,240,210,0.05)';
     g.fillRect(x + 1.5, y + 2, cellW - 3, cellH / 2 - 2);
     if (ch.trim()) {
       g.fillStyle = color;

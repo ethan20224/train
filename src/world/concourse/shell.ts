@@ -213,30 +213,38 @@ function trimWall(wall: WallFrame, bags: Bags): void {
   }
 }
 
-/** Framed marble panel at the back of a blind arch (1.2 m deep recess). */
+/** Framed marble panel at the back of a blind arch: cream marble field with a fine black-marble keyline. */
 function blindPanel(bags: Bags, m: THREE.Matrix4, o: Opening): void {
-  // darkMarble inset, slightly inset from the arch, with a columnMarble border strip
-  const inset = 0.45;
-  const outer = new THREE.Shape();
-  const r1 = o.w / 2 - inset;
-  outer.moveTo(o.cu - r1, o.v0 + inset);
-  outer.lineTo(o.cu - r1, o.spring);
-  outer.absarc(o.cu, o.spring, r1, Math.PI, 0, true);
-  outer.lineTo(o.cu + r1, o.v0 + inset);
-  outer.closePath();
-  const g1 = new THREE.ExtrudeGeometry(outer, { depth: 0.08, bevelEnabled: false, curveSegments: 40 });
-  g1.translate(0, 0, -BLIND_DEPTH);
-  bags.col.add(g1, m);
-  const r2 = r1 - 1.15;
-  const innerS = new THREE.Shape();
-  innerS.moveTo(o.cu - r2, o.v0 + inset + 1.15);
-  innerS.lineTo(o.cu - r2, o.spring);
-  innerS.absarc(o.cu, o.spring, r2, Math.PI, 0, true);
-  innerS.lineTo(o.cu + r2, o.v0 + inset + 1.15);
-  innerS.closePath();
-  const g2 = new THREE.ExtrudeGeometry(innerS, { depth: 0.07, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 1, curveSegments: 40 });
-  g2.translate(0, 0, -BLIND_DEPTH + 0.08);
-  bags.dark.add(g2, m);
+  const archAt = (r: number, v0: number): THREE.Shape => {
+    const s = new THREE.Shape();
+    s.moveTo(o.cu - r, v0);
+    s.lineTo(o.cu - r, o.spring);
+    s.absarc(o.cu, o.spring, r, Math.PI, 0, true);
+    s.lineTo(o.cu + r, v0);
+    s.closePath();
+    return s;
+  };
+  const pathAt = (r: number, v0: number): THREE.Path => {
+    const p = new THREE.Path();
+    p.moveTo(o.cu - r, v0);
+    p.lineTo(o.cu - r, o.spring);
+    p.absarc(o.cu, o.spring, r, Math.PI, 0, true);
+    p.lineTo(o.cu + r, v0);
+    p.closePath();
+    return p;
+  };
+  const half = o.w / 2;
+  // cream marble field filling the recess floor
+  const field = new THREE.ExtrudeGeometry(archAt(half - 0.02, o.v0), { depth: 0.06, bevelEnabled: false, curveSegments: 48 });
+  field.translate(0, 0, -BLIND_DEPTH);
+  bags.col.add(field, m);
+  // keyline: thin black-marble ring 0.7 m inside the opening
+  const rOut = half - 0.7;
+  const ring = archAt(rOut, o.v0 + 0.7);
+  ring.holes = [pathAt(rOut - 0.09, o.v0 + 0.79)];
+  const kg = new THREE.ExtrudeGeometry(ring, { depth: 0.05, bevelEnabled: false, curveSegments: 48 });
+  kg.translate(0, 0, -BLIND_DEPTH + 0.06);
+  bags.dark.add(kg, m);
 }
 
 // ---------------------------------------------------------------------------------------------

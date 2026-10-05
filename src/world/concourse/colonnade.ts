@@ -93,17 +93,17 @@ function capitalGeo(): THREE.BufferGeometry[] {
     const dir = v3(Math.cos(ang), 0, Math.sin(ang));
     const pts: THREE.Vector3[] = [];
     // spiral in the (radial, y) plane
-    const cx = 1.62;
-    const cy = absTop - 0.28;
+    const cx = 1.42;
+    const cy = absTop - 0.42;
     for (let i = 0; i <= 28; i++) {
       const t = i / 28;
       const a = -2.2 + t * 8.6; // sweep angle
-      const rr = 0.52 * (1 - t * 0.82);
+      const rr = 0.36 * (1 - t * 0.8);
       const rad = cx + Math.cos(a) * rr * 0.9;
       const yy = cy + Math.sin(a) * rr;
       pts.push(dir.clone().multiplyScalar(rad).setY(yy));
     }
-    const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, 0.085, 6, false);
+    const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.1, 6, false);
     out.push(tube);
     // stalk from the bell to the volute
     const stalk = new THREE.CylinderGeometry(0.08, 0.13, 1.0, 8);
