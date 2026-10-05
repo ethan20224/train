@@ -117,7 +117,12 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
     }
   };
 
+  /** Debug / test counters, exposed through window.__meridian.trains (see main.ts). */
+  const stats = { spawns: 0, despawns: 0, voicesCreated: 0, voicesDisposed: 0 };
+
   const deactivate = (s: Slot): void => {
+    if (s.voice) stats.voicesDisposed++;
+    stats.despawns++;
     s.voice?.dispose();
     s.voice = null;
     s.active = false;
@@ -138,6 +143,8 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
     s.root.visible = true;
     s.root.position.x = track.centerX;
     s.voice = ctx.audio.createTrainVoice(s.anchor);
+    stats.voicesCreated++;
+    stats.spawns++;
     if (s.phase === 'brake') s.voice.brake();
     evaluate(s);
     s.root.position.z = s.nose;
@@ -158,6 +165,19 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
     }
     nextArrival = 70;
   }
+
+  window.__meridian.trains = () => ({
+    ...stats,
+    trains: slots.map((s, i) => ({
+      slot: i,
+      active: s.active,
+      track: s.track?.id ?? null,
+      phase: s.phase,
+      noseZ: s.nose,
+      speed: s.speed,
+      visible: s.root.visible,
+    })),
+  });
 
   return {
     name: 'trains',

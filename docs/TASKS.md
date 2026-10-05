@@ -26,7 +26,9 @@ Legend: [x] done & verified · [~] in progress · [ ] todo
 
 ## Phase 3 — Integration & polish
 - [ ] Full-scene visual pass (light balance, color grade, haze depth)
-- [ ] Performance pass on M2 (≥ 50 fps, draw calls < 250, tris < 2.5M, tex < 450 MB)
-- [ ] Walk test end to end (balcony → stair → kiosk → arches → platform → haze)
+- [x] Performance pass (auto quality converges to 54-60 fps at 1440x900 and 1470x956@2x: `node scripts/perf-test.mjs`; N8AO half-res on all rungs; draw calls ~110, tris ~1.3M, tex ~208 MB)
+- [x] Walk test end to end through the real controls (`node scripts/walk-test.mjs`: stair, kiosk/column/track bumps, island B z > 300, 0 console errors)
+- [x] Train cycle verified live incl. depart (`node scripts/train-test.mjs`, `?timescale=N`)
+- [x] Floor mottling root-caused (env reflection) and fixed; trains never baked into shadow map; ashlar scale; north wall emblem panels
 - [ ] Adversarial review of code (bugs, leaks, edge cases)
 - [ ] Final screenshots + report to user

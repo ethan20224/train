@@ -23,7 +23,25 @@ import { buildTrains } from './trains/scheduler';
 
 declare global {
   interface Window {
-    __meridian: { fps: number; drawCalls: number; triangles: number; ready: boolean };
+    __meridian: {
+      fps: number;
+      drawCalls: number;
+      triangles: number;
+      ready: boolean;
+      /** Debug / test handles (read-only by convention). */
+      camera?: THREE.PerspectiveCamera;
+      /** Player feet position (ground contact). */
+      feet?: THREE.Vector3;
+      locked?: () => boolean;
+      renderer?: THREE.WebGLRenderer;
+      scene?: THREE.Scene;
+      quality?: import('./core/types').QualityState;
+      timescale?: number;
+      /** Per-train summary, published by trains/scheduler.ts. */
+      trains?: () => unknown;
+      /** Seconds of simulated time (sum of scaled dt). */
+      time?: number;
+    };
   }
 }
 
@@ -32,8 +50,10 @@ const params = new URLSearchParams(search);
 const camPreset = parsePreset(search);
 const autostart = params.get('autostart') === '1';
 const debugOn = params.get('debug') === '1';
+/** Debug-only simulation speed (`?timescale=N`, 0.1..60). Scales module/audio time, not rendering or the player. */
+const timescale = Math.min(60, Math.max(0.1, Number(params.get('timescale')) || 1));
 
-window.__meridian = { fps: 0, drawCalls: 0, triangles: 0, ready: false };
+window.__meridian = { fps: 0, drawCalls: 0, triangles: 0, ready: false, timescale };
 
 const ui = new UI();
 
@@ -93,6 +113,7 @@ async function boot(): Promise<void> {
     applyPreset(camera, camPreset);
   }
 
+  Object.assign(window.__meridian, { camera, renderer, scene, quality: quality.state, feet: controls.feet, locked: () => controls.isLocked });
   const ctx: BuildContext = { renderer, scene, camera, materials, audio, quality: quality.state };
 
   // --- build all modules in parallel -------------------------------------------------------------
@@ -135,11 +156,19 @@ async function boot(): Promise<void> {
     const rawDt = Math.max(0, (now - last) / 1000);
     last = now;
     const dt = Math.min(rawDt, 0.05);
-    frame.dt = dt;
-    frame.time += dt;
-
+    // Scaled sim step: fast-forwarding runs several clamped (<= 0.05 s) sub-steps so physics/animation stay sane.
+    const simDt = dt * timescale;
     controls.update(dt);
-    for (const m of modules) m.update?.(frame);
+    let remaining = simDt;
+    while (remaining > 1e-6) {
+      const step = Math.min(remaining, 0.05);
+      remaining -= step;
+      frame.dt = step;
+      frame.time += step;
+      for (const m of modules) m.update?.(frame);
+    }
+    if (simDt <= 1e-6) frame.dt = 0;
+    window.__meridian.time = frame.time;
     audio.update(frame);
 
     renderer.info.reset();

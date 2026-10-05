@@ -5,7 +5,7 @@ import type { QualityState, QualityTier } from './types';
  *
  * A ladder of rungs trades pixel ratio (always within [0.85, 1.5]) and two feature toggles
  * (AO resolution, planar floor reflection). Frame time is averaged over 2 s windows.
- *  - Over budget (> 20 ms avg, i.e. < 50 fps): step DOWN one rung.
+ *  - Over budget (> 20 ms avg, i.e. < 50 fps; > 18.8 ms in the 12 s after an upgrade): step DOWN one rung.
  *  - Comfortably within budget (<= 17.6 ms avg, i.e. >= ~57 fps) for 3 consecutive windows, and at least
  *    10 s since the last change: step UP one rung.
  *  - Anti-oscillation: if a step UP is followed by a step DOWN within 12 s, that rung is banned from
@@ -26,9 +26,10 @@ interface Rung {
 
 /** Best (0) to cheapest. */
 const LADDER: readonly Rung[] = [
-  { pixelRatio: 1.5, planarReflections: true, aoHalfRes: false },
-  { pixelRatio: 1.35, planarReflections: true, aoHalfRes: false },
-  { pixelRatio: 1.2, planarReflections: true, aoHalfRes: false },
+  // N8AO runs at half resolution on every rung: ~+10 fps at 1.5x with no visible loss (full-res AO measured 42 vs 52 fps).
+  { pixelRatio: 1.5, planarReflections: true, aoHalfRes: true },
+  { pixelRatio: 1.35, planarReflections: true, aoHalfRes: true },
+  { pixelRatio: 1.2, planarReflections: true, aoHalfRes: true },
   { pixelRatio: 1.1, planarReflections: true, aoHalfRes: true },
   { pixelRatio: 1.0, planarReflections: true, aoHalfRes: true },
   { pixelRatio: 0.95, planarReflections: false, aoHalfRes: true },
@@ -46,6 +47,11 @@ const UP_MS = 17.6;
 const UP_WINDOWS_REQUIRED = 3;
 const MIN_SECONDS_BETWEEN_CHANGES = 10;
 const FAST_REGRESSION_S = 12;
+/**
+ * Stricter budget while a freshly upgraded rung is on probation (FAST_REGRESSION_S): a rung that only just scrapes
+ * past DOWN_MS (50-54 fps, hovering on the threshold) is rejected and banned instead of being kept.
+ */
+const PROBATION_DOWN_MS = 18.8;
 const WARMUP_S = 3;
 /** Frames longer than this are tab-switch / shader-compile hitches, not load. */
 const HITCH_MS = 250;
@@ -112,7 +118,8 @@ export class QualityController {
 
   private evaluate(avgMs: number): void {
     const level = this.state.level;
-    if (avgMs > DOWN_MS) {
+    const onProbation = this.elapsed - this.lastUpAt < FAST_REGRESSION_S;
+    if (avgMs > (onProbation ? PROBATION_DOWN_MS : DOWN_MS)) {
       this.goodWindows = 0;
       if (level < LADDER.length - 1) {
         // A downgrade soon after an upgrade means the upgraded rung is too heavy: ban it.
