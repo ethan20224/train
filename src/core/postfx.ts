@@ -13,6 +13,8 @@ import {
   VignetteEffect,
 } from 'postprocessing';
 import { N8AOPostPass } from 'n8ao';
+import { GodRayComposite, GodRayPass } from '../lighting/godrays';
+import { ExposureEffect, GoldenGradeEffect } from '../lighting/grade';
 
 /**
  * Post-processing chain (spec section 4), all in HalfFloat linear HDR until tone mapping:
@@ -32,6 +34,9 @@ export class PostFX {
   readonly vignette: VignetteEffect;
   readonly noise: NoiseEffect;
   readonly smaa: SMAAEffect;
+  readonly godRays: GodRayPass;
+  readonly exposure: ExposureEffect;
+  readonly grade: GoldenGradeEffect;
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
     this.composer = new EffectComposer(renderer, {
@@ -56,6 +61,12 @@ export class PostFX {
     this.ao.configuration.transparencyAware = false;
     this.composer.addPass(this.ao);
 
+    // Volumetric sun shafts: half-res march of the sun shadow map, composited (depth-aware) into the HDR frame
+    // BEFORE bloom so the brightest beams can glow. See lighting/godrays.ts.
+    this.godRays = new GodRayPass(camera);
+    this.composer.addPass(this.godRays);
+    this.composer.addPass(new EffectPass(camera, new GodRayComposite(this.godRays, camera)));
+
     // Only genuinely bright pixels (sky through windows, sun, emissives) bloom. Scene is linear HDR here.
     this.bloom = new BloomEffect({
       mipmapBlur: true,
@@ -65,12 +76,14 @@ export class PostFX {
       radius: 0.78,
       levels: 7,
     });
+    this.exposure = new ExposureEffect(1);
     this.toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
+    this.grade = new GoldenGradeEffect();
     this.vignette = new VignetteEffect({ offset: 0.32, darkness: 0.45 });
     this.noise = new NoiseEffect({ premultiply: true, blendFunction: BlendFunction.SCREEN });
     this.noise.blendMode.opacity.value = 0.035;
 
-    this.composer.addPass(new EffectPass(camera, this.bloom, this.toneMapping, this.vignette, this.noise));
+    this.composer.addPass(new EffectPass(camera, this.bloom, this.exposure, this.toneMapping, this.grade, this.vignette, this.noise));
 
     this.smaa = new SMAAEffect({ preset: SMAAPreset.HIGH });
     this.composer.addPass(new EffectPass(camera, this.smaa));
