@@ -95,6 +95,7 @@ async function boot(): Promise<void> {
   const resize = (): void => {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    if (w < 1 || h < 1) return; // minimised / hidden window: aspect would be NaN and the post targets 0 x 0
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(quality.state.pixelRatio);
