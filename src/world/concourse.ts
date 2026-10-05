@@ -20,7 +20,7 @@ export async function buildConcourse(ctx: BuildContext): Promise<WorldModule> {
 
   const bag = (m: MaterialName, tile?: number): GeoBag => new GeoBag(materials, m, tile);
   const bags: Bags = {
-    stone: bag('wallStone', 7.0),
+    stone: bag('wallStone', 11.0),
     dark: bag('darkMarble'),
     col: bag('columnMarble'),
     floor: bag('floorMarble'),
@@ -40,8 +40,10 @@ export async function buildConcourse(ctx: BuildContext): Promise<WorldModule> {
 
   // --- floor material: polished, subtle normal ---------------------------------------------------
   const floorMat = materials.get('floorMarble').clone();
-  floorMat.roughness = 0.12;
-  floorMat.envMapIntensity = 1.3;
+  // The env cube is captured once at one point (no parallax), so a near-mirror floor (roughness 0.12) reflected a
+  // blocky, wrong-perspective copy of the lunette / arches that read as mottled shadow. 0.34 keeps a soft sheen.
+  floorMat.roughness = 0.34;
+  floorMat.envMapIntensity = 0.7;
   if (floorMat.normalScale) floorMat.normalScale.set(0.25, 0.25);
   const darkMat = materials.get('darkMarble').clone();
   darkMat.roughness = 0.26;

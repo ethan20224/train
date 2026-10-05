@@ -98,7 +98,7 @@ export async function buildLighting(ctx: BuildContext): Promise<WorldModule> {
   sun.shadow.mapSize.set(texW, texH);
   sun.shadow.bias = -0.00012;
   sun.shadow.normalBias = 0.04;
-  sun.shadow.radius = 1.6;
+  sun.shadow.radius = 2.6; // soft far shadows (sun disc penumbra ~ distance x 0.009)
   root.add(sun, sun.target);
   lookShared.sun = sun;
 
