@@ -1,3 +1,5 @@
+import { TRACKS } from '../layout';
+
 /**
  * Ticket state store (Phase 4 spec "Systems"). Dependency-free so Node tests can import it.
  * Writers: the interaction system (issues tickets). Readers: gates (open lanes), navigation
@@ -14,6 +16,28 @@ export interface Ticket {
   car: number;
   seat: number;
   serial: string;
+}
+
+/** Frozen terminal clock is 6:47; tickets depart a few minutes later. */
+const DEPARTURE_MINUTES = [51, 52, 52, 53, 54, 55] as const;
+
+/**
+ * Compose a ticket for a chosen destination and track index. Pure (no globals) apart from `rnd`
+ * (defaults to Math.random) so tests stay deterministic when they pass a seeded generator.
+ */
+export function buildTicket(destination: string, track: number, rnd: () => number = Math.random): Ticket {
+  const t = TRACKS[track];
+  if (!t) throw new Error(`buildTicket: bad track index ${track}`);
+  const minute = DEPARTURE_MINUTES[Math.floor(rnd() * DEPARTURE_MINUTES.length)] ?? 52;
+  return {
+    destination,
+    platform: t.platformNumber,
+    track,
+    departs: `6:${String(minute).padStart(2, '0')}`,
+    car: 1 + Math.floor(rnd() * 5),
+    seat: 1 + Math.floor(rnd() * 40),
+    serial: `GM-${String(1000 + Math.floor(rnd() * 9000)).padStart(6, '0')}`,
+  };
 }
 
 type Listener = (t: Ticket | null) => void;

@@ -1,8 +1,9 @@
 // Node self-test for src/player/navigation.ts. Run: npm run nav-test  (tsx)
 import { Vector3 } from 'three';
 import assert from 'node:assert/strict';
-import { heightAt, resolve } from '../src/player/navigation';
-import { COLONNADE, ISLANDS, KIOSK, PLAYER, START_POSE, TRACKS } from '../src/layout';
+import { heightAt, resolve, setRequireTicketOverride } from '../src/player/navigation';
+import { COLONNADE, FOOTBRIDGE, GATES, ISLANDS, KIOSK, PLAYER, START_POSE, TRACKS, gateLaneCentersX } from '../src/layout';
+import { tickets, type Ticket } from '../src/core/ticket';
 
 let passed = 0;
 function test(name: string, fn: () => void): void {
@@ -26,7 +27,10 @@ function walk(from: Vector3, to: Vector3, step = 0.08): Vector3 {
   }
   return p;
 }
-const v = (x: number, z: number) => new Vector3(x, heightAt(x, z) ?? 0, z);
+const v = (x: number, z: number, y?: number) => new Vector3(x, heightAt(x, z, y) ?? 0, z);
+const TICKET: Ticket = { destination: 'HOLLOW BAY', platform: 4, track: 3, departs: '6:52', car: 2, seat: 11, serial: 'GM-004718' };
+tickets.set(null);
+setRequireTicketOverride(true); // gated behaviour under test; the shipped switch GATES.requireTicket may be off
 
 test('start pose is walkable at y = 6', () => {
   const [x, y, z] = START_POSE.position;
@@ -76,8 +80,9 @@ test('cannot step off the balcony edge outside the stair opening; can through it
 
 test('full route: balcony -> stair -> concourse -> centre arch -> island B z = 370', () => {
   const waypoints: Array<[number, number]> = [
-    [0, 3], [0, 22], [10, 40], [10, 70], [0, 96], [0, 101], [0, 104], [0, 112], [0, 370],
+    [0, 3], [0, 22], [10, 40], [10, 70], [0, 96], [0, 101], [0, 104], [0, 112], [3, 130], [3, 370],
   ];
+  tickets.set(TICKET); // the gate lanes are open only with a ticket
   let p = v(...(waypoints[0] as [number, number]));
   for (const [x, z] of waypoints.slice(1)) {
     p = walk(p, new Vector3(x, 0, z));
@@ -85,21 +90,179 @@ test('full route: balcony -> stair -> concourse -> centre arch -> island B z = 3
     near(p.z, z, 0.15, `reached z of waypoint ${x},${z}`);
   }
   near(p.y, 0, 1e-6, 'ends at platform level');
-  const end = walk(p, new Vector3(0, 0, 500));
+  const end = walk(p, new Vector3(3, 0, 500));
   near(end.z, 379.5, 1e-3, 'island B ends at z = 379.5');
+  tickets.set(null);
 });
 
-test('fuzz: 200k random moves never leave the walkable set (incl. big single moves)', () => {
-  let seed = 12345;
+function fuzz(label: string, start: Vector3, n: number, seed0: number, holdTicket: boolean): Set<number> {
+  tickets.set(holdTicket ? TICKET : null);
+  let seed = seed0;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-  let p = v(...([0, 3] as [number, number]));
-  for (let i = 0; i < 200000; i++) {
+  let p = start.clone();
+  const levels = new Set<number>();
+  for (let i = 0; i < n; i++) {
     const ang = rnd() * Math.PI * 2;
     const len = rnd() < 0.05 ? rnd() * 20 : rnd() * 0.4;
-    const n = new Vector3(p.x + Math.cos(ang) * len, 0, p.z + Math.sin(ang) * len);
-    p = resolve(p, n);
-    assert.notEqual(heightAt(p.x, p.z), null, `left walkable set at (${p.x}, ${p.z}) on iteration ${i}`);
+    const nx = new Vector3(p.x + Math.cos(ang) * len, 0, p.z + Math.sin(ang) * len);
+    p = resolve(p, nx);
+    assert.notEqual(heightAt(p.x, p.z, p.y), null, `${label}: left walkable set at (${p.x}, ${p.y}, ${p.z}) on iteration ${i}`);
+    levels.add(Math.round(p.y));
   }
+  return levels;
+}
+
+test('fuzz: 200k random moves from the balcony never leave the walkable set (no ticket, then ticket)', () => {
+  fuzz('balcony/no-ticket', v(0, 3), 100000, 12345, false);
+  fuzz('balcony/ticket', v(0, 3), 100000, 777, true);
+  tickets.set(null);
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// Phase 4: levels, footbridge, gates
+// --------------------------------------------------------------------------------------------------------------------
+const B = FOOTBRIDGE.stairCentersX[1]; // island B stair centre x = 0
+const deckY = FOOTBRIDGE.deckTopY;
+
+test('deck over island B resolves to the right level from above and from below', () => {
+  near(heightAt(0, 228, deckY)!, deckY, 1e-9, 'deck from above');
+  near(heightAt(0, 228, 0)!, 0, 1e-9, 'ground under the deck from below');
+  assert.equal(heightAt(0, 228, 3.5), null, 'mid-air between deck and ground is not walkable');
+  const above = walk(v(0, 227.5, deckY), new Vector3(3, 0, 228.6));
+  near(above.y, deckY, 1e-9, 'stays on the deck');
+  const below = walk(v(0, 227.5, 0), new Vector3(3, 0, 228.6));
+  near(below.y, 0, 1e-9, 'stays on the ground');
+  assert.equal(heightAt(0, 228), 0, 'no nearY = lowest level');
+});
+
+test('climb and descend every bridge stair (real stepping through resolve)', () => {
+  for (const c of FOOTBRIDGE.stairCentersX) {
+    let p = v(c, 200, 0);
+    p = walk(p, new Vector3(c, 0, FOOTBRIDGE.stairBottomZ - 0.5));
+    near(p.y, 0, 1e-6, `stair ${c}: at the foot`);
+    p = walk(p, new Vector3(c, 0, 227.5));
+    near(p.z, 227.5, 0.02, `stair ${c}: reached the deck z`);
+    near(p.y, deckY, 1e-6, `stair ${c}: arrived on the deck`);
+    // monotone climb
+    let q = v(c, FOOTBRIDGE.stairBottomZ - 0.5, 0);
+    let prevY = q.y;
+    for (let z = FOOTBRIDGE.stairBottomZ - 0.5; z < FOOTBRIDGE.stairTopZ + 0.5; z += 0.08) {
+      q = resolve(q, new Vector3(c, 0, z + 0.08));
+      assert.ok(q.y >= prevY - 1e-9, `stair ${c}: y dropped while climbing at z=${z}`);
+      assert.ok(q.y - prevY < 0.06, `stair ${c}: y jumped ${q.y - prevY}`);
+      prevY = q.y;
+    }
+    near(q.y, deckY, 1e-6, `stair ${c}: top`);
+    // back down
+    const d = walk(p, new Vector3(c, 0, 200));
+    near(d.y, 0, 1e-6, `stair ${c}: descended to ground`);
+    near(d.z, 200, 0.02, `stair ${c}: descended all the way`);
+  }
+});
+
+test('cannot cross the deck to another stair top without walking the deck; can cross it end to end', () => {
+  let p = v(-20, 227.5, deckY);
+  p = walk(p, new Vector3(20, 0, 227.5));
+  near(p.x, 20, 0.02, 'crossed the deck');
+  near(p.y, deckY, 1e-9, 'still at deck level');
+  const down = walk(p, new Vector3(20, 0, 205));
+  near(down.y, 0, 1e-6, 'descended the C stair');
+});
+
+test('cannot fall off the deck edges (south rail, north rail, ends)', () => {
+  const edgeS = walk(v(5, 227.5, deckY), new Vector3(5, 0, 215));
+  near(edgeS.y, deckY, 1e-9, 'south: still on the deck');
+  assert.ok(edgeS.z >= FOOTBRIDGE.zMin, `south edge z=${edgeS.z}`);
+  const edgeN = walk(v(5, 227.5, deckY), new Vector3(5, 0, 240));
+  near(edgeN.y, deckY, 1e-9, 'north: still on the deck');
+  assert.ok(edgeN.z <= FOOTBRIDGE.zMax, `north edge z=${edgeN.z}`);
+  const endE = walk(v(5, 227.5, deckY), new Vector3(40, 0, 227.5));
+  near(endE.y, deckY, 1e-9, 'east end: still on the deck');
+  assert.ok(endE.x <= FOOTBRIDGE.walkXMax, `east end x=${endE.x}`);
+  const endW = walk(v(-5, 227.5, deckY), new Vector3(-40, 0, 227.5));
+  assert.ok(endW.x >= FOOTBRIDGE.walkXMin && endW.y === deckY, `west end x=${endW.x}`);
+  const big = resolve(v(5, 227.5, deckY), new Vector3(5, 0, 100));
+  near(big.y, deckY, 1e-9, 'one big move cannot drop off the deck');
+});
+
+test('cannot walk under a stair (either side, or from the north)', () => {
+  for (const c of FOOTBRIDGE.stairCentersX) {
+    const fromWest = walk(v(c - 3.5, 220, 0), new Vector3(c, 0, 220));
+    assert.ok(fromWest.x <= c - FOOTBRIDGE.stairHalfWidth - PLAYER.radius + 1e-6, `stair ${c}: west side x=${fromWest.x}`);
+    near(fromWest.y, 0, 1e-9, 'west side stays at ground');
+    const fromEast = walk(v(c + 3.5, 220, 0), new Vector3(c, 0, 220));
+    assert.ok(fromEast.x >= c + FOOTBRIDGE.stairHalfWidth + PLAYER.radius - 1e-6, `stair ${c}: east side x=${fromEast.x}`);
+    const fromNorth = walk(v(c, 228.5, 0), new Vector3(c, 0, 218));
+    assert.ok(fromNorth.z >= FOOTBRIDGE.stairTopZ - 1e-6 && fromNorth.y === 0, `stair ${c}: from the north z=${fromNorth.z} y=${fromNorth.y}`);
+    // each side of the island is passable beside the stair (route around it)
+    const west = walk(v(c - 3.5, 205, 0), new Vector3(c - 3.5, 0, 240));
+    near(west.z, 240, 0.02, `stair ${c}: west lane passes the stair`);
+    const east = walk(v(c + 3.5, 205, 0), new Vector3(c + 3.5, 0, 240));
+    near(east.z, 240, 0.02, `stair ${c}: east lane passes the stair`);
+  }
+});
+
+test('gate band: blocked without a ticket everywhere; open only through lanes with one', () => {
+  tickets.set(null);
+  for (const x of [-27, -20, -13.3, -1.4, 0, 4, 14, 20, 28]) {
+    const p = walk(v(x, 90), new Vector3(x, 0, 100));
+    assert.ok(p.z < GATES.zMin, `no ticket: x=${x} reached z=${p.z}`);
+  }
+  const big = resolve(v(0, 93), new Vector3(0, 0, 99));
+  assert.ok(big.z < GATES.zMin, 'one big move cannot jump the band without a ticket');
+  tickets.set(TICKET);
+  let passed = 0;
+  for (const lx of gateLaneCentersX()) {
+    const p = walk(v(lx, 90), new Vector3(lx, 0, 100));
+    assert.ok(Math.abs(p.z - 100) < 0.05 + 0.5 && p.z > GATES.zMax, `ticket: lane x=${lx} stopped at z=${p.z}`);
+    passed++;
+  }
+  assert.equal(passed, 21);
+  // between lanes (the cabinet) and on the glass screens stays blocked even with a ticket
+  for (const x of [-20 + 0.7, 0.7, -27, -10, 10, 28]) {
+    const p = walk(v(x, 90), new Vector3(x, 0, 100));
+    assert.ok(p.z < GATES.zMin, `ticket but not in a lane: x=${x} reached z=${p.z}`);
+  }
+  // and back out again (exit through a lane)
+  const back = walk(v(0, 98), new Vector3(0, 0, 90));
+  assert.ok(back.z < 91, 'exit through a lane while holding a ticket');
+  tickets.set(null);
+});
+
+test('never trapped: a lane that closes while the player is inside still lets them out', () => {
+  tickets.set(TICKET);
+  let p = walk(v(0, 90), new Vector3(0, 0, 95));
+  near(p.z, 95, 0.1, 'standing in the lane');
+  tickets.set(null);
+  const out = walk(p, new Vector3(0, 0, 99));
+  assert.ok(out.z > 96, `could leave forward, z=${out.z}`);
+  tickets.set(TICKET);
+  p = walk(v(0, 90), new Vector3(0, 0, 95));
+  tickets.set(null);
+  const outBack = walk(p, new Vector3(0, 0, 90));
+  assert.ok(outBack.z < 92, `could leave backward, z=${outBack.z}`);
+  const after = walk(outBack, new Vector3(0, 0, 99));
+  assert.ok(after.z < GATES.zMin, 'once out and ticketless, the lane is closed again');
+});
+
+test('fuzz on the deck, on island A under the bridge, and through the gates (both ticket states)', () => {
+  const lv1 = fuzz('deck/no-ticket', v(0, 227.5, deckY), 100000, 4242, false);
+  assert.deepEqual([...lv1].sort((a, b) => a - b).filter((n) => n === 7).length, 1, 'fuzz stayed on the deck level at least');
+  const lv2 = fuzz('islandA/ticket', v(-20, 150, 0), 150000, 99, true);
+  assert.ok(lv2.has(0) && lv2.has(7), `ticket fuzz visited ground and deck levels: ${[...lv2]}`);
+  fuzz('gates/ticket', v(0, 85), 100000, 31337, true);
+  fuzz('gates/no-ticket', v(0, 85), 100000, 4, false);
+  tickets.set(null);
+});
+
+test('switch off: lanes open without a ticket; band still blocked between lanes', () => {
+  setRequireTicketOverride(false);
+  tickets.set(null);
+  const lane = walk(v(0, 90), new Vector3(0, 0, 100));
+  assert.ok(lane.z > GATES.zMax, `free passage, z=${lane.z}`);
+  const cab = walk(v(0.7, 90), new Vector3(0.7, 0, 100));
+  assert.ok(cab.z < GATES.zMin, 'cabinets still solid');
+  setRequireTicketOverride(true);
 });
 
 console.log(`\n${passed} tests passed`);

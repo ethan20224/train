@@ -14,6 +14,35 @@ const ACCEL_TIME = 40; // s
 const FIRST_ARRIVAL = 6; // s after load
 const VOICE_ANCHOR_Z = 18; // roughly the cab / locomotive
 
+/** A ticket-reserved train dwells this long (s). */
+const RESERVED_DWELL = 90;
+/** A requested train begins its braking (arrival) this many seconds after the request (it is spawned in the fog). */
+const REQUEST_ARRIVAL_DELAY = 7;
+
+/**
+ * Phase 4: ticket-driven control of the scheduler. Set by buildTrains(); methods are safe no-ops before that.
+ * Track indices are indices into TRACKS.
+ */
+export interface TrainControl {
+  /** Tracks with no train present (arriving, dwelling or departing) and no reservation. */
+  freeTracks(): number[];
+  /** Tracks whose train is stopped or braking (a fallback when no slot is free for a new train). */
+  occupiedTracks(): number[];
+  /** True if a free pool slot exists to spawn a train. */
+  hasFreeSlot(): boolean;
+  /** Reserve the track: extend its dwelling train, or spawn one that arrives promptly. Returns false if impossible. */
+  requestTrain(track: number): boolean;
+  /** Currently reserved track indices. */
+  reservedTracks(): number[];
+}
+export const trainControl: TrainControl = {
+  freeTracks: () => [],
+  occupiedTracks: () => [],
+  hasFreeSlot: () => false,
+  requestTrain: () => false,
+  reservedTracks: () => [],
+};
+
 type Phase = 'cruiseIn' | 'brake' | 'dwell' | 'accel' | 'cruiseOut';
 
 /** Smootherstep and its integral. */
@@ -35,6 +64,8 @@ interface Slot {
   cruiseInTime: number;
   speed: number;
   nose: number;
+  /** Reserved by a ticket: keeps its track, dwells RESERVED_DWELL s. */
+  reserved: boolean;
 }
 
 const rand = (a: number, b: number): number => a + Math.random() * (b - a);
@@ -58,7 +89,7 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
     // Parked far in the haze but visible until finalize(): the one-time shader compile must see these materials.
     holder.position.set(0, 0, TRAIN_ROUTE.despawnZ + 200);
     root.add(holder);
-    slots.push({ root: holder, anchor, model, voice: null, active: false, track: null, t: 0, phase: 'cruiseIn', v0: 22, brakeTime: 0, dwell: 30, cruiseInTime: 0, speed: 0, nose: 0 });
+    slots.push({ root: holder, anchor, model, voice: null, active: false, track: null, t: 0, phase: 'cruiseIn', v0: 22, brakeTime: 0, dwell: 30, cruiseInTime: 0, speed: 0, nose: 0, reserved: false });
   }
 
   let nextArrival = FIRST_ARRIVAL;
@@ -67,7 +98,7 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
 
   const freeTrack = (): TrackDef | null => {
     const used = new Set(slots.filter((s) => s.active).map((s) => s.track));
-    const free = TRACKS.filter((t) => !used.has(t));
+    const free = TRACKS.filter((t) => !used.has(t) && !slots.some((s) => s.reserved && s.track === t));
     if (free.length === 0) return null;
     const pool = free.length > 1 ? free.filter((t) => t !== lastTrack) : free;
     return pool[Math.floor(Math.random() * pool.length)] ?? null;
@@ -127,6 +158,7 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
     s.voice = null;
     s.active = false;
     s.track = null;
+    s.reserved = false;
     s.root.visible = false;
   };
 
@@ -137,6 +169,7 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
     s.brakeTime = (2 * BRAKE_DIST) / s.v0;
     s.cruiseInTime = (TRAIN_ROUTE.spawnZ - (RAIL.trainStopNoseZ + BRAKE_DIST)) / s.v0;
     s.dwell = opts.dwell ?? rand(25, 40);
+    s.reserved = false;
     s.phase = opts.phase ?? 'cruiseIn';
     s.t = opts.t ?? 0;
     setLivery(s.model, livery++);
@@ -166,8 +199,49 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
     nextArrival = 70;
   }
 
+  const trackIndex = (t: TrackDef | null): number => (t ? TRACKS.indexOf(t) : -1);
+
+  trainControl.freeTracks = () =>
+    TRACKS.map((_, i) => i).filter((i) => !slots.some((s) => s.active && trackIndex(s.track) === i));
+  trainControl.occupiedTracks = () =>
+    slots.filter((s) => s.active && (s.phase === 'dwell' || s.phase === 'brake')).map((s) => trackIndex(s.track));
+  trainControl.hasFreeSlot = () => slots.some((s) => !s.active);
+  trainControl.reservedTracks = () => slots.filter((s) => s.active && s.reserved).map((s) => trackIndex(s.track));
+  trainControl.requestTrain = (track: number): boolean => {
+    const def = TRACKS[track];
+    if (!def) return false;
+    // A new ticket replaces the old reservation (that train just keeps its current dwell).
+    const onTrack = slots.find((s) => s.active && s.track === def);
+    for (const s of slots) if (s !== onTrack) s.reserved = false;
+    if (onTrack) {
+      onTrack.reserved = true;
+      if (onTrack.phase === 'dwell') onTrack.dwell = Math.max(onTrack.dwell, onTrack.t + RESERVED_DWELL);
+      else if (onTrack.phase === 'brake' || onTrack.phase === 'cruiseIn') {
+        onTrack.dwell = RESERVED_DWELL;
+        // A train still in the far haze is brought closer (invisible in the fog) so it arrives promptly.
+        if (onTrack.phase === 'cruiseIn') onTrack.t = Math.max(onTrack.t, onTrack.cruiseInTime - REQUEST_ARRIVAL_DELAY);
+      } else return false; // already leaving: cannot be held
+      return true;
+    }
+    let slot = slots.find((s) => !s.active);
+    if (!slot) {
+      // Pool exhausted: recycle a train that is already departing far away in the fog.
+      slot = slots.find((s) => s.active && s.phase === 'cruiseOut' && s.nose > 500);
+      if (slot) deactivate(slot);
+    }
+    if (!slot) return false;
+    activate(slot, def, { phase: 'cruiseIn', t: 0, dwell: RESERVED_DWELL });
+    // Spawn nearer than TRAIN_ROUTE.spawnZ: braking begins REQUEST_ARRIVAL_DELAY s from now (still ~800 m out, in fog).
+    slot.t = Math.max(0, slot.cruiseInTime - REQUEST_ARRIVAL_DELAY);
+    evaluate(slot);
+    slot.root.position.z = slot.nose;
+    slot.reserved = true;
+    return true;
+  };
+
   window.__meridian.trains = () => ({
     ...stats,
+    reserved: trainControl.reservedTracks().map((i) => TRACKS[i]?.id),
     trains: slots.map((s, i) => ({
       slot: i,
       active: s.active,
@@ -176,6 +250,7 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
       noseZ: s.nose,
       speed: s.speed,
       visible: s.root.visible,
+      reserved: s.reserved,
     })),
   });
 

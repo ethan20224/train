@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { AudioEngine, FrameInfo, TrainVoice } from '../core/types';
-import { CROSS_PLATFORM, KIOSK } from '../layout';
+import { CONCIERGE, CROSS_PLATFORM, KIOSK } from '../layout';
 
 /**
  * Fully procedural Web Audio for Grand Meridian Terminal. No sound files, nothing plays before start().
@@ -793,11 +793,168 @@ class Engine implements AudioEngine {
   // Phase 4 one-shots (STUB no-ops — implemented by Phase 4A)
   // -------------------------------------------------------------------------------------------------------------------
 
-  bell(): void {}
+  /** Positional one-shot output: HRTF panner at `pos` feeding the dry bus and (scaled) the hall reverb. */
+  private oneShotOut(bus: Bus, pos: THREE.Vector3, refDistance: number, reverbSend: number): GainNode {
+    const { ctx } = bus;
+    const p = ctx.createPanner();
+    p.panningModel = 'HRTF';
+    p.distanceModel = 'inverse';
+    p.refDistance = refDistance;
+    p.rolloffFactor = 1.2;
+    p.maxDistance = 300;
+    if (p.positionX) {
+      p.positionX.value = pos.x;
+      p.positionY.value = pos.y;
+      p.positionZ.value = pos.z;
+    } else {
+      (p as unknown as { setPosition(x: number, y: number, z: number): void }).setPosition(pos.x, pos.y, pos.z);
+    }
+    const input = ctx.createGain();
+    input.connect(p);
+    p.connect(bus.dry);
+    const sg = ctx.createGain();
+    sg.gain.value = reverbSend;
+    p.connect(sg).connect(bus.send);
+    return input;
+  }
 
-  ticket(): void {}
+  /** Concierge brass service bell: a struck bell, inharmonic partials, thrown hard into the hall. */
+  bell(): void {
+    const bus = this.bus;
+    if (!bus || !this.started) return;
+    const { ctx } = bus;
+    const t = ctx.currentTime + 0.005;
+    const r = Math.random;
+    const f0 = 1620 + r() * 380; // small desk bell
+    const out = this.oneShotOut(bus, new THREE.Vector3(...CONCIERGE.bell), 2.5, 2.4);
 
-  gate(_position: THREE.Vector3, _open: boolean): void {}
+    // Struck partials (hemispherical bell: ~1 : 2.76 : 5.4 : 8.9), higher ones die faster. Each pair is slightly
+    // detuned so the bell has the gentle beating shimmer of real brass.
+    const partials: ReadonlyArray<readonly [ratio: number, level: number, decay: number]> = [
+      [1, 0.32, 2.7],
+      [2.76, 0.2, 1.7],
+      [5.4, 0.11, 0.9],
+      [8.93, 0.045, 0.45],
+    ];
+    for (const [ratio, level, decay] of partials) {
+      for (const detune of [1, 1.0045]) {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = f0 * ratio * detune;
+        const g = ctx.createGain();
+        pluck(g, t, level * 0.55, decay, 0.0012);
+        o.connect(g).connect(out);
+        o.start(t);
+        o.stop(t + decay + 0.2);
+      }
+    }
+    // Strike transient: a tiny bright tick (clapper on brass).
+    const tick = ctx.createBufferSource();
+    tick.buffer = bus.white;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 3200;
+    const tg = ctx.createGain();
+    pluck(tg, t, 0.22, 0.012, 0.0005);
+    tick.connect(hp).connect(tg).connect(out);
+    tick.start(t, r() * 2, 0.04);
+  }
+
+  /** Ticket collected: soft paper slide (filtered noise sweep) then a muffled rubber-stamp thump. */
+  ticket(): void {
+    const bus = this.bus;
+    if (!bus || !this.started) return;
+    const { ctx } = bus;
+    const t = ctx.currentTime + 0.01;
+    const out = ctx.createGain();
+    out.gain.value = 1;
+    out.connect(bus.dry);
+    const sg = ctx.createGain();
+    sg.gain.value = 0.45;
+    out.connect(sg).connect(bus.send);
+
+    // Paper slide: bandpassed noise whose centre rises, with a soft swell and a faint dry "fibre" high band.
+    const paper = ctx.createBufferSource();
+    paper.buffer = bus.white;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(1100, t);
+    bp.frequency.exponentialRampToValueAtTime(3600, t + 0.34);
+    const pg = ctx.createGain();
+    pg.gain.setValueAtTime(0.00001, t);
+    pg.gain.linearRampToValueAtTime(0.2, t + 0.09);
+    pg.gain.linearRampToValueAtTime(0.14, t + 0.24);
+    pg.gain.exponentialRampToValueAtTime(0.00001, t + 0.4);
+    paper.connect(bp).connect(pg).connect(out);
+    paper.start(t, Math.random() * 2, 0.45);
+
+    // Stamp: low rubber thump + a dull, low-passed "pad on paper" noise burst.
+    const ts = t + 0.46;
+    const th = ctx.createOscillator();
+    th.type = 'sine';
+    th.frequency.setValueAtTime(150, ts);
+    th.frequency.exponentialRampToValueAtTime(58, ts + 0.12);
+    const thg = ctx.createGain();
+    pluck(thg, ts, 0.5, 0.16, 0.003);
+    th.connect(thg).connect(out);
+    th.start(ts);
+    th.stop(ts + 0.25);
+    const pad = ctx.createBufferSource();
+    pad.buffer = bus.white;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 650;
+    const pdg = ctx.createGain();
+    pluck(pdg, ts, 0.38, 0.07, 0.002);
+    pad.connect(lp).connect(pdg).connect(out);
+    pad.start(ts, Math.random() * 2, 0.12);
+  }
+
+  /** Gate paddles: a short pneumatic swish and a soft mechanical clunk, positional. */
+  gate(position: THREE.Vector3, open: boolean): void {
+    const bus = this.bus;
+    if (!bus || !this.started) return;
+    const { ctx } = bus;
+    const t = ctx.currentTime + 0.005;
+    const out = this.oneShotOut(bus, position, 3, 0.7);
+
+    const air = ctx.createBufferSource();
+    air.buffer = bus.white;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.1;
+    const [f1, f2] = open ? [900, 2600] : [2400, 800];
+    bp.frequency.setValueAtTime(f1, t);
+    bp.frequency.exponentialRampToValueAtTime(f2, t + 0.26);
+    const ag = ctx.createGain();
+    ag.gain.setValueAtTime(0.00001, t);
+    ag.gain.linearRampToValueAtTime(0.22, t + 0.06);
+    ag.gain.exponentialRampToValueAtTime(0.00001, t + 0.3);
+    air.connect(bp).connect(ag).connect(out);
+    air.start(t, Math.random() * 2, 0.35);
+
+    // Clunk when the paddles reach their stops: opening = end of the swing, closing = end of the swing too.
+    const tc = t + 0.24;
+    const body = ctx.createOscillator();
+    body.type = 'triangle';
+    body.frequency.setValueAtTime(open ? 130 : 105, tc);
+    body.frequency.exponentialRampToValueAtTime(60, tc + 0.1);
+    const bg = ctx.createGain();
+    pluck(bg, tc, 0.32, 0.12, 0.002);
+    body.connect(bg).connect(out);
+    body.start(tc);
+    body.stop(tc + 0.2);
+    const click = ctx.createBufferSource();
+    click.buffer = bus.white;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1500;
+    const cg = ctx.createGain();
+    pluck(cg, tc, 0.2, 0.03, 0.001);
+    click.connect(lp).connect(cg).connect(out);
+    click.start(tc, Math.random() * 2, 0.05);
+  }
 
   // -------------------------------------------------------------------------------------------------------------------
   // Trains, listener, update

@@ -32,12 +32,24 @@ const START: Entry[] = [
   { time: '07:35', dest: 'NOWHERE JUNCTION', plat: '5', rem: '—' },
 ];
 
-const DESTS = [
+export const DESTS = [
   'ELSEWHERE', 'HOLLOW BAY', 'THE LAST SUMMER', 'MERIDIAN', 'VESPER FALLS', 'ASHGROVE', 'HALCYON', 'NOWHERE JUNCTION',
   'DUSKHAVEN', 'THE QUIET HOURS', 'LANTERN SOUND', 'PAPER HARBOUR', 'SOMEWHERE ELSE', 'THE LONG WAY', 'LOW MERIDIAN', 'OLD NOSTALGIA',
 ];
 const REMARKS = ['ON TIME', 'ON TIME', 'ON TIME', 'BOARDING', 'DELAYED', '—'];
 const FLAP_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+/**
+ * Phase 4 hook: the ticket system forces one row to a specific entry (flap animation) and can read which
+ * destinations are on the board. Set by buildBoard(); null before the board exists.
+ */
+export interface BoardControl {
+  /** Re-flap one row (the one whose time is nearest `entry.time`) to `entry`; it then stays until the next call. */
+  forceRow(entry: Entry): void;
+  /** Destinations currently on the board (including a pending forced one). */
+  destinations(): string[];
+}
+export let boardControl: BoardControl | null = null;
 
 export interface BoardRig {
   mesh: THREE.Mesh;
@@ -183,13 +195,21 @@ export function buildBoard(renderer: THREE.WebGLRenderer): BoardRig {
   let flap: Flap | null = null;
   let nextAt = 14 + rand() * 8;
   let lastRow = -1;
+  let pendingForce: Entry | null = null;
+  let lockedRow = -1; // the row last forced by a ticket: random flaps leave it alone
+  const toMin = (t: string): number => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+  boardControl = {
+    forceRow(entry: Entry): void {
+      pendingForce = { ...entry };
+    },
+    destinations: () => [...rows.map((r) => r.dest), ...(pendingForce ? [pendingForce.dest] : [])],
+  };
 
   const pickEntry = (row: number): Entry => {
     const cur = rows[row]!;
     let dest = cur.dest;
     while (dest === cur.dest || rows.some((r, i) => i !== row && r.dest === dest)) dest = DESTS[Math.floor(rand() * DESTS.length)]!;
     // keep the list in time order: nudge this row's time forward, never past the next row
-    const toMin = (t: string): number => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
     const own = toMin(cur.time);
     const nxt = rows[row + 1] ? toMin(rows[row + 1]!.time) : own + 20;
     const mins = Math.min(own + 1 + Math.floor(rand() * 3), Math.max(own, nxt - 1));
@@ -204,9 +224,28 @@ export function buildBoard(renderer: THREE.WebGLRenderer): BoardRig {
     mesh,
     update(f: FrameInfo): void {
       if (!flap) {
+        if (pendingForce) {
+          // nearest row by time, never the same one twice running if another is equally close
+          let row = 0;
+          let best = Infinity;
+          const want = toMin(pendingForce.time);
+          rows.forEach((r, i) => {
+            const d = Math.abs(toMin(r.time) - want) + (i === lockedRow ? 0.5 : 0);
+            if (d < best) {
+              best = d;
+              row = i;
+            }
+          });
+          lockedRow = row;
+          lastRow = row;
+          flap = { row, t0: f.time, from: { ...rows[row]! }, to: pendingForce, last: -1 };
+          pendingForce = null;
+          return;
+        }
         if (f.time >= nextAt) {
           let row = Math.floor(rand() * rows.length);
-          if (row === lastRow) row = (row + 3) % rows.length;
+          if (row === lastRow || row === lockedRow) row = (row + 3) % rows.length;
+          if (row === lockedRow) row = (row + 1) % rows.length;
           lastRow = row;
           flap = { row, t0: f.time, from: { ...rows[row]! }, to: pickEntry(row), last: -1 };
         }

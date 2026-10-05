@@ -6,6 +6,10 @@ import type { BuildContext, FrameInfo, WorldModule } from './core/types';
 import { createMaterialLibrary } from './materials/library';
 import { PlayerControls } from './player/controls';
 import { UI } from './ui/intro';
+import { TicketUI } from './ui/ticketUi';
+import { Interaction } from './core/interaction';
+import { tickets, type Ticket } from './core/ticket';
+import { setRequireTicketOverride } from './player/navigation';
 import { createAudioEngine } from './audio/audio';
 import { buildAtmosphere } from './lighting/atmosphere';
 import { buildLighting } from './lighting/lighting';
@@ -44,6 +48,14 @@ declare global {
       trains?: () => unknown;
       /** Seconds of simulated time (sum of scaled dt). */
       time?: number;
+      /** Phase 4: the held ticket (null when none). */
+      ticket?: Ticket | null;
+      /** Phase 4 debug: perform E as if pressed (ignores pointer lock). Returns what was acted on, or null. */
+      interact?: () => 'window' | 'bell' | null;
+      /** Test-only: force the gate ticket requirement on/off (null = GATES.requireTicket). */
+      setRequireTicket?: (v: boolean | null) => void;
+      /** Phase 4 debug: ticket UI state. */
+      ticketUi?: () => { card: string; badge: boolean; prompt: string };
     };
   }
 }
@@ -59,6 +71,7 @@ const timescale = Math.min(60, Math.max(0.1, Number(params.get('timescale')) || 
 window.__meridian = { fps: 0, drawCalls: 0, triangles: 0, ready: false, timescale };
 
 const ui = new UI();
+const ticketUi = new TicketUI();
 
 /** Monotonic loading progress shown on the intro line. */
 let progress = 0;
@@ -118,6 +131,18 @@ async function boot(): Promise<void> {
   }
 
   Object.assign(window.__meridian, { camera, renderer, scene, quality: quality.state, feet: controls.feet, locked: () => controls.isLocked });
+  const interaction = new Interaction({
+    camera,
+    feet: controls.feet,
+    audio,
+    ui: ticketUi,
+    isLocked: () => controls.isLocked,
+    disabled: !!camPreset,
+  });
+  Object.defineProperty(window.__meridian, 'ticket', { get: () => tickets.held, enumerable: true, configurable: true });
+  window.__meridian.interact = () => interaction.perform() as 'window' | 'bell' | null;
+  window.__meridian.setRequireTicket = setRequireTicketOverride;
+  window.__meridian.ticketUi = () => ticketUi.debugState;
   const ctx: BuildContext = { renderer, scene, camera, materials, audio, quality: quality.state };
 
   // --- build all modules in parallel -------------------------------------------------------------
@@ -166,6 +191,7 @@ async function boot(): Promise<void> {
     // Scaled sim step: fast-forwarding runs several clamped (<= 0.05 s) sub-steps so physics/animation stay sane.
     const simDt = dt * timescale;
     controls.update(dt);
+    interaction.update();
     let remaining = simDt;
     while (remaining > 1e-6) {
       const step = Math.min(remaining, 0.05);

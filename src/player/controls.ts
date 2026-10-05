@@ -124,7 +124,7 @@ export class PlayerControls {
   }
 
   private syncCamera(dt: number, moved: number): void {
-    const ground = heightAt(this.feet.x, this.feet.z) ?? this.feet.y;
+    const ground = heightAt(this.feet.x, this.feet.z, this.feet.y) ?? this.feet.y;
     const targetEye = ground + PLAYER.eyeHeight;
     this.eyeY = dt > 0 ? this.eyeY + (targetEye - this.eyeY) * (1 - Math.exp(-EYE_SMOOTH_RATE * dt)) : targetEye;
 

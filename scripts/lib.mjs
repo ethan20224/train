@@ -5,10 +5,12 @@ export const GPU_ARGS = ['--use-angle=metal', '--use-gl=angle', '--enable-gpu', 
 export async function launch({ headed = false } = {}) {
   return chromium.launch({ channel: 'chrome', headless: !headed, args: GPU_ARGS });
 }
-export async function open(browser, query, { w = 1440, h = 900, dpr = 1 } = {}) {
+export async function open(browser, query, { w = 1440, h = 900, dpr = 1, noHmr = false } = {}) {
   const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr });
   const page = await context.newPage();
   const errors = [];
+  // Long scripted runs: other agents / editors touching files make Vite full-reload the page mid-run. Stub the HMR socket.
+  if (noHmr) await page.addInitScript(() => { const Native = window.WebSocket; window.WebSocket = function (url, protocols) { if (protocols === 'vite-hmr' || String(url).includes('vite')) return { addEventListener() {}, removeEventListener() {}, send() {}, close() {}, readyState: 0 }; return new Native(url, protocols); }; window.WebSocket.prototype = Native.prototype; Object.assign(window.WebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 }); });
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[console.error] ${m.text()}`); });
   page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
   await page.goto(`${BASE}/?${query}`, { waitUntil: 'load' });
