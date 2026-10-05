@@ -1,0 +1,15 @@
+{
+  "_comment": "Single source of truth for downloaded PBR sets. Shared by scripts/fetch-textures.mjs and src/materials/library.ts. metersPerTile = real-world size of one texture repeat (Poly Haven 'dimensions' field, mm -> m).",
+  "textures": {
+    "floorMarble":    { "asset": "marble_01",            "res": "2k", "metersPerTile": 1.5,  "note": "polished honey/cream marble slabs" },
+    "wallStone":      { "asset": "stone_tile_wall",      "res": "1k", "metersPerTile": 2.0,  "note": "pale ashlar limestone, tinted warm in library" },
+    "columnMarble":   { "asset": "marble_rock_02",       "res": "1k", "metersPerTile": 2.0,  "note": "cream marble with fissure veining" },
+    "darkMarble":     { "asset": "slab_tiles",           "res": "1k", "metersPerTile": 2.37, "note": "black marble with copper/gold veins" },
+    "castIron":       { "asset": "green_metal_rust",     "res": "1k", "metersPerTile": 1.0,  "note": "worn painted iron, darkened to black in library" },
+    "wood":           { "asset": "dark_wood",            "res": "1k", "metersPerTile": 2.0,  "note": "dark mahogany/walnut grain" },
+    "platformStone":  { "asset": "precast_stone_paving", "res": "1k", "metersPerTile": 2.24, "note": "worn stone paving slabs" },
+    "trackBallast":   { "asset": "gravel_floor_03",      "res": "1k", "metersPerTile": 2.5,  "note": "dark grey ballast" },
+    "sleeperWood":    { "asset": "weathered_planks",     "res": "1k", "metersPerTile": 2.0,  "note": "dark weathered timber" },
+    "railSteel":      { "asset": "rust_coarse_01",       "res": "1k", "metersPerTile": 2.2,  "note": "rusted steel, darkened in library" }
+  }
+}
