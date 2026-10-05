@@ -423,6 +423,7 @@ export function buildTrainModel(ctx: BuildContext, livery = 0): THREE.Group {
   const add = (key: keyof Kit['geos'], mat: THREE.Material, order = 0): THREE.Mesh => {
     const m = new THREE.Mesh(kit.geos[key], mat);
     m.castShadow = false; // trains never bake into the static sun map
+    m.userData.noShadow = true; // lighting.finalize's catch-all would otherwise flip castShadow on
     m.receiveShadow = key !== 'shadow';
     m.renderOrder = order;
     g.add(m);
