@@ -11,6 +11,7 @@ import {
   STAIR,
   type Rect,
 } from '../layout';
+import { CONCOURSE_OBSTACLES, SHED_OBSTACLES } from '../obstacles';
 
 /**
  * Walkable-surface queries, built ONLY from layout.ts (spec section 3 "Player").
@@ -132,6 +133,7 @@ const REGIONS: readonly Region[] = (() => {
 const OBSTACLES: readonly Circle[] = [
   ...COLONNADE.xs.flatMap((x) => COLONNADE.zs.map((z): Circle => ({ x, z, r: COLUMN_REACH }))),
   { x: KIOSK.center[0], z: KIOSK.center[1], r: KIOSK_REACH },
+  ...[...CONCOURSE_OBSTACLES, ...SHED_OBSTACLES].map((o): Circle => ({ x: o.x, z: o.z, r: o.r + PLAYER.radius })),
 ];
 
 function inRect(r: Rect, x: number, z: number): boolean {
