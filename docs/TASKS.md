@@ -37,7 +37,9 @@ Legend: [x] done & verified · [~] in progress · [ ] todo
 - [x] Questions answered, addendum spec written & approved
 - [x] Shared prep: layout constants, ticket store, module stubs, audio hooks, obstacle arrays, camera presets (director)
 - [x] 4A Systems (browser walk-test route only partly verified — machine overloaded): layered navigation, gate lanes, interaction (E), ticket flow + ticket card UI, scheduler requestTrain, board hook, bell/ticket audio
-- [~] 4B Hotel (revised 2026-10-06): SEPARATE first-class lounge room behind the south wall (doors, panelling, sun through windows), booking office, concierge desk, hall warmth 'a bit' (wainscot, runners)
+- [x] 4B Hotel (revised 2026-10-06): SEPARATE first-class lounge room behind the south wall (doors, panelling, sun through windows), booking office, concierge desk, hall warmth 'a bit' (wainscot, runners)
 - [x] 4C Structures: brass-and-glass ticket gates (animated paddles), ornate iron footbridge + stairs
 - [ ] Director review: screenshots, extended nav/walk tests, perf
-- [~] 4D Platform safety: half-height brass-and-glass platform edge doors (open for every stopped train) + glowing amber edge line on approach (starts after 4A/4C finish — shares scheduler + island edges)
+- [x] 4D Platform safety: half-height brass-and-glass platform edge doors (open for every stopped train) + glowing amber edge line on approach (starts after 4A/4C finish — shares scheduler + island edges)
+- [~] Polish pass: lounge richness (damask/panelling, Persian rugs, chandeliers, piano, paintings), calm balcony rug, clear platform-door glass
+- [ ] Final: full walk-test + auto-quality perf on a quiet machine
