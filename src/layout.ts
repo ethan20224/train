@@ -341,3 +341,70 @@ export const LOUNGE = {
   clearXMin: -10,
   clearXMax: 10,
 } as const;
+
+/**
+ * Phase 4D: half-height platform edge doors + glowing edge line. SINGLE SOURCE OF TRUTH for the door
+ * z offsets, used by BOTH the platform doors (world/safety) and the carriage door outlines (trains/trainModel).
+ * Offsets are measured from the train NOSE (world z = nose + offset; the consist extends toward +z).
+ */
+const CONSIST = { locoLength: 24, carLength: 25, carCount: 5, gap: 1 } as const; // must match trains/trainModel.ts (checked at build time)
+/** Carriage door centres in car-local z (existing vestibule doors); the tail car only has the front one. */
+const CAR_DOOR_LOCAL_Z = [1.1, 23.9] as const;
+const doorOffsets = (): number[] => {
+  const out: number[] = [];
+  for (let i = 0; i < CONSIST.carCount; i++) {
+    const start = CONSIST.locoLength + CONSIST.gap + i * (CONSIST.carLength + CONSIST.gap);
+    out.push(start + CAR_DOOR_LOCAL_Z[0]);
+    if (i < CONSIST.carCount - 1) out.push(start + CAR_DOOR_LOCAL_Z[1]);
+  }
+  return out;
+};
+export const PLATFORM_SAFETY = {
+  consist: CONSIST,
+  carDoorLocalZ: CAR_DOOR_LOCAL_Z,
+  /** Carriage door leaf width (train side). */
+  carDoorWidth: 1.3,
+  /** Door z centres relative to the nose (world = nose + offset). */
+  doorOffsets: doorOffsets(),
+  /** Platform door clear opening (two leaves of half this width). */
+  openingWidth: 1.5,
+  /** Barrier line this far inside the island edge. */
+  barrierInset: 0.35,
+  /** Glowing edge strip centre this far inside the island edge. */
+  edgeLightInset: 0.7,
+  barrierHeight: 1.3,
+  /** Barrier z extent (starts at the cross-platform barrier line so the corners close). */
+  zMin: 107.65,
+  zMax: 379.65,
+  edgeLightZMin: 108,
+  edgeLightZMax: 379.4,
+  /** Behaviour timings (s). */
+  openDelay: 1.5,
+  slideTime: 1.2,
+  closedBeforeDeparture: 6,
+} as const;
+
+/**
+ * First-class lounge: a SEPARATE hushed hotel-lobby room behind the hall's south wall at balcony level,
+ * entered through tall double doors centered in the south wall (wall occupies z in [-2, 0]).
+ */
+export const LOUNGE_ROOM = {
+  floorY: BALCONY.topY,
+  /** Interior (inner wall faces). */
+  xMin: -15,
+  xMax: 15,
+  zMin: -24,
+  zMax: -2,
+  /** Lower, intimate coffered ceiling (vs the 54 m vault). */
+  ceilingY: BALCONY.topY + 6.5,
+  /** Own exterior walls are this thick, outside the interior box. */
+  wallThickness: 0.6,
+  /** Doorway through the hall's south wall (z -2 -> 0). */
+  door: { xMin: -1.8, xMax: 1.8, height: 4.6, zMin: -2, zMax: 0 },
+  /** Windows that admit the low south-west sun: south wall (z = zMin) and west wall (x = xMin). */
+  southWindowCentersX: [-9, 0, 9] as const,
+  westWindowCentersZ: [-18, -9] as const,
+  windowWidth: 2.4,
+  windowSillY: BALCONY.topY + 0.9,
+  windowHeadY: BALCONY.topY + 5.4,
+} as const;
