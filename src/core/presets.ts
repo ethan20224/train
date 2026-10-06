@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import {
+  PLATFORM_END,
+  SHOPS,
   ARCHES,
   BOOKING_OFFICE,
   CONCIERGE,
@@ -39,6 +41,11 @@ export const PRESET_NAMES = [
   'gates',
   'bridge',
   'bridgedeck',
+  'platformend',
+  'shops',
+  'shopseast',
+  'throat',
+  'throatbridge',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -148,6 +155,33 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
     position: [6, FOOTBRIDGE.deckTopY + EYE, FOOTBRIDGE.centerZ],
     target: [-12, 0, FOOTBRIDGE.centerZ - 40],
     intent: 'On the bridge deck looking down and south over the tracks toward the concourse.',
+  },
+  platformend: {
+    position: [islandB.centerX + 2.5, EYE, PLATFORM_END.endZ - 14],
+    target: [islandB.centerX - 1, 0.6, PLATFORM_END.endZ + 6],
+    intent: 'Island B near its far end: staff ramp, locked gate, warning signs, starter signals, mirrors.',
+  },
+  shops: {
+    position: [-21, EYE, SHOPS.units[0].bayZ - 9],
+    target: [-29, 1.8, SHOPS.units[0].bayZ + 1],
+    intent: 'West aisle: the newsagent & tobacconist shopfront, florist beyond.',
+  },
+  shopseast: {
+    position: [21, EYE, SHOPS.units[2].bayZ - 9],
+    target: [29, 1.8, SHOPS.units[2].bayZ + 1],
+    intent: 'East aisle: coffee & pastries counter, travellers\u2019 conveniences beyond.',
+  },
+  throat: {
+    position: [islandB.centerX + 1.5, EYE + 0.3, PLATFORM_END.endZ - 1.2],
+    target: [islandB.centerX - 4, -1.5, PLATFORM_END.endZ + 80],
+    fov: 55,
+    intent: 'From the end of island B looking out over the station throat: pointwork, gantries, lines fanning out.',
+  },
+  throatbridge: {
+    position: [-6, FOOTBRIDGE.deckTopY + EYE, FOOTBRIDGE.zMax - 0.7],
+    target: [4, -1, PLATFORM_END.endZ + 160],
+    fov: 50,
+    intent: 'From the footbridge deck looking north down the platforms to the throat and the lines beyond.',
   },
 };
 
