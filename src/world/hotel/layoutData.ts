@@ -55,37 +55,16 @@ export const BALCONY_PIECES: readonly Piece[] = [];
 export const BALCONY_RUGS: readonly Rug[] = [];
 
 // ---------------------------------------------------------------------------------------------
-// Hall: at most two small armchair groups per side aisle (blind bays 38 and 62; the wall benches skip those bays).
+// Hall: the aisle armchair groups that used to stand in the blind bays 38 / 62 are gone: those bays now hold the Phase 5B
+// shopfronts (src/world/shops). The window bays (26 / 74) cannot take them: their wall benches stay and the colonnade
+// aisle would drop below 3 m.
 // ---------------------------------------------------------------------------------------------
-export const ARMCHAIR_BAYS_Z = [38, 62] as const;
-
-const hallPieces = (): Piece[] => {
-  const out: Piece[] = [];
-  for (const s of [-1, 1] as const) {
-    for (const [i, c] of ARMCHAIR_BAYS_Z.entries()) {
-      const tint: Tint = (i + (s < 0 ? 0 : 1)) % 2 === 0 ? 'green' : 'oxblood';
-      out.push({ kind: 'roundTable', x: s * 27.0, z: c, yaw: 0, level: FLOOR, variant: 1 });
-      out.push({ kind: 'chair', x: s * 27.0, z: c - 1.55, yaw: 0, level: FLOOR, tint });
-      out.push({ kind: 'chair', x: s * 27.0, z: c + 1.55, yaw: P, level: FLOOR, tint });
-      out.push({ kind: 'standardLamp', x: s * 28.6, z: c + 0.1, yaw: 0, level: FLOOR });
-      out.push({ kind: 'palm', x: s * 28.9, z: c - 3.2, yaw: 0, level: FLOOR, variant: i + 6 + (s < 0 ? 0 : 2) });
-    }
-  }
-  return out;
-};
-
 /** Luggage trolley beside the concierge desk. */
 const TROLLEY: Piece = { kind: 'trolley', x: 13.3, z: 10.5, yaw: 0, level: FLOOR };
 
-export const HALL_PIECES: readonly Piece[] = [...hallPieces(), TROLLEY];
+export const HALL_PIECES: readonly Piece[] = [TROLLEY];
 
-export const HALL_RUGS: readonly Rug[] = (() => {
-  const out: Rug[] = [];
-  for (const s of [-1, 1] as const) {
-    for (const [i, c] of ARMCHAIR_BAYS_Z.entries()) out.push({ x: s * 27.0, z: c, w: 3.1, l: 4.7, level: FLOOR, cell: (i + (s < 0 ? 0 : 1)) % 2 === 0 ? 'forest' : 'oxblood' });
-  }
-  return out;
-})();
+export const HALL_RUGS: readonly Rug[] = [];
 
 /** Ring radius (kiosk footprint 3.5 + 1.5 keep-clear) where the carpet runners stop around the kiosk. */
 export const KIOSK_RING_R = 5.1;

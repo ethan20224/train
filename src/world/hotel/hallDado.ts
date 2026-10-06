@@ -1,6 +1,7 @@
 import { box, rbox } from './kit';
 import type { Buckets } from './furniture';
 import { PILASTER_Z } from '../concourse/frames';
+import { SHOPS } from '../../layout';
 
 /**
  * Walnut wainscot along the hall's side walls (the "a bit warmer" touch): raised-panel cladding wrapped over the stone
@@ -8,6 +9,7 @@ import { PILASTER_Z } from '../concourse/frames';
  * (those are behind the balcony at z = 8) and it stops short of the pilasters' bases. Wall x = +-30, hall to the inside.
  */
 
+const SHOP_BAYS: readonly number[] = SHOPS.units.map((u) => u.bayZ);
 const SPANS: Array<[number, number]> = (() => {
   const edges = [...PILASTER_Z];
   const out: Array<[number, number]> = [[9.4, edges[0]! - 1.05]];
@@ -22,6 +24,7 @@ export function buildHallDado(b: Buckets): void {
     const xs = (w: number): number => s * 30 - s * w;
     const bx = (z0: number, y0: number, w0: number, z1: number, y1: number, w1: number): void => void b.wood.add(box(Math.min(xs(w0), xs(w1)), y0, z0, Math.max(xs(w0), xs(w1)), y1, z1));
     for (const [z0, z1] of SPANS) {
+      if (SHOP_BAYS.some((c) => c > z0 && c < z1)) continue; // the Phase 5B shopfronts replace the wainscot here
       // backing + skirting
       b.dark.add(box(Math.min(xs(0.3), xs(0.42)), 0, z0, Math.max(xs(0.3), xs(0.42)), 0.1, z1));
       bx(z0, 0.1, 0.3, z1, 1.2, 0.38);
