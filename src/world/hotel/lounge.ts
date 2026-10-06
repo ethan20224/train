@@ -27,7 +27,7 @@ const WIN_V0 = R.windowSillY - FLOOR; // 0.9
 const WIN_V1 = R.windowHeadY - FLOOR; // 5.4
 const WIN_HALF = R.windowWidth / 2;
 const WIN_SPRING = WIN_V1 - WIN_HALF;
-const DADO_H = 0.9;
+const DADO_H = 2.4; // full wainscot height; the brass-capped chair rail sits on top
 
 export interface LoungeMaterials {
   wood: THREE.MeshStandardMaterial;
@@ -40,6 +40,7 @@ export interface LoungeMaterials {
   glass: THREE.MeshStandardMaterial;
   doorGlass: THREE.MeshStandardMaterial;
   mirror: THREE.MeshStandardMaterial;
+  crystal: THREE.MeshStandardMaterial;
 }
 
 export interface LoungeInput {
@@ -135,6 +136,69 @@ function drape(u0: number, u1: number, v0: number, v1: number, w: number, pleats
   return g;
 }
 
+/** Large crystal-and-brass chandelier hung from the ceiling at (cx, cz): three tiers of candle arms, amber crystal drops, emissive bulbs. */
+function addChandelier(lBrass: Bucket, glow: Bucket, crystal: Bucket, cx: number, cz: number, ceilY: number): void {
+  const top = ceilY - 1.1; // top of the body; a gilt chain carries it to the ceiling rose
+  const bottom = top - 2.0;
+  const at = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(cx + x, y, cz + z);
+  lBrass.add(lathe([[0.001, 0], [0.5, 0], [0.52, -0.04], [0.3, -0.12], [0.12, -0.2], [0.001, -0.22]], 20, 0.5).translate(cx, ceilY, cz)); // ceiling rose
+  lBrass.add(tube(at(0, top, 0), at(0, ceilY - 0.1, 0), 0.025, 6));
+  for (let k = 0; k < 7; k++) lBrass.add(sphere(cx, top + 0.1 + k * 0.14, cz, 0.04, 6, 4));
+  // central stem: urn, knops and a long pendant finial
+  lBrass.add(lathe([[0.001, 0], [0.1, 0], [0.18, 0.1], [0.14, 0.2], [0.07, 0.28], [0.12, 0.42], [0.06, 0.55], [0.1, 0.7], [0.05, 0.85], [0.1, 1.05], [0.07, 1.3], [0.12, 1.45], [0.001, 1.52]], 14, 0.5).translate(cx, bottom + 0.1, cz));
+  lBrass.add(tube(at(0, bottom + 0.12, 0), at(0, bottom - 0.2, 0), 0.008, 5));
+  crystal.add(lathe([[0.001, -0.5], [0.05, -0.3], [0.07, -0.1], [0.04, 0.0], [0.001, 0.02]], 6, 0.5).translate(cx, bottom - 0.2, cz));
+  const tiers: Array<{ n: number; r: number; y: number; drop: number }> = [
+    { n: 6, r: 0.8, y: bottom + 0.65, drop: 0.4 },
+    { n: 9, r: 1.3, y: bottom + 1.15, drop: 0.5 },
+    { n: 12, r: 1.85, y: bottom + 1.65, drop: 0.55 },
+  ];
+  const dropGeo = lathe([[0.001, -0.5], [0.022, -0.36], [0.034, -0.16], [0.024, -0.02], [0.001, 0]], 6, 0.5);
+  for (const [ti, t] of tiers.entries()) {
+    for (let k = 0; k < t.n; k++) {
+      const a = (k / t.n) * Math.PI * 2 + ti * 0.3;
+      const ux = Math.cos(a);
+      const uz = Math.sin(a);
+      const p0 = at(0, t.y - 0.12, 0);
+      const p1 = at(ux * t.r * 0.55, t.y - 0.36, uz * t.r * 0.55);
+      const p2 = at(ux * t.r, t.y - 0.18, uz * t.r);
+      const p3 = at(ux * t.r, t.y + 0.02, uz * t.r);
+      lBrass.add(tube(p0, p1, 0.022, 5));
+      lBrass.add(tube(p1, p2, 0.019, 5));
+      lBrass.add(tube(p2, p3, 0.017, 5));
+      lBrass.add(lathe([[0.001, 0], [0.05, 0.0], [0.06, 0.03], [0.035, 0.05], [0.001, 0.05]], 8, 0.5).translate(p3.x, p3.y, p3.z));
+      lBrass.add(tube(p3.clone().setY(p3.y + 0.04), p3.clone().setY(p3.y + 0.2), 0.022, 6));
+      glow.add(sphere(p3.x, p3.y + 0.26, p3.z, 0.07, 6, 4).scale(1, 1.6, 1));
+      // two teardrop crystals on every arm, a longer one hanging from the bobèche
+      crystal.add(dropGeo.clone().scale(1, t.drop / 0.5, 1).translate(p3.x, p3.y - 0.02, p3.z));
+      const mx = (p2.x + p1.x) / 2;
+      const mz = (p2.z + p1.z) / 2;
+      crystal.add(dropGeo.clone().scale(0.8, t.drop / 0.7, 0.8).translate(mx, (p1.y + p2.y) / 2 - 0.02, mz));
+    }
+  }
+  // crystal basket around the stem and beaded swags between the arm tips of the two wide tiers
+  crystal.add(lathe([[0.001, -0.1], [0.2, -0.05], [0.42, 0.3], [0.5, 0.6], [0.44, 0.62], [0.36, 0.34], [0.16, 0.02], [0.001, 0.0]], 16, 0.5).translate(cx, bottom + 0.6, cz));
+  for (const t of tiers.slice(1)) {
+    for (let k = 0; k < t.n; k++) {
+      const a0 = (k / t.n) * Math.PI * 2 + (tiers.indexOf(t)) * 0.3;
+      const a1 = ((k + 1) / t.n) * Math.PI * 2 + (tiers.indexOf(t)) * 0.3;
+      for (let j = 1; j < 6; j++) {
+        const f = j / 6;
+        const a = a0 + (a1 - a0) * f;
+        const rr = t.r * (1 - 0.1 * Math.sin(f * Math.PI));
+        crystal.add(sphere(cx + Math.cos(a) * rr, t.y - 0.18 - 0.22 * Math.sin(f * Math.PI), cz + Math.sin(a) * rr, 0.032, 6, 4));
+      }
+    }
+  }
+  // brass hoop under the widest tier with a beaded crystal fringe
+  const hoopY = tiers[2]!.y - 0.34;
+  lBrass.add(new THREE.TorusGeometry(tiers[2]!.r * 0.9, 0.012, 5, 28).rotateX(Math.PI / 2).translate(cx, hoopY, cz));
+  for (let k = 0; k < 28; k++) {
+    const a = (k / 28) * Math.PI * 2;
+    crystal.add(dropGeo.clone().scale(0.7, 0.55, 0.7).translate(cx + Math.cos(a) * tiers[2]!.r * 0.9, hoopY - 0.01, cz + Math.sin(a) * tiers[2]!.r * 0.9));
+  }
+}
+
 export function buildLounge(inp: LoungeInput): LoungeResult {
   const { lib, hall, atlas, mats, stoneMat } = inp;
   const group = new THREE.Group();
@@ -150,6 +214,7 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
   const lGlass = new Bucket(null);
   const lStone = new Bucket(lib, 11.0);
   const lMirror = new Bucket(null);
+  const lCrystal = new Bucket(null);
   /** Furniture goes through the hall's shared buckets for small materials, the lounge's own for wood / leather / brass. */
   const lb: Buckets = { ...hall, leather: lLeather, wood: lWood, brass: lBrass, mirror: lMirror };
 
@@ -237,25 +302,35 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
     lPlaster.add(slabGeo(s, 0, 0.03), NORTH.M);
   }
 
-  /** Walnut raised-panel dado along [u0, u1] on a wall. */
+  /** Walnut raised-panel wainscot (two tiers, brass-trimmed chair rail) along [u0, u1] on a wall. */
   const dado = (wf: WallF, u0: number, u1: number): void => {
     const w0 = 0.03;
-    const n = Math.max(1, Math.round((u1 - u0) / 1.0));
+    const n = Math.max(1, Math.round((u1 - u0) / 1.1));
     const pitch = (u1 - u0) / n;
-    lWood.add(box(u0, 0, w0, u1, 0.1, w0 + 0.08), wf.M); // skirting
-    lWood.add(box(u0, 0.1, w0, u1, 0.16, w0 + 0.05), wf.M);
-    lWood.add(box(u0, DADO_H - 0.1, w0, u1, DADO_H - 0.04, w0 + 0.05), wf.M);
-    lWood.add(rbox(u0, DADO_H - 0.04, w0, u1, DADO_H, w0 + 0.11, 0.012, 2), wf.M); // cap rail
-    lBrass.add(box(u0, DADO_H - 0.001, w0 + 0.105, u1, DADO_H + 0.006, w0 + 0.112), wf.M);
+    const RAIL = 0.9; // dado rail between the lower and upper panel tiers
+    lWood.add(box(u0, 0, w0, u1, 0.14, w0 + 0.09), wf.M); // skirting
+    lBrass.add(box(u0, 0.14, w0 + 0.088, u1, 0.146, w0 + 0.092), wf.M);
+    lWood.add(box(u0, 0.14, w0, u1, 0.19, w0 + 0.05), wf.M);
+    lWood.add(box(u0, RAIL - 0.05, w0, u1, RAIL + 0.05, w0 + 0.075), wf.M); // dado rail
+    lBrass.add(box(u0, RAIL + 0.05, w0 + 0.074, u1, RAIL + 0.056, w0 + 0.078), wf.M);
+    lWood.add(box(u0, DADO_H - 0.14, w0, u1, DADO_H - 0.06, w0 + 0.06), wf.M);
+    lWood.add(box(u0, DADO_H - 0.06, w0, u1, DADO_H, w0 + 0.13), wf.M); // chair rail
+    lBrass.add(box(u0, DADO_H - 0.001, w0 + 0.126, u1, DADO_H + 0.008, w0 + 0.134), wf.M); // brass cap
+    lBrass.add(box(u0, DADO_H - 0.07, w0 + 0.059, u1, DADO_H - 0.064, w0 + 0.063), wf.M);
     for (let i = 0; i <= n; i++) {
       const u = u0 + i * pitch;
-      lWood.add(box(Math.max(u0, u - 0.04), 0.16, w0, Math.min(u1, u + 0.04), DADO_H - 0.1, w0 + 0.05), wf.M);
+      lWood.add(box(Math.max(u0, u - 0.045), 0.19, w0, Math.min(u1, u + 0.045), DADO_H - 0.14, w0 + 0.055), wf.M);
     }
     for (let i = 0; i < n; i++) {
-      const a = u0 + i * pitch + 0.07;
-      const b = u0 + (i + 1) * pitch - 0.07;
-      lWood.add(rbox(a, 0.19, w0 + 0.025, b, DADO_H - 0.13, w0 + 0.07, 0.01, 2), wf.M);
-      lBrass.add(box(a + 0.012, 0.2, w0 + 0.069, b - 0.012, 0.206, w0 + 0.073), wf.M);
+      const a = u0 + i * pitch + 0.08;
+      const b = u0 + (i + 1) * pitch - 0.08;
+      for (const [v0, v1] of [[0.23, RAIL - 0.09], [RAIL + 0.1, DADO_H - 0.18]] as const) {
+        lWood.add(box(a, v0, w0 + 0.025, b, v1, w0 + 0.075), wf.M);
+        lBrass.add(box(a + 0.03, v0 + 0.03, w0 + 0.073, b - 0.03, v0 + 0.036, w0 + 0.077), wf.M);
+        lBrass.add(box(a + 0.03, v1 - 0.036, w0 + 0.073, b - 0.03, v1 - 0.03, w0 + 0.077), wf.M);
+        lBrass.add(box(a + 0.03, v0 + 0.03, w0 + 0.073, a + 0.036, v1 - 0.03, w0 + 0.077), wf.M);
+        lBrass.add(box(b - 0.036, v0 + 0.03, w0 + 0.073, b - 0.03, v1 - 0.03, w0 + 0.077), wf.M);
+      }
     }
   };
   /** Moulded frame (walnut + brass inner line) around a damask field. */
@@ -285,12 +360,12 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
   for (const [wf, os] of [[WEST, WEST_WINDOWS], [EAST, [] as Opening[]], [SOUTH, SOUTH_WINDOWS]] as const) {
     for (const [a, b] of runs(wf, os, (o) => o.half + SUR)) {
       dado(wf, a, b);
-      if (b - a > 1.4) field(wf, a + 0.25, b - 0.25, 1.15, 5.15);
+      if (b - a > 1.4) field(wf, a + 0.25, b - 0.25, DADO_H + 0.22, 5.45);
     }
   }
   for (const [a, b] of runs(NORTH, [NORTH_DOOR], () => DOOR_HALF + 0.42)) {
     dado(NORTH, a, b);
-    if (b - a > 1.4) field(NORTH, a + 0.25, b - 0.25, 1.15, 5.15);
+    if (b - a > 1.4) field(NORTH, a + 0.25, b - 0.25, DADO_H + 0.22, 5.45);
   }
   // window architraves: walnut band around each opening and a deep sill board
   for (const [wf, os] of [[WEST, WEST_WINDOWS], [SOUTH, SOUTH_WINDOWS]] as const) {
@@ -379,12 +454,14 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
     for (let i = 0; i <= nx; i++) {
       const x = R.xMin + i * cellX;
       lPlain.add(box(x - bw / 2, y - bd, R.zMin, x + bw / 2, y, R.zMax));
-      lWood.add(box(x - 0.11, y - bd - 0.025, R.zMin, x + 0.11, y - bd, R.zMax));
+      for (const o of [-0.18, 0.18]) lBrass.add(box(x + o - 0.018, y - bd - 0.02, R.zMin, x + o + 0.018, y - bd, R.zMax));
+      lPlain.add(box(x - 0.3, y - bd * 0.45, R.zMin, x + 0.3, y, R.zMax));
     }
     for (let j = 0; j <= nz; j++) {
       const z = R.zMin + j * cellZ;
       lPlain.add(box(R.xMin, y - bd, z - bw / 2, R.xMax, y, z + bw / 2));
-      lWood.add(box(R.xMin, y - bd - 0.025, z - 0.11, R.xMax, y - bd, z + 0.11));
+      for (const o of [-0.18, 0.18]) lBrass.add(box(R.xMin, y - bd - 0.02, z + o - 0.018, R.xMax, y - bd, z + o + 0.018));
+      lPlain.add(box(R.xMin, y - bd * 0.45, z - 0.3, R.xMax, y, z + 0.3));
     }
     for (let i = 0; i < nx; i++) {
       for (let j = 0; j < nz; j++) {
@@ -394,14 +471,17 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
         const ix = cellX / 2 - bw / 2 - 0.16;
         const iz = cellZ / 2 - bw / 2 - 0.16;
         for (const s of [-1, 1]) {
-          lWood.add(box(cx + s * ix - 0.025, y - 0.08, cz - iz, cx + s * ix + 0.025, y, cz + iz));
-          lWood.add(box(cx - ix, y - 0.08, cz + s * iz - 0.025, cx + ix, y, cz + s * iz + 0.025));
+          lBrass.add(box(cx + s * ix - 0.02, y - 0.07, cz - iz, cx + s * ix + 0.02, y, cz + iz));
+          lBrass.add(box(cx - ix, y - 0.07, cz + s * iz - 0.02, cx + ix, y, cz + s * iz + 0.02));
         }
         lBrass.add(lathe([[0.001, 0.06], [0.26, 0.02], [0.3, 0], [0.34, 0.0], [0.34, 0.012], [0.001, 0.07]], 20, 0.5).rotateX(Math.PI).translate(cx, y - 0.005, cz));
         lBrass.add(sphere(cx, y - 0.075, cz, 0.06, 10, 6));
       }
     }
   }
+
+  // two large chandeliers hung over the long axis of the room (emissive bulbs only, no real lights)
+  for (const x of [-7.5, 7.5]) addChandelier(lBrass, hall.glow, lCrystal, x, -13, R.ceilingY);
 
   // ===========================================================================================
   // 4. Windows: glass, slim brass glazing bars, drapes and poles
@@ -458,7 +538,8 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
   // 5. Pictures (framed travel posters) and furniture
   // ===========================================================================================
   const picture = (wf: WallF, u: number, v: number, w: number, h: number, i: number): void => {
-    const r = atlas.cell[`poster${i % atlas.posterCount}`];
+    // i >= 100: oil landscape (i - 100), otherwise Art Deco travel poster
+    const r = i >= 100 ? atlas.cell[`land${(i - 100) % 4}`] : atlas.cell[`poster${i % atlas.posterCount}`];
     if (!r) return;
     const g = new THREE.PlaneGeometry(w, h);
     atlasUV(g, r);
@@ -475,10 +556,13 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
     // picture light: brass arm and tube lamp above
     lBrass.add(box(-0.18, h / 2 + fr + 0.04, -0.03, 0.18, h / 2 + fr + 0.06, 0.12), M);
   };
-  picture(NORTH, 8, 2.85, 0.95, 1.3, 0);
-  picture(NORTH, 22, 2.85, 0.95, 1.3, 5);
-  picture(NORTH, 3.2, 2.85, 0.7, 0.95, 2);
-  picture(NORTH, 26.8, 2.85, 0.7, 0.95, 6);
+  picture(NORTH, 8, 3.95, 1.56, 1.17, 101);
+  picture(NORTH, 22, 3.95, 1.56, 1.17, 103);
+  picture(NORTH, 3.0, 3.95, 0.8, 1.1, 2);
+  picture(NORTH, 27, 3.95, 0.8, 1.1, 6);
+  // posters on the south wall's piers, above the landscape-hung consoles
+  picture(SOUTH, 10.5, 3.95, 0.8, 1.1, 0);
+  picture(SOUTH, 19.5, 3.95, 0.8, 1.1, 5);
   // large pictures above the library cases and the fireplace's neighbours (east wall: u = z + 24)
   [[3.6, 3], [6.9, 4], [14.1, 7], [17.4, 1]].forEach(([u, i]) => picture(EAST, u!, 4.25, 0.8, 1.1, i!));
 
@@ -547,8 +631,8 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
       m.receiveShadow = true;
       pivotAdd(m);
     };
-    mk(wood.merge(), mats.wood, `doorWood${side}`, true);
-    mk(brass.merge(), mats.brass, `doorBrass${side}`, true);
+    mk(wood.merge(), mats.wood, `doorWood${side}`, false);
+    mk(brass.merge(), mats.brass, `doorBrass${side}`, false);
     const gm = new THREE.Mesh(gGeo, mats.doorGlass);
     gm.name = `doorGlass${side}`;
     gm.castShadow = false;
@@ -575,20 +659,21 @@ export function buildLounge(inp: LoungeInput): LoungeResult {
     group.add(m);
   };
   emit(lStone, stoneMat, 'loungeStone', true);
-  emit(lPlaster, mats.plaster, 'loungeSilk', true);
-  emit(lPlain, mats.plain, 'loungePlaster', true);
+  emit(lPlaster, mats.plaster, 'loungeSilk', false);
+  emit(lPlain, mats.plain, 'loungePlaster', false);
   emit(lWood, mats.wood, 'loungeWalnut', true);
-  emit(lBrass, mats.brass, 'loungeBrass', true);
+  emit(lBrass, mats.brass, 'loungeBrass', false);
   emit(lLeather, mats.leather, 'loungeLeather', true);
   emit(lCarpet, mats.carpet, 'loungeCarpet', false);
   emit(lGlass, mats.glass, 'loungeGlass', false);
   emit(lMirror, mats.mirror, 'loungeMirrors', false);
+  emit(lCrystal, mats.crystal, 'loungeCrystal', false, false);
   {
     const merged = fabricGeo.length ? mergeFabric(fabricGeo) : null;
     if (merged) {
       const m = new THREE.Mesh(merged, mats.fabric);
       m.name = 'loungeDrapes';
-      m.castShadow = true;
+      m.castShadow = false;
       m.receiveShadow = true;
       group.add(m);
     }

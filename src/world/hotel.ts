@@ -83,9 +83,9 @@ export async function buildHotel(ctx: BuildContext): Promise<WorldModule> {
   const loungeLeather = leatherMat.clone();
   loungeLeather.roughness = 0.36;
   loungeLeather.envMapIntensity = 1.5;
-  const loungePlaster = new THREE.MeshStandardMaterial({ name: 'loungeSilk', map: makeDamaskTexture(renderer), color: 0xfff0d0, roughness: 0.78, metalness: 0, envMapIntensity: 0.9, emissive: new THREE.Color(0xffd9a0), emissiveIntensity: 0.0 });
+  const loungePlaster = new THREE.MeshStandardMaterial({ name: 'loungeSilk', map: makeDamaskTexture(renderer), color: 0xd9cdb6, roughness: 0.78, metalness: 0, envMapIntensity: 0.9, emissive: new THREE.Color(0xffd9a0), emissiveIntensity: 0.0 });
   loungePlaster.emissiveMap = loungePlaster.map;
-  loungePlaster.emissiveIntensity = 0.16;
+  loungePlaster.emissiveIntensity = 0.05;
   const loungePlain = new THREE.MeshStandardMaterial({ name: 'loungePlaster', color: 0xefe3c8, roughness: 0.92, metalness: 0, envMapIntensity: 0.8, emissive: new THREE.Color(0xe8c08a), emissiveIntensity: 0.12 });
   const loungeCarpet = new THREE.MeshStandardMaterial({
     name: 'loungeCarpet', map: makeCarpetTexture(renderer), color: 0xffffff, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2,
@@ -100,7 +100,10 @@ export async function buildHotel(ctx: BuildContext): Promise<WorldModule> {
     name: 'etchedGlass', map: makeEtchedGlassTexture(renderer), transparent: true, roughness: 0.3, metalness: 0, envMapIntensity: 1.3, depthWrite: false, side: THREE.DoubleSide,
   });
   const loungeMirror = new THREE.MeshStandardMaterial({ name: 'loungeMirror', color: 0xa89f8a, metalness: 1, roughness: 0.1, envMapIntensity: 1.1 });
-  const loungeMats = { mirror: loungeMirror, wood: loungeWood, brass: loungeBrass, leather: loungeLeather, plaster: loungePlaster, plain: loungePlain, carpet: loungeCarpet, fabric: loungeFabric, glass: loungeGlass, doorGlass };
+  const loungeCrystal = new THREE.MeshStandardMaterial({
+    name: 'loungeCrystal', color: 0xfff1d6, emissive: new THREE.Color(0xffc98a), emissiveIntensity: 0.55, transparent: true, opacity: 0.8, roughness: 0.04, metalness: 0.15, envMapIntensity: 2.6, depthWrite: false,
+  });
+  const loungeMats = { crystal: loungeCrystal, mirror: loungeMirror, wood: loungeWood, brass: loungeBrass, leather: loungeLeather, plaster: loungePlaster, plain: loungePlain, carpet: loungeCarpet, fabric: loungeFabric, glass: loungeGlass, doorGlass };
 
   // --- geometry buckets ----------------------------------------------------------------------
   const b: Buckets = {
@@ -203,5 +206,11 @@ export async function buildHotel(ctx: BuildContext): Promise<WorldModule> {
     const s = countStats(root);
     console.log(`[hotel] draw calls ${s.calls} (x2 with shadow pass), triangles ${s.tris}`);
   }
-  return { name: 'hotel', object: root, update: (f) => lounge?.update(f) };
+  return { name: 'hotel', object: root, update: (f) => {
+      if (!lounge) return;
+      // the lounge is sealed and sits behind the hall's south wall: skip it (main + shadow pass) once the camera is far away
+      lounge.group.visible = f.camera.position.z < 40;
+      lounge.update(f);
+    },
+  };
 }

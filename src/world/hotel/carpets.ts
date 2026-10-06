@@ -49,7 +49,7 @@ function stairRunner(width: number): { positions: number[]; uvs: number[]; index
     idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
     v += dv;
   };
-  // landing strip a short landing before the stair (the balcony rug by the doors stays out of the start view) to the first riser
+  // landing strip a short landing before the stair (no rug in the opening view) to the first riser
   quad([STAIR.topY + LIFT, 7.0], [STAIR.topY + LIFT, STAIR.zMin + 0.045]);
   for (let k = 0; k < STAIR.risers; k++) {
     const z = STAIR.zMin + STAIR.treadDepth * k + 0.045;

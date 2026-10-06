@@ -3,11 +3,11 @@
  * ONE source of truth. Convention: a piece's local +z is its FRONT; yaw rotates about +Y, so yaw 0 faces +z,
  * yaw PI faces -z, yaw +PI/2 faces +x and yaw -PI/2 faces -x.
  */
-import { BALCONY, BOOKING_OFFICE, CONCIERGE, KIOSK, LOUNGE_ROOM, STAIR } from '../../layout';
+import { BOOKING_OFFICE, CONCIERGE, KIOSK, LOUNGE_ROOM, STAIR } from '../../layout';
 
 export type PieceKind =
   | 'sofa' | 'chair' | 'coffeeTable' | 'roundTable' | 'standardLamp' | 'palm' | 'trolley'
-  | 'desk' | 'deskChair' | 'fireplace' | 'sideboard' | 'bookcase' | 'sideTable' | 'centreTable';
+  | 'desk' | 'deskChair' | 'fireplace' | 'sideboard' | 'bookcase' | 'sideTable' | 'centreTable' | 'piano';
 export type Tint = 'oxblood' | 'green';
 
 export interface Piece {
@@ -41,7 +41,6 @@ export interface Runner {
 }
 
 const FLOOR = 0;
-const DECK = BALCONY.topY;
 const P = Math.PI;
 
 const flip = (t: Tint | undefined): Tint | undefined => (t === 'oxblood' ? 'green' : t === 'green' ? 'oxblood' : t);
@@ -49,10 +48,11 @@ const mirror = (p: Piece): Piece => ({ ...p, x: -p.x, yaw: -p.yaw, tint: flip(p.
 const face = (fromX: number, fromZ: number, toX: number, toZ: number): number => Math.atan2(toX - fromX, toZ - fromZ);
 
 // ---------------------------------------------------------------------------------------------
-// Balcony: only a restrained touch, one runner rug leading from the stair opening to the lounge doors.
+// Balcony: only a restrained touch, nothing on the deck but the stair runner's landing strip.
 // ---------------------------------------------------------------------------------------------
 export const BALCONY_PIECES: readonly Piece[] = [];
-export const BALCONY_RUGS: readonly Rug[] = [{ x: 0, z: 1.95, w: 3.0, l: 2.7, level: DECK, cell: 'oxblood' }];
+/** No rug on the deck: the opening view stays calm; the stair runner starts at the landing. */
+export const BALCONY_RUGS: readonly Rug[] = [];
 
 // ---------------------------------------------------------------------------------------------
 // Hall: at most two small armchair groups per side aisle (blind bays 38 and 62; the wall benches skip those bays).
@@ -122,6 +122,8 @@ const LOUNGE_WEST: Piece[] = [
   { kind: 'coffeeTable', x: 0, z: -13.4, yaw: 0, level: LV, variant: 0 },
   { kind: 'chair', x: -3.9, z: -13.4, yaw: P / 2, level: LV, tint: 'green' },
   { kind: 'standardLamp', x: -3.3, z: -10.9, yaw: 0, level: LV },
+  // black grand piano (lid open, silent) and its bench, keyboard facing west
+  { kind: 'piano', x: -9.2, z: -16.2, yaw: -P / 2, level: LV },
   // west wall: sideboard between the windows, lamps either side, two reading groups
   { kind: 'sideboard', x: -14.97, z: -13.5, yaw: P / 2, level: LV, variant: 0 },
   { kind: 'standardLamp', x: -14.35, z: -11.1, yaw: 0, level: LV },
@@ -145,6 +147,11 @@ const LOUNGE_EAST: Piece[] = [
   { kind: 'sofa', x: 0, z: -15.3, yaw: 0, level: LV, tint: 'green' },
   { kind: 'chair', x: 3.9, z: -13.4, yaw: -P / 2, level: LV, tint: 'green' },
   { kind: 'standardLamp', x: 3.3, z: -16.0, yaw: 0, level: LV },
+  // second conversation group between the central rug and the hearth: chesterfield, tea table, wingback
+  { kind: 'sofa', x: 6.9, z: -14.7, yaw: P / 2, level: LV, tint: 'green' },
+  { kind: 'coffeeTable', x: 8.9, z: -14.7, yaw: P / 2, level: LV, variant: 3 },
+  { kind: 'chair', x: 9.0, z: -11.8, yaw: face(9.0, -11.8, 8.9, -14.2), level: LV, tint: 'oxblood' },
+  { kind: 'chair', x: 9.0, z: -17.6, yaw: face(9.0, -17.6, 8.9, -15.2), level: LV, tint: 'oxblood' },
   // reading corner and a card table
   { kind: 'roundTable', x: 9.8, z: -21.2, yaw: 0, level: LV, variant: 1 },
   { kind: 'chair', x: 8.4, z: -22.3, yaw: face(8.4, -22.3, 9.8, -21.2), level: LV, tint: 'oxblood' },
@@ -159,6 +166,8 @@ export const LOUNGE_PIECES: readonly Piece[] = [...LOUNGE_SYMMETRIC, ...LOUNGE_E
 export const LOUNGE_RUGS: readonly Rug[] = [
   { x: 0, z: -13.4, w: 8.4, l: 4.6, level: LV, cell: 'big' },
   { x: 12.9, z: -13.5, w: 3.5, l: 5.1, level: LV, cell: 'forest' },
+  { x: 8.6, z: -14.7, w: 3.8, l: 5.4, level: LV, cell: 'indigo' },
+  { x: -9.6, z: -16.2, w: 3.8, l: 4.8, level: LV, cell: 'forest' },
   { x: -8.9, z: -8.5, w: 3.8, l: 5.4, level: LV, cell: 'indigo' },
   { x: 8.9, z: -8.5, w: 3.8, l: 5.4, level: LV, cell: 'forest' },
   { x: -11.8, z: -21.4, w: 3.4, l: 4.2, level: LV, cell: 'oxblood' },
@@ -234,6 +243,8 @@ function pieceCircles(p: Piece): Circle[] {
       return [at(0, 0, 0.3)];
     case 'centreTable':
       return [at(0, 0, 0.75)];
+    case 'piano':
+      return [at(0, -1.0, 0.62), at(0, -0.2, 0.75), at(0, 0.6, 0.62), at(0, 1.62, 0.42)];
   }
 }
 

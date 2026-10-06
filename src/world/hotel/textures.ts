@@ -188,6 +188,91 @@ function drawPoster(g: CanvasRenderingContext2D, x: number, y: number, w: number
   g.strokeRect(x + 2, y + 2, w - 4, h - 4);
 }
 
+const LANDSCAPES: Array<{ sky: [string, string]; sun: string; far: string; mid: string; near: string; water?: boolean }> = [
+  { sky: ['#e9c58a', '#b3633a'], sun: '#fff0c0', far: '#7a5a54', mid: '#4a3a35', near: '#1d1712' },
+  { sky: ['#b9ccd2', '#6a8a98'], sun: '#f7ecd0', far: '#6d8590', mid: '#41585f', near: '#16211f', water: true },
+  { sky: ['#f0d79a', '#c98a47'], sun: '#fff6d4', far: '#8c7448', mid: '#5b4a2a', near: '#211a0e' },
+  { sky: ['#d6b9c8', '#7a5470'], sun: '#fde4d2', far: '#5f4a64', mid: '#3a2d48', near: '#130f19', water: true },
+];
+
+/** Oil-painting-style golden-hour landscape: layered hazy ridges, low sun, dark foreground, visible brush strokes. */
+function drawLandscape(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, i: number): void {
+  const L = LANDSCAPES[i % LANDSCAPES.length]!;
+  const R = rng(900 + i);
+  g.save();
+  g.beginPath();
+  g.rect(x, y, w, h);
+  g.clip();
+  const sky = g.createLinearGradient(x, y, x, y + h * 0.62);
+  sky.addColorStop(0, L.sky[1]);
+  sky.addColorStop(1, L.sky[0]);
+  g.fillStyle = sky;
+  g.fillRect(x, y, w, h);
+  const sx = x + w * (0.3 + 0.4 * R());
+  const sy = y + h * 0.46;
+  const glow = g.createRadialGradient(sx, sy, 0, sx, sy, w * 0.5);
+  glow.addColorStop(0, L.sun);
+  glow.addColorStop(0.12, 'rgba(255,240,200,0.55)');
+  glow.addColorStop(1, 'rgba(255,220,160,0)');
+  g.fillStyle = glow;
+  g.fillRect(x, y, w, h);
+  // soft clouds
+  g.fillStyle = 'rgba(255,235,210,0.18)';
+  for (let k = 0; k < 7; k++) {
+    g.beginPath();
+    g.ellipse(x + R() * w, y + h * (0.1 + R() * 0.3), w * (0.1 + R() * 0.16), h * 0.025, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  const ridge = (base: number, amp: number, col: string, hz: number): void => {
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(x, y + h);
+    for (let k = 0; k <= 40; k++) {
+      const t = k / 40;
+      g.lineTo(x + t * w, y + h * base - h * amp * (0.5 + 0.5 * Math.sin(t * 6.3 * hz + i * 2) * Math.cos(t * 2.7 + i)) - h * amp * 0.3 * R());
+    }
+    g.lineTo(x + w, y + h);
+    g.closePath();
+    g.fill();
+  };
+  ridge(0.6, 0.1, L.far, 1);
+  ridge(0.7, 0.08, L.mid, 1.6);
+  if (L.water) {
+    const wg = g.createLinearGradient(x, y + h * 0.7, x, y + h);
+    wg.addColorStop(0, L.sky[0]);
+    wg.addColorStop(1, L.mid);
+    g.fillStyle = wg;
+    g.fillRect(x, y + h * 0.72, w, h * 0.28);
+    g.fillStyle = 'rgba(255,240,205,0.35)';
+    for (let k = 0; k < 24; k++) g.fillRect(sx - w * 0.06 + R() * w * 0.12, y + h * (0.73 + R() * 0.2), w * (0.02 + R() * 0.05), 2);
+  }
+  ridge(0.86, 0.07, L.near, 0.8);
+  // foreground trees
+  g.fillStyle = L.near;
+  for (let k = 0; k < 5; k++) {
+    const tx = x + (k < 3 ? R() * w * 0.3 : w * 0.7 + R() * w * 0.3);
+    const th = h * (0.22 + R() * 0.2);
+    g.beginPath();
+    g.ellipse(tx, y + h * 0.9 - th, w * 0.05, th * 0.5, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillRect(tx - 2, y + h * 0.9 - th, 4, th);
+  }
+  // brush strokes + warm varnish
+  for (let k = 0; k < 900; k++) {
+    g.strokeStyle = R() < 0.5 ? 'rgba(255,230,190,0.07)' : 'rgba(30,15,5,0.07)';
+    g.lineWidth = 1 + R() * 2.2;
+    const bx = x + R() * w;
+    const by = y + R() * h;
+    g.beginPath();
+    g.moveTo(bx, by);
+    g.lineTo(bx + 5 + R() * 14, by + (R() - 0.5) * 4);
+    g.stroke();
+  }
+  g.fillStyle = 'rgba(70,40,10,0.14)';
+  g.fillRect(x, y, w, h);
+  g.restore();
+}
+
 // ---------------------------------------------------------------------------------------------
 // atlas: signs, clock face, ticket, newspaper, ledger page, posters
 // ---------------------------------------------------------------------------------------------
@@ -358,6 +443,11 @@ export function makePaperAtlas(renderer: THREE.WebGLRenderer): PaperAtlas {
     put(`poster${i}`, i * PW, py, PW, PH);
     drawPoster(g, i * PW, py, PW, PH, i);
   }
+  // oil-painting landscapes (overmantel / wall pictures)
+  for (let i = 0; i < LANDSCAPES.length; i++) {
+    put(`land${i}`, i * 512, 1536, 512, 384);
+    drawLandscape(g, i * 512, 1536, 512, 384, i);
+  }
   // a plain parchment strip for backs/edges
   put('paper', 1024, 768, 256, 128);
   g.fillStyle = '#e4d6b6';
@@ -380,212 +470,255 @@ interface RugPalette {
 }
 
 const PALETTES: Record<RugCell, RugPalette> = {
-  big: { field: '#6c1c24', field2: '#85282f', medal: '#1d2b5e', medal2: '#c4a053', border: '#1d2b5e', border2: '#6c1c24', gold: '#c4a053', ivory: '#dccdac' },
-  oxblood: { field: '#651b22', field2: '#7f262d', medal: '#c4a053', medal2: '#1d2b5e', border: '#1d2b5e', border2: '#651b22', gold: '#c4a053', ivory: '#dccdac' },
-  indigo: { field: '#1f3070', field2: '#2c428a', medal: '#6c1c24', medal2: '#c4a053', border: '#651b22', border2: '#1f3070', gold: '#c4a053', ivory: '#dccdac' },
-  forest: { field: '#1c4a34', field2: '#265f44', medal: '#6c1c24', medal2: '#c4a053', border: '#651b22', border2: '#1c4a34', gold: '#c4a053', ivory: '#dccdac' },
+  big: { field: '#5b1b20', field2: '#73282c', medal: '#232c55', medal2: '#b79b5c', border: '#222a50', border2: '#45151a', gold: '#b39759', ivory: '#d3c6a4' },
+  oxblood: { field: '#561a1f', field2: '#6e262b', medal: '#262e56', medal2: '#c4b083', border: '#222a50', border2: '#42141a', gold: '#b39759', ivory: '#d3c6a4' },
+  indigo: { field: '#222a50', field2: '#2f3966', medal: '#5a1b20', medal2: '#b79b5c', border: '#5a1b20', border2: '#1c2244', gold: '#b39759', ivory: '#d3c6a4' },
+  forest: { field: '#2a4540', field2: '#36564f', medal: '#5a1b20', medal2: '#b79b5c', border: '#4a1519', border2: '#22373a', gold: '#b39759', ivory: '#d3c6a4' },
 };
 
+/** Traditional Tabriz-style rug (portrait box pw x ph): guard stripes, vine-and-palmette border, dense arabesque field, lobed medallion. */
 function drawRugPortrait(g: CanvasRenderingContext2D, pw: number, ph: number, pal: RugPalette, seed: number, fringe: boolean): void {
   const R = rng(seed);
   const f = fringe ? pw * 0.05 : 0;
-  const bx = 0;
-  const by = f;
   const bw = pw;
   const bh = ph - 2 * f;
-  const inset = (n: number): [number, number, number, number] => [bx + n, by + n, bw - 2 * n, bh - 2 * n];
-  const fillBand = (col: string, n0: number, n1: number): void => {
-    g.fillStyle = col;
-    const [x0, y0, w0, h0] = inset(n0);
-    g.fillRect(x0, y0, w0, h0);
-    const [x1, y1, w1, h1] = inset(n1);
-    void [x1, y1, w1, h1];
-  };
-  void fillBand;
   const U = pw / 100;
-  // selvedge + borders (painted as nested rects, each overpainting the previous)
   const rect = (n: number, col: string): void => {
     g.fillStyle = col;
-    const [x, y, w, h] = inset(n * U);
-    g.fillRect(x, y, w, h);
+    g.fillRect(n * U, f + n * U, bw - 2 * n * U, bh - 2 * n * U);
   };
+  // selvedge, outer guard stripes, main border ground, inner guard stripes
   rect(0, pal.ivory);
-  rect(0.8, pal.gold);
-  rect(1.6, pal.border);
-  rect(14.6, pal.gold);
-  rect(15.2, pal.border2);
-  rect(17.2, pal.gold);
-  rect(17.7, pal.field);
-  // border ornaments: rosette chain between 1.6U and 14.6U
-  const mid = 8.1 * U;
-  const drawRosette = (x: number, y: number, r: number, col: string, col2: string): void => {
-    g.fillStyle = col;
-    for (let k = 0; k < 12; k++) {
-      const a = (k / 12) * Math.PI * 2;
+  rect(0.7, pal.border2);
+  rect(1.3, pal.gold);
+  rect(1.6, pal.border2);
+  rect(2.9, pal.gold);
+  rect(3.2, pal.border);
+  rect(14.3, pal.gold);
+  rect(14.6, pal.border2);
+  rect(15.9, pal.gold);
+  rect(16.2, pal.field);
+  // fine ivory dotted line inside the outer guard
+  g.fillStyle = pal.ivory;
+  for (let x = 2 * U; x < bw - 2 * U; x += 1.6 * U) {
+    g.fillRect(x, f + 2.0 * U, 0.5 * U, 0.5 * U);
+    g.fillRect(x, f + bh - 2.5 * U, 0.5 * U, 0.5 * U);
+  }
+  for (let y = 2 * U; y < bh - 2 * U; y += 1.6 * U) {
+    g.fillRect(2.0 * U, f + y, 0.5 * U, 0.5 * U);
+    g.fillRect(bw - 2.5 * U, f + y, 0.5 * U, 0.5 * U);
+  }
+  const palmette = (x: number, y: number, r: number, rot: number, c1: string, c2: string): void => {
+    g.save();
+    g.translate(x, y);
+    g.rotate(rot);
+    g.fillStyle = c1;
+    for (let k = -2; k <= 2; k++) {
+      g.save();
+      g.rotate(k * 0.52);
       g.beginPath();
-      g.ellipse(x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62, r * 0.34, r * 0.1, a, 0, Math.PI * 2);
+      g.ellipse(0, -r * 0.62, r * 0.17, r * 0.5, 0, 0, Math.PI * 2);
       g.fill();
+      g.restore();
     }
-    g.strokeStyle = col2;
-    g.lineWidth = Math.max(1, r * 0.08);
+    g.fillStyle = c2;
     g.beginPath();
-    g.arc(x, y, r * 0.42, 0, Math.PI * 2);
-    g.stroke();
-    g.fillStyle = col2;
-    g.beginPath();
-    g.arc(x, y, r * 0.3, 0, Math.PI * 2);
+    g.arc(0, 0, r * 0.26, 0, Math.PI * 2);
     g.fill();
+    g.restore();
   };
-  const pitch = 10 * U;
-  const nH = Math.round(bh / pitch);
-  for (let i = 0; i < nH; i++) {
-    const y = by + (bh * (i + 0.5)) / nH;
-    drawRosette(bx + mid, y, 3.8 * U, pal.gold, pal.ivory);
-    drawRosette(bx + bw - mid, y, 3.8 * U, pal.gold, pal.ivory);
-  }
-  const nW = Math.round(bw / pitch);
-  for (let i = 0; i < nW; i++) {
-    const x = bx + (bw * (i + 0.5)) / nW;
-    drawRosette(x, by + mid, 3.8 * U, pal.gold, pal.ivory);
-    drawRosette(x, by + bh - mid, 3.8 * U, pal.gold, pal.ivory);
-  }
-  // small vine between rosettes
-  g.strokeStyle = pal.ivory;
-  g.lineWidth = Math.max(1, U * 0.5);
-  for (let i = 0; i < nH; i++) {
-    const y0 = by + (bh * (i + 0.5)) / nH;
-    for (const x of [bx + mid, bx + bw - mid]) {
-      g.beginPath();
-      g.moveTo(x, y0 + 4.6 * U);
-      g.quadraticCurveTo(x + 2 * U, y0 + pitch / 2 - 1 * U, x, y0 + pitch - 4.6 * U);
-      g.stroke();
+  // border strip painted along +x in a local frame (length L, width Wd), clipped
+  const strip = (L: number, Wd: number): void => {
+    g.save();
+    g.beginPath();
+    g.rect(0, 0, L, Wd);
+    g.clip();
+    const period = Wd * 1.9;
+    const n = Math.max(2, Math.round(L / period));
+    const pitch = L / n;
+    g.strokeStyle = pal.gold;
+    g.lineWidth = Math.max(1, Wd * 0.045);
+    g.beginPath();
+    for (let x = 0; x <= L; x += 2) {
+      const y = Wd / 2 + Math.sin((x / pitch) * Math.PI * 2) * Wd * 0.2;
+      if (x === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
     }
+    g.stroke();
+    for (let i = 0; i < n; i++) {
+      const x0 = i * pitch;
+      // large palmette at the vine's trough, rosette at the crest, small leaves between
+      palmette(x0 + pitch * 0.25, Wd / 2 - Wd * 0.2 + Wd * 0.04, Wd * 0.3, Math.PI * 0.5 + Math.PI, pal.gold, pal.border2);
+      palmette(x0 + pitch * 0.75, Wd / 2 + Wd * 0.2 - Wd * 0.04, Wd * 0.3, Math.PI * 0.5, pal.medal2, pal.border2);
+      g.fillStyle = pal.gold;
+      for (const s of [0.5, 0.0]) {
+        g.beginPath();
+        g.ellipse(x0 + pitch * s, Wd / 2, Wd * 0.07, Wd * 0.13, 0.9, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    g.restore();
+  };
+  const b0 = 3.2 * U;
+  const bwid = 11.1 * U;
+  // top / bottom (between the corner blocks), then left / right full height
+  for (const [x, y, rot, L] of [
+    [b0, f + b0, 0, bw - 2 * b0],
+    [bw - b0, f + bh - b0, Math.PI, bw - 2 * b0],
+    [b0, f + bh - b0, -Math.PI / 2, bh - 2 * b0],
+    [bw - b0, f + b0, Math.PI / 2, bh - 2 * b0],
+  ] as const) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(rot);
+    strip(L, bwid);
+    g.restore();
   }
-  // field: lattice of lozenges
-  const [fx, fy, fw, fh] = inset(17.7 * U);
+  // corner blocks
+  for (const [cx, cy] of [[b0, f + b0], [bw - b0 - bwid, f + b0], [b0, f + bh - b0 - bwid], [bw - b0 - bwid, f + bh - b0 - bwid]] as const) {
+    g.fillStyle = pal.border;
+    g.fillRect(cx, cy, bwid, bwid);
+    palmette(cx + bwid / 2, cy + bwid / 2, bwid * 0.46, 0, pal.gold, pal.border2);
+    palmette(cx + bwid / 2, cy + bwid / 2, bwid * 0.46, Math.PI / 4, pal.medal2, pal.gold);
+    palmette(cx + bwid / 2, cy + bwid / 2, bwid * 0.3, 0, pal.border2, pal.ivory);
+  }
+  // ---- field ---------------------------------------------------------------------------------
+  const fx = 16.2 * U;
+  const fy = f + 16.2 * U;
+  const fw = bw - 2 * fx;
+  const fh = bh - 2 * 16.2 * U;
   g.save();
   g.beginPath();
   g.rect(fx, fy, fw, fh);
   g.clip();
-  g.strokeStyle = pal.field2;
-  g.lineWidth = U * 1.1;
-  const step = 11 * U;
-  for (let k = -Math.ceil(fh / step); k < Math.ceil(fw / step) + Math.ceil(fh / step) + 2; k++) {
-    g.beginPath();
-    g.moveTo(fx + k * step, fy);
-    g.lineTo(fx + k * step + fh, fy + fh);
-    g.moveTo(fx + k * step + fh, fy);
-    g.lineTo(fx + k * step, fy + fh);
-    g.stroke();
+  // abrash: horizontal bands of slightly different dye lots
+  for (let y = fy; y < fy + fh; y += 3 * U) {
+    g.fillStyle = R() < 0.5 ? 'rgba(255,200,170,0.035)' : 'rgba(0,0,0,0.05)';
+    g.fillRect(fx, y, fw, 3 * U * (0.5 + R()));
   }
-  g.fillStyle = pal.field2;
-  // small boteh / bud motifs scattered on a loose grid
-  for (let gy = fy + 5 * U; gy < fy + fh; gy += 11 * U) {
-    for (let gx = fx + 5 * U; gx < fx + fw; gx += 11 * U) {
+  // dense arabesque: curling vines on a diamond lattice with small palmettes and leaf pairs
+  const c = 6 * U;
+  g.strokeStyle = pal.field2;
+  g.lineWidth = Math.max(1, U * 0.55);
+  for (let gy = fy - c; gy < fy + fh + c; gy += c) {
+    for (let gx = fx - c; gx < fx + fw + c; gx += c) {
+      const odd = Math.round((gy - fy) / c) % 2 === 0;
+      const x = gx + (odd ? 0 : c / 2);
+      g.beginPath();
+      g.moveTo(x, gy);
+      g.bezierCurveTo(x + c * 0.5, gy - c * 0.3, x + c * 0.5, gy + c * 0.3, x + c, gy);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(x, gy);
+      g.quadraticCurveTo(x + c * 0.25, gy + c * 0.5, x + c / 2, gy + c);
+      g.stroke();
       g.fillStyle = pal.field2;
       g.beginPath();
-      g.ellipse(gx, gy, 2.2 * U, 3.2 * U, 0.5, 0, Math.PI * 2);
+      g.ellipse(x + c * 0.3, gy + c * 0.22, c * 0.2, c * 0.075, 0.8, 0, Math.PI * 2);
       g.fill();
-      g.fillStyle = pal.gold;
-      g.globalAlpha = 0.55;
       g.beginPath();
-      g.arc(gx, gy, 0.9 * U, 0, Math.PI * 2);
+      g.ellipse(x + c * 0.7, gy - c * 0.2, c * 0.2, c * 0.075, -0.8, 0, Math.PI * 2);
       g.fill();
+      palmette(x, gy, c * 0.3, ((gx + gy) % 2) * 0.2, R() < 0.5 ? pal.gold : pal.medal2, pal.field2);
+      g.globalAlpha = 0.5;
+      palmette(x + c / 2, gy + c / 2, c * 0.26, Math.PI, pal.medal, pal.gold);
       g.globalAlpha = 1;
     }
   }
-  g.fillStyle = pal.field2;
-  for (let i = 0; i < 90; i++) {
-    const x = fx + R() * fw;
-    const y = fy + R() * fh;
-    g.beginPath();
-    g.ellipse(x, y, U * (0.8 + R()), U * (0.5 + R() * 0.7), R() * 3, 0, Math.PI * 2);
-    g.fill();
+  // a veil to keep the lattice tone-on-tone and dense rather than loud
+  g.fillStyle = pal.field;
+  g.globalAlpha = 0.5;
+  g.fillRect(fx, fy, fw, fh);
+  g.globalAlpha = 1;
+  // corner spandrels (quarter medallions)
+  const sr = Math.min(fw, fh) * 0.24;
+  for (const [sx, sy] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) {
+    for (const [rr, col] of [[sr * 1.04, pal.gold], [sr, pal.medal], [sr * 0.86, pal.gold], [sr * 0.83, pal.medal]] as const) {
+      g.fillStyle = col;
+      g.beginPath();
+      g.arc(fx + sx * fw, fy + sy * fh, rr, 0, Math.PI * 2);
+      g.fill();
+    }
+    palmette(fx + sx * fw + (sx ? -1 : 1) * sr * 0.38, fy + sy * fh + (sy ? -1 : 1) * sr * 0.38, sr * 0.2, (sx ? -1 : 1) * 0.8 + (sy ? Math.PI : 0), pal.medal2, pal.border2);
   }
-  // medallion
+  // central lobed medallion with pendants
   const cx = fx + fw / 2;
   const cy = fy + fh / 2;
-  const mw = fw * 0.78;
-  const mh = Math.min(fh * 0.62, mw * 1.5);
-  const oct = (w: number, h: number, col: string): void => {
+  const mw = fw * 0.66;
+  const mh = Math.min(fh * 0.5, mw * 1.7);
+  const lobed = (w: number, h: number, col: string): void => {
     g.fillStyle = col;
     g.beginPath();
-    g.moveTo(cx, cy - h / 2);
-    g.quadraticCurveTo(cx + w * 0.2, cy - h * 0.32, cx + w / 2, cy - h * 0.18);
-    g.quadraticCurveTo(cx + w * 0.3, cy, cx + w / 2, cy + h * 0.18);
-    g.quadraticCurveTo(cx + w * 0.2, cy + h * 0.32, cx, cy + h / 2);
-    g.quadraticCurveTo(cx - w * 0.2, cy + h * 0.32, cx - w / 2, cy + h * 0.18);
-    g.quadraticCurveTo(cx - w * 0.3, cy, cx - w / 2, cy - h * 0.18);
-    g.quadraticCurveTo(cx - w * 0.2, cy - h * 0.32, cx, cy - h / 2);
+    for (let k = 0; k <= 96; k++) {
+      const a = (k / 96) * Math.PI * 2;
+      const lobe = 1 + 0.07 * Math.cos(a * 8) + 0.12 * Math.max(0, Math.cos(a * 2 - Math.PI)) * 0;
+      const x = cx + Math.cos(a) * (w / 2) * lobe;
+      const y = cy + Math.sin(a) * (h / 2) * lobe;
+      if (k === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
     g.closePath();
     g.fill();
   };
-  oct(mw * 1.06, mh * 1.06, pal.gold);
-  oct(mw, mh, pal.medal);
-  oct(mw * 0.8, mh * 0.8, pal.medal2);
-  oct(mw * 0.74, mh * 0.74, pal.medal);
-  // radiating petals + bead rings inside the medallion
-  g.fillStyle = pal.gold;
-  for (let k = 0; k < 16; k++) {
-    const a = (k / 16) * Math.PI * 2;
-    g.beginPath();
-    g.ellipse(cx + Math.cos(a) * mw * 0.27, cy + Math.sin(a) * mh * 0.27, mw * 0.07, mh * 0.025, a, 0, Math.PI * 2);
-    g.fill();
-  }
-  g.strokeStyle = pal.ivory;
-  g.lineWidth = Math.max(1, U * 0.7);
-  for (const k of [0.42, 0.55, 0.66]) {
-    g.setLineDash([U * 1.2, U * 1.6]);
-    g.beginPath();
-    g.ellipse(cx, cy, mw * k * 0.5, mh * k * 0.5, 0, 0, Math.PI * 2);
-    g.stroke();
-  }
-  g.setLineDash([]);
-  drawRosette(cx, cy, Math.min(mw, mh) * 0.3, pal.gold, pal.ivory);
-  drawRosette(cx, cy, Math.min(mw, mh) * 0.15, pal.ivory, pal.field);
   for (const s of [-1, 1]) {
-    // pendants
     g.fillStyle = pal.gold;
     g.beginPath();
-    g.moveTo(cx, cy + s * (mh / 2 + 0.5 * U));
-    g.lineTo(cx + 4.5 * U, cy + s * (mh / 2 + 6 * U));
-    g.lineTo(cx, cy + s * (mh / 2 + 12 * U));
-    g.lineTo(cx - 4.5 * U, cy + s * (mh / 2 + 6 * U));
+    g.moveTo(cx - mw * 0.11, cy + s * mh * 0.46);
+    g.lineTo(cx, cy + s * (mh * 0.46 + mw * 0.34));
+    g.lineTo(cx + mw * 0.11, cy + s * mh * 0.46);
+    g.closePath();
+    g.fill();
+    g.fillStyle = pal.medal;
+    g.beginPath();
+    g.moveTo(cx - mw * 0.07, cy + s * mh * 0.46);
+    g.lineTo(cx, cy + s * (mh * 0.46 + mw * 0.26));
+    g.lineTo(cx + mw * 0.07, cy + s * mh * 0.46);
     g.closePath();
     g.fill();
   }
-  // corner spandrels
-  g.fillStyle = pal.medal;
-  for (const [sx, sy] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) {
+  lobed(mw * 1.04, mh * 1.04, pal.gold);
+  lobed(mw, mh, pal.medal);
+  lobed(mw * 0.86, mh * 0.86, pal.medal2);
+  lobed(mw * 0.82, mh * 0.82, pal.field);
+  lobed(mw * 0.7, mh * 0.7, pal.medal);
+  // radial petals, bead ring, central star
+  g.fillStyle = pal.medal2;
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2;
     g.beginPath();
-    g.arc(fx + sx * fw, fy + sy * fh, Math.min(fw, fh) * 0.3, 0, Math.PI * 2);
+    g.ellipse(cx + Math.cos(a) * mw * 0.27, cy + Math.sin(a) * mh * 0.27, mw * 0.065, mh * 0.022, a, 0, Math.PI * 2);
     g.fill();
-    g.strokeStyle = pal.gold;
-    g.lineWidth = U * 0.9;
-    g.beginPath();
-    g.arc(fx + sx * fw, fy + sy * fh, Math.min(fw, fh) * 0.3 + U * 1.4, 0, Math.PI * 2);
-    g.stroke();
   }
+  g.fillStyle = pal.ivory;
+  for (let k = 0; k < 32; k++) {
+    const a = (k / 32) * Math.PI * 2;
+    g.beginPath();
+    g.arc(cx + Math.cos(a) * mw * 0.2, cy + Math.sin(a) * mh * 0.2, U * 0.55, 0, Math.PI * 2);
+    g.fill();
+  }
+  palmette(cx, cy, Math.min(mw, mh) * 0.17, 0, pal.gold, pal.border2);
+  palmette(cx, cy, Math.min(mw, mh) * 0.17, Math.PI / 4, pal.medal2, pal.ivory);
+  palmette(cx, cy, Math.min(mw, mh) * 0.17, Math.PI / 8, pal.gold, pal.border2);
+  g.fillStyle = pal.field;
+  g.beginPath();
+  g.arc(cx, cy, Math.min(mw, mh) * 0.07, 0, Math.PI * 2);
+  g.fill();
   g.restore();
-  // wool speckle (keeps alpha)
+  // wool speckle, then antique ageing: warm wash, desaturating veil, wear patches
   g.save();
   g.globalCompositeOperation = 'source-atop';
-  for (let i = 0; i < pw * ph * 0.012; i++) {
-    g.fillStyle = R() < 0.5 ? 'rgba(0,0,0,0.10)' : 'rgba(255,235,200,0.07)';
+  for (let i = 0; i < pw * ph * 0.014; i++) {
+    g.fillStyle = R() < 0.5 ? 'rgba(0,0,0,0.11)' : 'rgba(255,235,200,0.07)';
     g.fillRect(R() * pw, R() * ph, 1.6, 1.6);
   }
-  g.restore();
-  // antique ageing: warm wash + soft wear patches (keeps alpha), so the rug sits in the room instead of glowing
-  g.save();
-  g.globalCompositeOperation = 'source-atop';
-  g.fillStyle = 'rgba(62,38,18,0.16)';
+  g.fillStyle = 'rgba(70,52,38,0.17)';
   g.fillRect(0, 0, pw, ph);
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 30; i++) {
     const x = R() * pw;
     const y = R() * ph;
-    const r = pw * (0.08 + R() * 0.18);
+    const r = pw * (0.07 + R() * 0.2);
     const gr = g.createRadialGradient(x, y, 0, x, y, r);
-    gr.addColorStop(0, R() < 0.5 ? 'rgba(20,10,5,0.12)' : 'rgba(255,230,190,0.07)');
+    gr.addColorStop(0, R() < 0.5 ? 'rgba(20,10,5,0.13)' : 'rgba(255,230,190,0.09)');
     gr.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = gr;
     g.fillRect(x - r, y - r, r * 2, r * 2);
@@ -702,13 +835,13 @@ export function makeRunnerTexture(renderer: THREE.WebGLRenderer): THREE.CanvasTe
   }
   // two medallions per period + diamonds between
   const medallion = (cy: number): void => {
-    for (const [rx, ry, col] of [[28, 56, pal.gold], [25.5, 52, pal.medal], [20, 41, pal.medal2], [18.5, 38, pal.medal]] as const) {
+    for (const [rx, ry, col] of [[21, 33, pal.gold], [19.8, 31.2, pal.medal], [15, 24, pal.border2], [14, 22.4, pal.medal]] as const) {
       g.fillStyle = col;
       g.beginPath();
       g.ellipse(256, cy, rx * U, ry * U, 0, 0, Math.PI * 2);
       g.fill();
     }
-    rosette(256, cy, 11 * U);
+    rosette(256, cy, 8 * U);
   };
   medallion(256);
   medallion(768);
@@ -863,11 +996,11 @@ export function makeFrondTexture(renderer: THREE.WebGLRenderer): THREE.CanvasTex
 export function makeDamaskTexture(renderer: THREE.WebGLRenderer): THREE.CanvasTexture {
   const S = 512;
   const [c, g] = canvas(S, S);
-  g.fillStyle = '#e1d3b2';
+  g.fillStyle = '#e7dcc0';
   g.fillRect(0, 0, S, S);
   // satin stripe
   for (let x = 0; x < S; x += 8) {
-    g.fillStyle = (x / 8) % 2 === 0 ? 'rgba(255,248,225,0.10)' : 'rgba(120,90,40,0.05)';
+    g.fillStyle = (x / 8) % 2 === 0 ? 'rgba(255,250,232,0.05)' : 'rgba(120,90,40,0.025)';
     g.fillRect(x, 0, 4, S);
   }
   const wrap = (fn: (ox: number, oy: number) => void): void => {
@@ -878,7 +1011,7 @@ export function makeDamaskTexture(renderer: THREE.WebGLRenderer): THREE.CanvasTe
       g.save();
       g.translate(cx + ox, cy + oy);
       g.scale(1, flip);
-      g.fillStyle = 'rgba(112,82,36,0.30)';
+      g.fillStyle = 'rgba(112,86,44,0.075)';
       // central teardrop
       g.beginPath();
       g.moveTo(0, -s);
@@ -893,7 +1026,7 @@ export function makeDamaskTexture(renderer: THREE.WebGLRenderer): THREE.CanvasTe
         g.bezierCurveTo(sx * s * 0.82, -s * 0.05, sx * s * 0.5, s * 0.2, 0, s * 0.3);
         g.fill();
       }
-      g.fillStyle = 'rgba(255,246,218,0.34)';
+      g.fillStyle = 'rgba(255,250,232,0.14)';
       g.beginPath();
       g.moveTo(0, -s * 0.78);
       g.bezierCurveTo(s * 0.26, -s * 0.42, s * 0.24, s * 0.1, 0, s * 0.3);
@@ -907,8 +1040,8 @@ export function makeDamaskTexture(renderer: THREE.WebGLRenderer): THREE.CanvasTe
   fleur(S * 0.75, S * 0.25, 52, -1);
   fleur(S * 0.25, S * 0.75, 52, -1);
   // ogee lattice
-  g.strokeStyle = 'rgba(112,82,36,0.20)';
-  g.lineWidth = 3;
+  g.strokeStyle = 'rgba(112,86,44,0.07)';
+  g.lineWidth = 2;
   wrap((ox, oy) => {
     g.beginPath();
     g.moveTo(S * 0.5 + ox, oy);

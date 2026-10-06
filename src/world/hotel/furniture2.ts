@@ -149,7 +149,8 @@ export function addFireplace(b: Buckets, atlas: PaperAtlas, M: THREE.Matrix4): v
   const my0 = 1.62;
   const my1 = 2.85;
   b.brass.add(rbox(-mw / 2 - 0.08, my0 - 0.08, 0.0, mw / 2 + 0.08, my1 + 0.08, 0.07, 0.02, 2), M);
-  b.mirror.add(box(-mw / 2, my0, 0.065, mw / 2, my1, 0.072), M);
+  const land = atlas.cell.land0;
+  if (land) b.paper.add(atlasUV(new THREE.PlaneGeometry(mw, my1 - my0).translate(0, (my0 + my1) / 2, 0.073), land), M);
   b.wood.add(box(-mw / 2 - 0.02, my0 - 0.02, 0.06, mw / 2 + 0.02, my0, 0.066), M);
   b.brass.add(lathe([[0.001, 0], [0.1, 0], [0.11, 0.02], [0.06, 0.08], [0.09, 0.16], [0.001, 0.2]], 18, 0.5), mul(M, xf(0, my1 + 0.08, 0.03)));
   // garniture: candlesticks, decanter, clock face
@@ -172,7 +173,7 @@ export function addFireplace(b: Buckets, atlas: PaperAtlas, M: THREE.Matrix4): v
 }
 
 /** Console sideboard: walnut doors with brass pulls, black marble top, mirror above, lamps and decanters. Back at z = 0. */
-export function addSideboard(b: Buckets, atlas: PaperAtlas, M: THREE.Matrix4, mirror = true): void {
+export function addSideboard(b: Buckets, atlas: PaperAtlas, M: THREE.Matrix4, mirror = true, variant = 0): void {
   const W = 1.7;
   const D = 0.5;
   const H = 0.88;
@@ -190,18 +191,20 @@ export function addSideboard(b: Buckets, atlas: PaperAtlas, M: THREE.Matrix4, mi
   b.dark.add(rbox(-hw - 0.02, H - 0.04, 0.0, hw + 0.02, H, D + 0.035, 0.006, 2), M);
   b.brass.add(box(-hw - 0.02, H - 0.052, 0.0, hw + 0.02, H - 0.04, D + 0.03), M);
   if (mirror) {
-    const mw = 1.2;
-    const y0 = 1.38;
-    const y1 = 2.5;
-    b.brass.add(rbox(-mw / 2 - 0.07, y0 - 0.07, 0.0, mw / 2 + 0.07, y1 + 0.07, 0.055, 0.016, 2), M);
-    b.mirror.add(box(-mw / 2, y0, 0.05, mw / 2, y1, 0.058), M);
-    b.wood.add(box(-mw / 2 - 0.015, y0 - 0.015, 0.045, mw / 2 + 0.015, y0, 0.052), M);
+    // gilt-framed oil landscape (replaces the dull mirror panel); sits on the wainscot above the console
+    const mw = 1.3;
+    const y0 = 1.3;
+    const y1 = 2.28;
+    const fr = 0.075;
+    b.brass.add(rbox(-mw / 2 - fr, y0 - fr, 0.0, mw / 2 + fr, y1 + fr, 0.07, 0.016, 2), M);
+    const cell = atlas.cell[`land${variant % 4}`];
+    if (cell) b.paper.add(atlasUV(new THREE.PlaneGeometry(mw, y1 - y0).translate(0, (y0 + y1) / 2, 0.075), cell), M);
+    b.wood.add(box(-mw / 2 - 0.015, y0 - 0.015, 0.06, mw / 2 + 0.015, y0, 0.072), M);
   }
   for (const s of [-1, 1]) addTableLamp(b, mul(M, xf(s * 0.62, H, 0.21)));
   b.silver.add(lathe([[0.001, 0], [0.16, 0], [0.165, 0.008], [0.165, 0.02], [0.155, 0.018], [0.001, 0.01]], 26, 0.5), mul(M, xf(0, H, 0.24)));
   decanter(b, M, H + 0.012, -0.07, 0.24);
   decanter(b, M, H + 0.012, 0.09, 0.22);
-  void atlas;
 }
 
 const BOOK_COLORS = [0x5a1519, 0x1d3a2e, 0x2b2a4a, 0x7a5a2c, 0x3b2418, 0x8a6a3a, 0x20303a, 0x6d2a2a, 0x4a3a2a, 0x9a8a62];
@@ -273,7 +276,10 @@ export function addLoungePiece(b: Buckets, atlas: PaperAtlas, M: THREE.Matrix4, 
       addFireplace(b, atlas, M);
       break;
     case 'sideboard':
-      addSideboard(b, atlas, M, p.variant !== 1);
+      addSideboard(b, atlas, M, p.variant !== 1, p.variant ?? 0);
+      break;
+    case 'piano':
+      addGrandPiano(b, M);
       break;
     case 'bookcase':
       addBookcase(b, M, p.variant ?? 0);
@@ -287,4 +293,65 @@ export function addLoungePiece(b: Buckets, atlas: PaperAtlas, M: THREE.Matrix4, 
     default:
       break;
   }
+}
+
+/** Black concert grand, lid propped open, with its bench. Silent. Local +z = keyboard side; origin on the floor at the middle. */
+export function addGrandPiano(b: Buckets, M: THREE.Matrix4): void {
+  const outline = (zFront: number): THREE.Shape => {
+    // shape in (x, -z): straight spine at x = -0.75, curved cheek on +x, tail at z = -1.5
+    const s = new THREE.Shape();
+    s.moveTo(-0.75, -zFront);
+    s.lineTo(-0.75, 1.15);
+    s.quadraticCurveTo(-0.75, 1.5, -0.4, 1.5);
+    s.bezierCurveTo(0.25, 1.5, 0.3, 0.55, 0.75, 0.3);
+    s.lineTo(0.75, -zFront);
+    s.closePath();
+    return s;
+  };
+  const extrude = (shape: THREE.Shape, depth: number, y0: number): THREE.BufferGeometry => {
+    const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 1, curveSegments: 10 });
+    g.rotateX(-Math.PI / 2);
+    g.translate(0, y0, 0);
+    return g;
+  };
+  const caseTop = 0.98;
+  b.dark.add(extrude(outline(0.95), caseTop - 0.62 - 0.024, 0.62 + 0.012), M); // case
+  b.brass.add(extrude(outline(0.95), 0.012, caseTop - 0.002).scale(0.985, 1, 0.985), M); // thin gilt inlay line on the rim
+  // lid: hinged on the spine, propped open on the curved side
+  const th = 0.62;
+  const lid = extrude(outline(0.45), 0.03, 0);
+  lid.translate(0.75, 0, 0);
+  lid.rotateZ(th);
+  lid.translate(-0.75, caseTop + 0.01, 0);
+  b.dark.add(lid, M);
+  const ldx = 1.15;
+  const px = -0.75 + ldx * Math.cos(th);
+  b.brass.add(tube(new THREE.Vector3(px, caseTop, -0.55), new THREE.Vector3(px, caseTop + ldx * Math.sin(th) + 0.01, -0.55), 0.011, 6), M);
+  // keyboard: cream keys, black sharps, key slip, music desk
+  b.marble.add(box(-0.62, 0.72, 0.56, 0.62, 0.75, 0.95), M);
+  const sharps = [0, 1, 3, 4, 5];
+  for (let k = 0; k < 35; k++) {
+    if (!sharps.includes(k % 7)) continue;
+    const x = -0.62 + ((k + 0.7) * 1.24) / 36;
+    b.dark.add(box(x - 0.007, 0.75, 0.6, x + 0.007, 0.77, 0.78), M);
+  }
+  b.dark.add(box(-0.66, 0.7, 0.52, 0.66, 0.9, 0.56), M);
+  b.dark.add(box(-0.66, 0.62, 0.52, 0.66, 0.98, 0.56 - 0.0), M);
+  b.dark.add(rbox(-0.66, 0.7, 0.95, 0.66, 0.74, 1.0, 0.01, 1), M);
+  b.brass.add(box(-0.66, 0.74, 0.99, 0.66, 0.745, 1.002), M);
+  b.dark.add(box(-0.45, caseTop, 0.45, 0.45, caseTop + 0.34, 0.47), M);
+  b.brass.add(box(-0.45, caseTop + 0.02, 0.466, 0.45, caseTop + 0.026, 0.474), M);
+  // legs (tapered, brass casters) and pedal lyre
+  for (const [x, z] of [[-0.62, 0.78], [0.62, 0.78], [-0.1, -1.18]] as const) {
+    b.dark.add(tube(new THREE.Vector3(x, 0.1, z), new THREE.Vector3(x, 0.66, z), 0.04, 10, 0.07), M);
+    b.brass.add(sphere(x, 0.045, z, 0.04, 8, 6), M);
+    b.brass.add(box(x - 0.045, 0.085, z - 0.045, x + 0.045, 0.1, z + 0.045), M);
+  }
+  b.brass.add(box(-0.05, 0.14, 0.52, 0.05, 0.62, 0.58), M);
+  for (const x of [-0.07, 0, 0.07]) b.brass.add(box(x - 0.02, 0.07, 0.5, x + 0.02, 0.09, 0.64), M);
+  // bench: padded oxblood leather seat on walnut legs
+  const bz = 1.62;
+  b.leather.add(rbox(-0.5, 0.46, bz - 0.2, 0.5, 0.56, bz + 0.2, 0.04, 2), M, 0x571a1d);
+  b.wood.add(rbox(-0.52, 0.42, bz - 0.22, 0.52, 0.46, bz + 0.22, 0.012, 2), M);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.wood.add(tube(new THREE.Vector3(sx * 0.46, 0.0, bz + sz * 0.17), new THREE.Vector3(sx * 0.46, 0.42, bz + sz * 0.17), 0.02, 8, 0.03), M);
 }

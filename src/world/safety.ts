@@ -63,8 +63,11 @@ export async function buildSafety(ctx: BuildContext): Promise<WorldModule> {
   const glass = ctx.materials.get('glass').clone();
   glass.name = 'safetyGlass';
   glass.side = THREE.DoubleSide;
-  glass.color.set(0xeaf2ee);
-  glass.opacity = 0.2;
+  glass.color.set(0xf4f8f6);
+  // clear bevelled glass: barely-there pane, faint sky reflection only (the brass hairline frame carries the read)
+  glass.opacity = 0.07;
+  glass.envMapIntensity = 0.45;
+  (glass as THREE.MeshPhysicalMaterial).specularIntensity = 0.35;
 
   const sDark = mesh(finish(ctx, all.dark, 'darkMarble'), dark, true);
   const sWood = mesh(finish(ctx, all.wood, 'wood'), wood, true);
