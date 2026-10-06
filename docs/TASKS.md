@@ -44,3 +44,11 @@ Legend: [x] done & verified · [~] in progress · [ ] todo
 - [x] Polish pass: lounge richness (damask/panelling, Persian rugs, chandeliers, piano, paintings), calm balcony rug, clear platform-door glass
 - [x] Final walk-test: PASS (ticket ritual, gates, reserved train, bridge, 0 console errors); ticket requirement restored
 - [ ] Auto-quality perf on a quiet machine
+
+## Phase 5 & 6 — Platform ends, shops, station throat (spec: `docs/superpowers/specs/2026-10-06-grand-meridian-phase5-platform-ends-shops.md`)
+- [x] Questions answered; spec, layout constants, stubs, obstacle arrays, camera presets (director)
+- [~] 5A Platform ends: staff ramp + locked "AUTHORISED PERSONNEL ONLY" gate, warning signs, starter signals (green on departure), dispatch mirrors, STOP boards, signal box, lamp hut, luggage barrows
+- [~] 5B Shops: newsagent & tobacconist, florist & confectioner, coffee & pastries, travellers' conveniences, cross-platform kiosk
+- [~] 6A Track network: dense throat (scissors/diamonds), 4 main lines fanning W/E, second junction + flyover, goods line, carriage yard + shunting, interlocking, articulated trains (up to 6)
+- [ ] 6B Trackside details: point machines, marker posts, switch plates, signal gantries with route signals, catch points & buffers dressing (after 6A)
+- [ ] Director review + full regression (nav, walk, safety, route tests, perf)
