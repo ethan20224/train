@@ -1,6 +1,6 @@
 // Metro timetable bus + scheduler (Phase 4, P4-1). Pure logic: seeded 2 h simulation at fixed dt.
 import assert from 'node:assert/strict';
-import { METRO_TRAIN } from '../src/layoutMetro';
+import { CAVERN, METRO_TRAIN } from '../src/layoutMetro';
 import { TRACKS, doorOffsets, trackPoint } from '../src/metro/tracks';
 import { createTimetable, TIMING, type MetroEvent, type TrainState } from '../src/metro/timetable';
 
@@ -18,8 +18,8 @@ test('six tracks, two per line, opposite travel directions', () => {
   }
   const m = TRACKS.find((t) => t.line === 'meridian' && t.track === 0)!;
   assert.deepEqual(trackPoint(m, 0).slice(0, 3).map((v) => +v.toFixed(3)), [-10.55, -47.1, 74]);
-  assert.equal(m.portalIn, 54); assert.equal(m.portalOut, 54);
-  assert.equal(TRACKS.find((t) => t.line === 'vesper')!.portalIn, 60);
+  assert.equal(m.portalIn, 74 - CAVERN.nave.zMin); assert.equal(m.portalOut, CAVERN.nave.zMax - 74);
+  assert.equal(TRACKS.find((t) => t.line === 'vesper')!.portalIn, -CAVERN.transept.xMin);
   assert.equal(TRACKS.find((t) => t.line === 'halcyon')!.portalIn, 55);
 });
 
@@ -82,6 +82,7 @@ test('every train stops at stopS +- 0.05 with v = 0 (doors align with PSD offset
 });
 test('ETA is monotone non-increasing while approaching and ends at 0', () => {
   assert.equal(A.stats.etaBad, 0);
+  for (const e of A.events.filter((x) => x.type === 'arrived')) assert.equal(e.train.eta, 0);
   for (const e of A.events.filter((x) => x.type === 'approaching')) assert.ok(e.eta! > 10 && e.eta! < 60, `eta ${e.eta}`);
 });
 test('door timings: open 1.0 s after arrival, dwell 20-30 s, closed 3.0 s before departure', () => {

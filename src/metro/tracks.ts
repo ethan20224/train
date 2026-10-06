@@ -3,7 +3,7 @@
 // travel along the track's fixed travel direction and s = 0 is the platform centre (the train
 // centre stops at s = 0, so car doors line up with the PSD door offsets). Trains run through the
 // station: they enter at the portal at s = -portalIn and leave at s = +portalOut.
-import { HALCYON, MERIDIAN, METRO_TRAIN, VESPER } from '../layoutMetro';
+import { CAVERN, HALCYON, MERIDIAN, METRO_TRAIN, VESPER } from '../layoutMetro';
 
 export type LineId = 'meridian' | 'vesper' | 'halcyon';
 
@@ -21,9 +21,10 @@ export interface MetroTrack {
   readonly portalOut: number;
 }
 
-const NAVE_Z = [20, 128] as const;          // Meridian portals: nave end walls
-const TRANSEPT_X = [-60, 60] as const;      // Vesper portals: transept end walls
-const HALCYON_PORTAL_EXTRA = 10;            // deep-hall end sits 10 m beyond the 90 m island
+const NAVE_Z = [CAVERN.nave.zMin, CAVERN.nave.zMax] as const;             // Meridian portals: nave end walls
+const TRANSEPT_X = [CAVERN.transept.xMin, CAVERN.transept.xMax] as const; // Vesper portals: transept end walls
+/** Deep-hall end sits 10 m beyond the 90 m island. Moves into layoutMetro with the Halcyon deep hall (P3-5). */
+const HALCYON_PORTAL_EXTRA = 10;
 
 const meridianZ = (NAVE_Z[0] + NAVE_Z[1]) / 2;                       // 74
 const vesperX = (TRANSEPT_X[0] + TRANSEPT_X[1]) / 2;                 // 0
