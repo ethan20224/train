@@ -9,7 +9,8 @@ import { excludeDirectionalLight } from '../../lighting/sunMask';
  *
  * Two sets: the void-side set (returned fields) ignores every DirectionalLight (`excludeDirectionalLight`: the void
  * never receives either sun), and `deep` is a separate set of instances for Phase 3 that DOES receive the deep sun.
- * Both sets share textures. Emissive strips are unlit basic materials, shared by both sets.
+ * Both sets share textures; each set has its own emissive instances.
+ * Each call creates new canvas textures: call it once and share the result.
  * Consumers register `deepList` in `metro.userData.deepMaterials`.
  *
  * UVs: none of these assume a mesh UV layout. Use `lib.applyWorldUVs(geometry, kit.metersPerTile.<name>)` on flat
@@ -294,13 +295,16 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
   for (const m of lit(voidSet)) excludeDirectionalLight(m);
   const deepSet = build();
   for (const m of lit(deepSet)) m.name = m.name.replace('metro', 'metroDeep');
-  deepSet.emissive = emissive; // unlit: nothing to exclude, safe to share
   voidSet.emissive = emissive;
+  // separate instances: deep materials are mutated per depth look, the void ones must not be touched
+  deepSet.emissive = { warmStrip: emissive.warmStrip.clone(), coolRing: emissive.coolRing.clone() };
+  deepSet.emissive.warmStrip.name = 'metroDeepWarmStrip';
+  deepSet.emissive.coolRing.name = 'metroDeepCoolRing';
 
   return {
     ...voidSet,
     deep: deepSet,
-    deepList: [...lit(deepSet), emissive.warmStrip, emissive.coolRing],
+    deepList: [...lit(deepSet), deepSet.emissive.warmStrip, deepSet.emissive.coolRing],
     metersPerTile: METERS_PER_TILE,
     proceduralTextureMB,
   };
