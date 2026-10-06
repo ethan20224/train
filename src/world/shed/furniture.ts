@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BuildContext } from '../../core/types';
-import { ISLANDS, RAIL, TRACKS } from '../../layout';
+import { RAIL, TRACKS } from '../../layout';
 import { BENCHES, CLOCK_XS, CLOCK_Z, LAMPS, SIGNS, SIGNAL_GANTRY_ZS } from './layoutData';
 import { beam, box, finish, ironPaint, mesh, T, plain, zCylinder } from './common';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -287,15 +287,7 @@ export function buildFurniture(ctx: BuildContext): THREE.Object3D {
   bake('brass', bb, tm);
   bake('red', [bufLamp], tm);
 
-  // --- platform end guard rails ---------------------------------------------------------------------------
-  const guard: THREE.BufferGeometry[] = [];
-  for (const isl of ISLANDS) {
-    const z = isl.zMax - 0.3;
-    guard.push(box(isl.xMin + 0.6, isl.xMax - 0.6, 0.95, 1.03, z - 0.04, z + 0.04));
-    guard.push(box(isl.xMin + 0.6, isl.xMax - 0.6, 0.5, 0.56, z - 0.03, z + 0.03));
-    for (let x = isl.xMin + 0.7; x <= isl.xMax - 0.6; x += 1.4) guard.push(box(x - 0.04, x + 0.04, 0, 1.05, z - 0.04, z + 0.04));
-  }
-  bake('iron', guard, [T(0, 0, 0)]);
+  // (platform end railings now live in world/platformEnds/ends.ts, Phase 5A)
 
   // --- emit: one draw call per material ------------------------------------------------------------------
   root.add(mesh(finish(ctx, acc.iron, 'castIron'), iron, true));

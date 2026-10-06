@@ -3,6 +3,8 @@ import { propObstacles } from './world/props/layout';
 import { footbridgeObstacles } from './world/footbridge/data';
 import { shedObstacles } from './world/shed/layoutData';
 import { hotelObstacles } from './world/hotel/layoutData';
+import { platformObstacles } from './world/platformEnds/data';
+import { shopObstacles } from './world/shops/layoutData';
 
 /**
  * Collidable props that are not part of the spec layout (benches, lamp posts, signs, ...).
@@ -36,7 +38,7 @@ export const HOTEL_OBSTACLES: readonly PropObstacle[] = hotelObstacles();
 export const FOOTBRIDGE_OBSTACLES: readonly PropObstacle[] = footbridgeObstacles();
 
 /** Owned by world/platformEnds.ts (Phase 5A: end railings/gates are nav ends already; luggage barrows, mirror posts on islands, level 0). */
-export const PLATFORM_OBSTACLES: readonly PropObstacle[] = [];
+export const PLATFORM_OBSTACLES: readonly PropObstacle[] = platformObstacles();
 
 /** Owned by world/shops.ts (Phase 5B: shopfronts, conveniences, cross-platform kiosk, level 0). */
-export const SHOP_OBSTACLES: readonly PropObstacle[] = [];
+export const SHOP_OBSTACLES: readonly PropObstacle[] = shopObstacles();
