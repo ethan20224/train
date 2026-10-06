@@ -14,7 +14,7 @@ import {
 } from 'postprocessing';
 import { N8AOPostPass } from 'n8ao';
 import { GodRayComposite, GodRayPass } from '../lighting/godrays';
-import { ExposureEffect, GoldenGradeEffect } from '../lighting/grade';
+import { ExposureEffect, GoldenGradeEffect, NanGuardEffect } from '../lighting/grade';
 
 /**
  * Post-processing chain (spec section 4), all in HalfFloat linear HDR until tone mapping:
@@ -48,6 +48,9 @@ export class PostFX {
     const size = renderer.getDrawingBufferSize(new THREE.Vector2());
 
     this.composer.addPass(new RenderPass(scene, camera));
+    // NaN pixels (e.g. from perturbNormal2Arb on zero UV derivatives) would otherwise be spread by the mipmap bloom
+    // (and N8AO's denoise) into a huge black block. Also guards future mirror / glass materials.
+    this.composer.addPass(new EffectPass(camera, new NanGuardEffect()));
 
     // Meter-scale scene: 1.2 m radius reads as contact shadow in corners / under cornices / around column bases.
     this.ao = new N8AOPostPass(scene, camera, size.x, size.y);

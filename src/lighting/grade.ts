@@ -1,6 +1,26 @@
 import * as THREE from 'three';
 import { BlendFunction, Effect } from 'postprocessing';
 
+/**
+ * Replaces NaN / Inf pixels with black so one degenerate fragment cannot poison bloom's mip chain.
+ * BlendFunction.SRC is load-bearing: the default NORMAL blend is mix(dst, src, 1.0) which evaluates NaN * 0 = NaN.
+ * The test is on the exponent bits because isnan() can be folded away by some shader compilers.
+ */
+export class NanGuardEffect extends Effect {
+  constructor() {
+    super(
+      'NanGuardEffect',
+      /* glsl */ `
+      void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+        ivec4 bits = floatBitsToInt(inputColor);
+        bool bad = any(equal(bits & 0x7f800000, ivec4(0x7f800000)));
+        outputColor = bad ? vec4(0.0, 0.0, 0.0, 1.0) : inputColor;
+      }`,
+      { blendFunction: BlendFunction.SRC },
+    );
+  }
+}
+
 /** Scene-linear exposure, applied before the tone mapper (so it behaves like a camera exposure). */
 export class ExposureEffect extends Effect {
   constructor(exposure = 1) {
