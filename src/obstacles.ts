@@ -34,3 +34,9 @@ export const HOTEL_OBSTACLES: readonly PropObstacle[] = hotelObstacles();
 
 /** Owned by world/footbridge.ts (Phase 4C: piers on the islands at level 0, anything on the deck at level 7). */
 export const FOOTBRIDGE_OBSTACLES: readonly PropObstacle[] = footbridgeObstacles();
+
+/** Owned by world/platformEnds.ts (Phase 5A: end railings/gates are nav ends already; luggage barrows, mirror posts on islands, level 0). */
+export const PLATFORM_OBSTACLES: readonly PropObstacle[] = [];
+
+/** Owned by world/shops.ts (Phase 5B: shopfronts, conveniences, cross-platform kiosk, level 0). */
+export const SHOP_OBSTACLES: readonly PropObstacle[] = [];

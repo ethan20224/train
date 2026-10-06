@@ -21,6 +21,8 @@ import { buildHotel } from './world/hotel';
 import { buildGates } from './world/gates';
 import { buildFootbridge } from './world/footbridge';
 import { buildSafety } from './world/safety';
+import { buildPlatformEnds } from './world/platformEnds';
+import { buildShops } from './world/shops';
 import { buildTrains } from './trains/scheduler';
 
 /**
@@ -158,6 +160,8 @@ async function boot(): Promise<void> {
     buildGates(ctx),
     buildFootbridge(ctx),
     buildSafety(ctx),
+    buildPlatformEnds(ctx),
+    buildShops(ctx),
     buildTrains(ctx),
   ]);
   setProgress(0.85);

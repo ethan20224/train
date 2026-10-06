@@ -16,7 +16,14 @@ import {
   type Rect,
 } from '../layout';
 import { tickets } from '../core/ticket';
-import { CONCOURSE_OBSTACLES, FOOTBRIDGE_OBSTACLES, HOTEL_OBSTACLES, SHED_OBSTACLES } from '../obstacles';
+import {
+  CONCOURSE_OBSTACLES,
+  FOOTBRIDGE_OBSTACLES,
+  HOTEL_OBSTACLES,
+  PLATFORM_OBSTACLES,
+  SHED_OBSTACLES,
+  SHOP_OBSTACLES,
+} from '../obstacles';
 
 /**
  * Walkable-surface queries, built ONLY from layout.ts (spec section 3 "Player" + Phase 4 "Systems").
@@ -223,7 +230,7 @@ const REGIONS: readonly Region[] = (() => {
 const OBSTACLES: readonly Circle[] = [
   ...COLONNADE.xs.flatMap((x) => COLONNADE.zs.map((z): Circle => ({ x, z, r: COLUMN_REACH }))),
   { x: KIOSK.center[0], z: KIOSK.center[1], r: KIOSK_REACH },
-  ...[...CONCOURSE_OBSTACLES, ...SHED_OBSTACLES, ...HOTEL_OBSTACLES, ...FOOTBRIDGE_OBSTACLES].map(
+  ...[...CONCOURSE_OBSTACLES, ...SHED_OBSTACLES, ...HOTEL_OBSTACLES, ...FOOTBRIDGE_OBSTACLES, ...PLATFORM_OBSTACLES, ...SHOP_OBSTACLES].map(
     (o): Circle => ({ x: o.x, z: o.z, r: o.r + PLAYER.radius, level: o.level }),
   ),
 ];

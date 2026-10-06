@@ -405,3 +405,45 @@ export const LOUNGE_ROOM = {
   windowSillY: BALCONY.topY + 0.9,
   windowHeadY: BALCONY.topY + 5.4,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Phase 5 (docs/superpowers/specs/2026-10-06-grand-meridian-phase5-platform-ends-shops.md)
+// ---------------------------------------------------------------------------
+
+/** Realistic platform ends: staff ramp + locked gate, signals, mirrors, STOP boards, signal box, lamp hut. */
+export const PLATFORM_END = {
+  /** Island ends (all islands end at z = 380). */
+  endZ: 380,
+  /** Staff ramp off the island end, centred on the island, down to track-bed level. */
+  ramp: { width: 1.6, zMin: 380, zMax: 388, topY: 0, bottomY: -1.1 },
+  /** Locked iron gate across the ramp head ("AUTHORISED PERSONNEL ONLY"); end railing closes the rest. */
+  gateZ: 380,
+  /** Starter signals beyond the platform end, one per track, on the cess side of the track. */
+  signalZ: 386,
+  /** Driver's convex dispatch mirrors on posts on the platform, near each served edge. */
+  mirrorZ: 372,
+  mirrorEdgeInset: 1.1,
+  /** STOP car-marker boards at the stopping point (nose stops at TRAIN_ROUTE stop z = 111). */
+  stopBoardZ: 110.6,
+  /** Two-storey brick-and-timber signal box west of T1, beyond the platform ends. */
+  signalBox: { xMin: -40, xMax: -33, zMin: 388, zMax: 397 },
+  /** Small lamp hut east of T6. */
+  lampHut: { xMin: 33, xMax: 36.5, zMin: 386, zMax: 390.5 },
+} as const;
+
+/** Concourse arcade shops in the windowless side bays (z 38 and 62) + one kiosk past the gates. */
+export const SHOPS = {
+  /** Shopfront depth measured from the side wall inner face (x = +-30) inward. */
+  depth: 2.8,
+  height: 3.6,
+  /** Half-length along z of each shop unit, centred on its bay. */
+  halfLength: 4.6,
+  units: [
+    { id: 'newsstand', label: 'NEWSAGENT & TOBACCONIST', side: 'west', bayZ: 38 },
+    { id: 'florist', label: 'FLORIST & CONFECTIONER', side: 'west', bayZ: 62 },
+    { id: 'coffee', label: 'COFFEE & PASTRIES', side: 'east', bayZ: 38 },
+    { id: 'conveniences', label: 'TRAVELLERS’ CONVENIENCES', side: 'east', bayZ: 62 },
+  ] as const,
+  /** Combined newsstand + coffee kiosk on the cross platform, past the gates. */
+  kiosk: { xMin: 7.5, xMax: 12.5, zMin: 102.6, zMax: 105.4 },
+} as const;
