@@ -41,5 +41,6 @@ Legend: [x] done & verified · [~] in progress · [ ] todo
 - [x] 4C Structures: brass-and-glass ticket gates (animated paddles), ornate iron footbridge + stairs
 - [ ] Director review: screenshots, extended nav/walk tests, perf
 - [x] 4D Platform safety: half-height brass-and-glass platform edge doors (open for every stopped train) + glowing amber edge line on approach (starts after 4A/4C finish — shares scheduler + island edges)
-- [~] Polish pass: lounge richness (damask/panelling, Persian rugs, chandeliers, piano, paintings), calm balcony rug, clear platform-door glass
-- [ ] Final: full walk-test + auto-quality perf on a quiet machine
+- [x] Polish pass: lounge richness (damask/panelling, Persian rugs, chandeliers, piano, paintings), calm balcony rug, clear platform-door glass
+- [x] Final walk-test: PASS (ticket ritual, gates, reserved train, bridge, 0 console errors); ticket requirement restored
+- [ ] Auto-quality perf on a quiet machine

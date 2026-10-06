@@ -215,13 +215,19 @@ const dk = await state();
 console.log(`on the deck: feet (${dk.fx.toFixed(2)}, ${dk.fy.toFixed(2)}, ${dk.fz.toFixed(2)})`);
 check(Math.abs(dk.fy - 7) < 0.05, 'did not reach the deck (y 7)');
 const otherX = islx === 20 ? -20 : 20;
-await goto(otherX, 227.5, { run: true, tol: 0.5, label: 'deck' });
+// Walk the deck's centre line (z 228) at walking pace: running overshoots the target and can wander onto a
+// stair head, which is a legitimate exit, not a fall.
+await goto(otherX, 228.2, { tol: 0.5, label: 'deck' });
 await shot('bridge_deck');
-// pressing into the deck rail (south) must stop us on the deck
-await goto(otherX + 6 > 21 ? otherX - 6 : otherX + 6, 215, { bump: true, maxMs: 2500, label: 'deck-rail' });
+// pressing into the deck rail (south) must stop us on the deck. Push from mid-span (x = +-10), well clear
+// of every stair head (stairs at x 0 / +-20, half-width 1.4): pushing south above a stair head walks down it.
+const railX = otherX > 0 ? 10 : -10;
+await goto(railX, 227.5, { tol: 0.5, label: 'deck' });
+await goto(railX, 215, { bump: true, maxMs: 2500, label: 'deck-rail' });
 const rail = await state();
 check(Math.abs(rail.fy - 7) < 0.05 && rail.fz >= 226.2, `fell off / crossed the deck rail: ${rail.fy.toFixed(2)} z=${rail.fz.toFixed(2)}`);
-await goto(otherX, 227.5, { tol: 0.5, label: 'deck' });
+await goto(otherX, 228.2, { tol: 0.5, label: 'deck' });
+await goto(otherX, 226.4, { label: 'stair-head' });
 await goto(otherX, 215, { label: 'descend' });
 await goto(otherX, 208, { label: 'descend' });
 const dn = await state();
@@ -262,7 +268,8 @@ check(minKiosk > 3.5, 'entered the kiosk');
 check(offTrack === 0, 'left an island (track side)');
 check(maxZ > 300, 'did not reach z > 300');
 const deckSamples = samples.filter((s) => s.label === 'deck');
-check(deckSamples.length > 5 && deckSamples.every((s) => Math.abs(s.fy - 7) < 0.05), 'deck samples left y 7');
+const offDeck = deckSamples.filter((s) => Math.abs(s.fy - 7) >= 0.05);
+check(deckSamples.length > 5 && offDeck.length === 0, `deck samples left y 7: ${offDeck.slice(0, 5).map((s) => `(${s.fx.toFixed(2)}, ${s.fy.toFixed(2)}, ${s.fz.toFixed(2)})`).join(' ')}`);
 const fin = await state();
 console.log(`final feet (${fin.fx.toFixed(1)}, ${fin.fy.toFixed(2)}, ${fin.fz.toFixed(1)})`);
 check(fin.fz < 381 && Math.abs(fin.fx - otherX) <= 5, 'ended outside the island');
