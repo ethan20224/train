@@ -47,7 +47,7 @@
 
       #pause {
         position: fixed; inset: 0; z-index: 15; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem;
-        background: rgba(6, 4, 2, 0.62); backdrop-filter: blur(3px); cursor: pointer;
+        background: rgba(6, 4, 2, 0.38); cursor: pointer; /* no backdrop-filter: it half-painted the overlay on the GPU-heavy canvas */
       }
       #pause.show { display: flex; }
       #pause h2 { margin: 0; font-weight: 400; font-size: 1.9rem; letter-spacing: 0.4em; padding-left: 0.4em; }
