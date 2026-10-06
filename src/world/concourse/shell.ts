@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARCHES, LUNETTE, VAULT, WINDOW } from '../../layout';
+import { ARCHES, LOUNGE_ROOM, LUNETTE, VAULT, WINDOW } from '../../layout';
 import {
   GeoBag, Soup, archPath, arcFrames, at, boxMM, lineFrames, rotatedBoxZ, sweep, v3, type Frame, type P2,
 } from './geo';
@@ -106,16 +106,63 @@ function buildWallSolids(bags: Bags): void {
     // south wall: front layer carries recessed blind arches, back layer only the lunette
     const w = WALLS.south;
     const front = outline();
-    front.holes = [lunetteHole(), ...SOUTH_BLINDS.map((o) => archPath(o.cu, o.v0, o.spring, o.w))];
+    front.holes = [lunetteHole(), ...SOUTH_BLINDS.map((o) => (o.cu === 0 ? loungePortalPath(o) : archPath(o.cu, o.v0, o.spring, o.w)))];
     bags.stone.add(extrudeWall(front, -BLIND_DEPTH, 0), w.m);
     const back = outline();
-    back.holes = [lunetteHole()];
+    back.holes = [lunetteHole(), loungeDoorPath()]; // first-class lounge doorway through the wall (Phase 4B)
     bags.stone.add(extrudeWall(back, -w.thickness, -BLIND_DEPTH), w.m);
     const w2 = WALLS.north;
     const s2 = outline();
     s2.holes = NORTH_ARCHES.map((o) => archPath(o.cu, o.v0, o.spring, o.w));
     bags.stone.add(extrudeWall(s2, -w2.thickness, 0), w2.m);
   }
+}
+
+/** Door rectangle through the south wall into the first-class lounge (world x, y; y from the balcony floor). */
+const DOOR = {
+  half: (LOUNGE_ROOM.door.xMax - LOUNGE_ROOM.door.xMin) / 2,
+  v0: LOUNGE_ROOM.floorY,
+  v1: LOUNGE_ROOM.floorY + LOUNGE_ROOM.door.height,
+};
+const ARCHITRAVE_W = 0.5;
+
+function loungeDoorPath(): THREE.Path {
+  const p = new THREE.Path();
+  p.moveTo(-DOOR.half, DOOR.v0); p.lineTo(DOOR.half, DOOR.v0); p.lineTo(DOOR.half, DOOR.v1); p.lineTo(-DOOR.half, DOOR.v1); p.closePath();
+  return p;
+}
+
+/** The centre blind arch, merged with the door notch below it (one hole: holes must not overlap). */
+function loungePortalPath(o: Opening): THREE.Path {
+  const r = o.w / 2;
+  const p = new THREE.Path();
+  p.moveTo(-DOOR.half, DOOR.v0);
+  p.lineTo(-DOOR.half, o.v0);
+  p.lineTo(o.cu - r, o.v0);
+  p.lineTo(o.cu - r, o.spring);
+  p.absarc(o.cu, o.spring, r, Math.PI, 0, true);
+  p.lineTo(o.cu + r, o.v0);
+  p.lineTo(DOOR.half, o.v0);
+  p.lineTo(DOOR.half, DOOR.v0);
+  p.closePath();
+  return p;
+}
+
+/** Molded stone architrave (jambs + head + cap shelf) around the lounge doorway, hall side. */
+function loungeArchitrave(bag: GeoBag, wallM: THREE.Matrix4): void {
+  // stands on the recess floor of the centre blind arch (w = -BLIND_DEPTH), so it never floats in front of the hollow
+  const m = wallM.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, -BLIND_DEPTH));
+  const prof = surroundProfile(0.8);
+  const bAxis = v3(0, 0, 1);
+  const h = DOOR.half;
+  for (const s of [-1, 1]) {
+    bag.add(sweep(prof, lineFrames(v3(s * h, DOOR.v0, 0), v3(s * h, DOOR.v1, 0), v3(s, 0, 0), bAxis), { caps: true }), m);
+  }
+  bag.add(sweep(prof, lineFrames(v3(-h - ARCHITRAVE_W, DOOR.v1, 0), v3(h + ARCHITRAVE_W, DOOR.v1, 0), v3(0, 1, 0), bAxis), { caps: true }), m);
+  // frieze + cap shelf
+  bag.add(boxMM(-h - ARCHITRAVE_W - 0.1, DOOR.v1 + ARCHITRAVE_W, 0, h + ARCHITRAVE_W + 0.1, DOOR.v1 + ARCHITRAVE_W + 0.5, 0.2), m);
+  bag.add(boxMM(-h - ARCHITRAVE_W - 0.25, DOOR.v1 + ARCHITRAVE_W + 0.5, 0, h + ARCHITRAVE_W + 0.25, DOOR.v1 + ARCHITRAVE_W + 0.62, 0.34), m);
+  bag.add(boxMM(-h - ARCHITRAVE_W - 0.17, DOOR.v1 + ARCHITRAVE_W + 0.62, 0, h + ARCHITRAVE_W + 0.17, DOOR.v1 + ARCHITRAVE_W + 0.7, 0.28), m);
 }
 
 export const SOUTH_BLINDS: Opening[] = [-24, -12, 0, 12, 24].map((cu) => ({ cu, v0: 7.4, spring: 17.5, w: 9 }));
@@ -184,7 +231,11 @@ function trimWall(wall: WallFrame, bags: Bags): void {
   }
   if (wall.name === 'south') {
     // skirting + dado on the balcony level
-    bags.dark.add(alongU(PLINTH_PROFILE.map(([a, b]): P2 => [a, b + 6]), -29.7, 29.7), m);
+    // (interrupted by the lounge doorway and its architrave)
+    for (const [a, b] of [[-29.7, -DOOR.half - ARCHITRAVE_W - 0.08], [DOOR.half + ARCHITRAVE_W + 0.08, 29.7]] as const) {
+      bags.dark.add(alongU(PLINTH_PROFILE.map(([pa, pb]): P2 => [pa, pb + 6]), a, b), m);
+    }
+    loungeArchitrave(bags.stone, m);
   }
   // --- cornice (frieze + corona) with dentils ---------------------------------------------
   const lim = side ? 50 - 0.78 : 30;
@@ -207,10 +258,30 @@ function trimWall(wall: WallFrame, bags: Bags): void {
   } else {
     for (const o of SOUTH_BLINDS) {
       surround(bags.stone, m, o, 0.95);
-      bags.stone.add(alongU(SILL_PROFILE.map(([a, b]): P2 => [a, b + (o.v0 - 3)]), o.cu - 5.2, o.cu + 5.2), m);
+      const sill = SILL_PROFILE.map(([a, b]): P2 => [a, b + (o.v0 - 3)]);
+      if (o.cu === 0) {
+        const gap = DOOR.half + ARCHITRAVE_W + 0.25;
+        bags.stone.add(alongU(sill, -5.2, -gap), m);
+        bags.stone.add(alongU(sill, gap, 5.2), m);
+      } else bags.stone.add(alongU(sill, o.cu - 5.2, o.cu + 5.2), m);
       blindPanel(bags, m, o);
     }
   }
+}
+
+/** Blind-arch outline with the lounge door notch cut out of its foot (solid polygon, no hole). */
+function notchedArch(o: Opening, r: number): THREE.Shape {
+  const s = new THREE.Shape();
+  s.moveTo(o.cu - r, o.v0);
+  s.lineTo(-DOOR.half, o.v0);
+  s.lineTo(-DOOR.half, DOOR.v1);
+  s.lineTo(DOOR.half, DOOR.v1);
+  s.lineTo(DOOR.half, o.v0);
+  s.lineTo(o.cu + r, o.v0);
+  s.lineTo(o.cu + r, o.spring);
+  s.absarc(o.cu, o.spring, r, 0, Math.PI, false);
+  s.closePath();
+  return s;
 }
 
 /** Framed marble panel at the back of a blind arch: cream marble field with a fine black-marble keyline. */
@@ -235,9 +306,10 @@ function blindPanel(bags: Bags, m: THREE.Matrix4, o: Opening): void {
   };
   const half = o.w / 2;
   // cream marble field filling the recess floor
-  const field = new THREE.ExtrudeGeometry(archAt(half - 0.02, o.v0), { depth: 0.06, bevelEnabled: false, curveSegments: 48 });
+  const field = new THREE.ExtrudeGeometry(o.cu === 0 ? notchedArch(o, half - 0.02) : archAt(half - 0.02, o.v0), { depth: 0.06, bevelEnabled: false, curveSegments: 48 });
   field.translate(0, 0, -BLIND_DEPTH);
   bags.col.add(field, m);
+  if (o.cu === 0) return; // the doorway replaces the keyline ring
   // keyline: thin black-marble ring 0.7 m inside the opening
   const rOut = half - 0.7;
   const ring = archAt(rOut, o.v0 + 0.7);

@@ -1,29 +1,30 @@
 import * as THREE from 'three';
-import { BALCONY, STAIR } from '../../layout';
+import { BALCONY, BOOKING_OFFICE, STAIR } from '../../layout';
+import { bookingWindowOutline } from '../hotel/layoutData';
 import type { MaterialLibrary } from '../../core/types';
-import { GeoBag, archPath, boxMM, latheMeters, lineFrames, sweep, v3, type P2 } from './geo';
-import { CORNICE_PROFILE, surround, type Bags, type Opening } from './shell';
+import { GeoBag, boxMM, latheMeters, lineFrames, sweep, v3, type P2 } from './geo';
+import { CORNICE_PROFILE, type Bags } from './shell';
 
-/** Arcade bays under the balcony (x centres for the left half; mirrored for the right). */
-const ARCH_W = 5.2;
-const ARCH_X_LEFT = [-26.3, -20, -13.7];
-const ARCH_SPRING = 2.2;
+/** Booking-office window outline as a THREE.Path (hole in the stone frontage wall). */
+function outlinePath(pts: Array<[number, number]>): THREE.Path {
+  const p = new THREE.Path();
+  pts.forEach(([x, y], i) => (i === 0 ? p.moveTo(x, y) : p.lineTo(x, y)));
+  p.closePath();
+  return p;
+}
 
 function arcadeWall(bags: Bags): void {
   const m = new THREE.Matrix4().makeTranslation(0, 0, BALCONY.zMax); // local u = x, v = y, w = +z
-  for (const [x0, x1, xs] of [[-30, -10, ARCH_X_LEFT], [10, 30, ARCH_X_LEFT.map((x) => -x).reverse()]] as const) {
+  // The two frontages under the balcony are the Phase 4 hotel's (booking office west, concierge east): a plain stone
+  // wall at z in [7.4, 8] whose only openings are the booking-office ticket windows. The hotel module builds the
+  // facade and the booths behind it (src/world/hotel/*).
+  for (const [x0, x1] of [[-30, -10], [10, 30]] as const) {
     const s = new THREE.Shape();
     s.moveTo(x0, -0.5); s.lineTo(x1, -0.5); s.lineTo(x1, 5.0); s.lineTo(x0, 5.0); s.closePath();
-    s.holes = xs.map((cx) => archPath(cx, 0, ARCH_SPRING, ARCH_W));
+    s.holes = x1 < 0 ? BOOKING_OFFICE.windowCentersX.map((cx) => outlinePath(bookingWindowOutline(cx))) : [];
     const g = new THREE.ExtrudeGeometry(s, { depth: 0.6, bevelEnabled: false, curveSegments: 40 });
     g.translate(0, 0, -0.6);
     bags.stone.add(g, m);
-    // dark back wall inside the arcade
-    bags.col.add(boxMM(x0, 0, 7.2, x1, 5.2, 7.4));
-    for (const cx of xs) {
-      const o: Opening = { cu: cx, v0: 0, spring: ARCH_SPRING, w: ARCH_W };
-      surround(bags.stone, m, o, 0.62, true);
-    }
     // cornice (scaled copy of the wall cornice): flush with the deck at y = 6
     const prof: P2[] = CORNICE_PROFILE.map(([a, b]): P2 => [a * 0.82, 5.0 + (b - 22.6) * (1.0 / 1.4)]);
     bags.stone.add(sweep(prof, lineFrames(v3(x0, 0, BALCONY.zMax), v3(x1, 0, BALCONY.zMax), v3(0, 0, 1), v3(0, 1, 0)), { caps: true }));

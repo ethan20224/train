@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import type { BuildContext, WorldModule } from '../core/types';
-import { BAYS, CONCOURSE, SHED, VAULT } from '../layout';
+import { BAYS, CONCOURSE, LOUNGE_ROOM, SHED, VAULT } from '../layout';
 import { SUN_COLOR, SUN_DIR, lookShared } from './shared';
 
 /**
@@ -27,7 +27,8 @@ function floorPow2(n: number): number {
  * Returns the extents so the map resolution can follow the box aspect.
  */
 function fitSunShadow(sun: THREE.DirectionalLight): { w: number; h: number } {
-  const min = new THREE.Vector3(CONCOURSE.xMin - 3, -3, CONCOURSE.zMin - 1);
+  // z reaches the first-class lounge behind the south wall (and its terrace), so the low sun is shadow-mapped there too
+  const min = new THREE.Vector3(CONCOURSE.xMin - 3, -3, LOUNGE_ROOM.zMin - LOUNGE_ROOM.wallThickness - 1.2);
   const max = new THREE.Vector3(SHED.xMax + 3, VAULT.crownY + 2, SHED.zMax + 2);
   const centre = min.clone().add(max).multiplyScalar(0.5);
 
@@ -173,6 +174,32 @@ export async function buildLighting(ctx: BuildContext): Promise<WorldModule> {
       probe.sh.copy(gen.sh);
     } catch (e) {
       console.warn('light probe generation failed', e);
+    }
+
+    // 3b. Lounge-specific environment: capture from the room's centre (windows, sun-lit floor, panelled walls) so its
+    // polished walnut / brass / leather / glass reflect the room instead of the hall. Two passes = one bounce.
+    const lounge = scene.getObjectByName('lounge');
+    const loungeMats = (lounge?.userData.loungeMaterials ?? []) as THREE.MeshStandardMaterial[];
+    let loungeRT: THREE.WebGLRenderTarget | null = null;
+    if (lounge && loungeMats.length) {
+      const lrt = new THREE.WebGLCubeRenderTarget(CAPTURE_SIZE, {
+        type: THREE.HalfFloatType, format: THREE.RGBAFormat, generateMipmaps: false, minFilter: THREE.LinearFilter,
+      });
+      const lcam = new THREE.CubeCamera(0.1, 2800, lrt);
+      lcam.position.set(0, LOUNGE_ROOM.floorY + 2.4, (LOUNGE_ROOM.zMin + LOUNGE_ROOM.zMax) / 2);
+      scene.add(lcam);
+      lcam.updateMatrixWorld(true);
+      for (let pass = 0; pass < 2; pass++) {
+        lcam.update(renderer, scene);
+        loungeRT?.dispose();
+        loungeRT = pmrem.fromCubemap(lrt.texture);
+        for (const m of loungeMats) {
+          m.envMap = loungeRT.texture;
+          m.needsUpdate = true;
+        }
+      }
+      scene.remove(lcam);
+      lrt.dispose();
     }
 
     scene.remove(cubeCam);

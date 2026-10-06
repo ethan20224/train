@@ -15,22 +15,23 @@ export const BENCH = {
 } as const;
 
 const BAYS = [14, 26, 38, 50, 62, 74, 86] as const;
-const AISLE_BAYS = [26, 38, 50, 62, 74] as const;
 
-/** Wall benches (backs to the pilastered wall) + back-to-back aisle benches, both sides. Perfectly aligned. */
+/** Phase 4 hotel: the two blind bays that carry a small armchair group per side skip their wall benches. */
+const ARMCHAIR_BAYS = [38, 62] as const;
+
+/**
+ * Wall benches (backs to the pilastered wall), two per bay, both sides, set 0.14 m in from the plinth because the walnut
+ * wainscot (src/world/hotel/hallDado.ts) now clads it. Bays 38 / 62 carry the hotel's armchair groups instead; the
+ * back-to-back aisle benches are gone.
+ */
 export function benchPlacements(): BenchPlacement[] {
   const out: BenchPlacement[] = [];
   for (const side of [-1, 1] as const) {
-    // wall row: two benches per bay
     for (const c of BAYS) {
+      if ((ARMCHAIR_BAYS as readonly number[]).includes(c)) continue;
       for (const dz of [-1.9, 1.9]) {
-        out.push({ x: side * 29.34, z: c + dz, facing: side < 0 ? 1 : -1 });
+        out.push({ x: side * 29.2, z: c + dz, facing: side < 0 ? 1 : -1 });
       }
-    }
-    // aisle row: back-to-back pair per window / blind bay
-    for (const c of AISLE_BAYS) {
-      out.push({ x: side * 26.3 - 0.31, z: c, facing: -1 });
-      out.push({ x: side * 26.3 + 0.31, z: c, facing: 1 });
     }
   }
   return out;

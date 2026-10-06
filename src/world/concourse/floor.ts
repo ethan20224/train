@@ -104,9 +104,7 @@ export function buildFloor(bags: Bags): void {
   // field with the medallion hole
   bags.floor.add(planarShape([-28.94, zS + 1.06, 28.94, zN - 1.06], [hole], 0));
   medallion(bags, 0, kx, kz);
-  // floor inside the arcade recess below the balcony (visible through the blind arches)
-  bags.dark.add(planarShape([-30, 7.2, -10, zS], [], 0));
-  bags.dark.add(planarShape([10, 7.2, 30, zS], [], 0));
+  // (the arcade recess floor strips were removed: the under-balcony frontages are now sealed walls, Phase 4 hotel)
 
   // ---- arch thresholds (z 100 -> 102) -----------------------------------------------------------
   for (const cx of ARCHES.centersX) {

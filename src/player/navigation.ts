@@ -9,6 +9,7 @@ import {
   GATES,
   ISLANDS,
   KIOSK,
+  LOUNGE_ROOM,
   PLAYER,
   STAIR,
   gateLaneCentersX,
@@ -83,6 +84,22 @@ const REGIONS: readonly Region[] = (() => {
     zMin: BALCONY.balustradeZ - C - 0.01,
     zMax: STAIR.zMin,
     y: BALCONY.topY,
+  });
+  // First-class lounge (Phase 4B): the doorway through the hall's south wall (z -2 -> 0) and the room's interior, both
+  // at the balcony level. The room is sealed: its walls and windows are simply outside this union.
+  r.push({
+    xMin: LOUNGE_ROOM.door.xMin + C,
+    xMax: LOUNGE_ROOM.door.xMax - C,
+    zMin: LOUNGE_ROOM.zMax - C - 0.01,
+    zMax: BALCONY.zMin + C + 0.01,
+    y: LOUNGE_ROOM.floorY,
+  });
+  r.push({
+    xMin: LOUNGE_ROOM.xMin + C,
+    xMax: LOUNGE_ROOM.xMax - C,
+    zMin: LOUNGE_ROOM.zMin + C,
+    zMax: LOUNGE_ROOM.zMax - C,
+    y: LOUNGE_ROOM.floorY,
   });
   // Grand staircase as a ramp 6 -> 0 over z in [8, 20].
   r.push({

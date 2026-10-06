@@ -6,7 +6,7 @@ import {
   CONCOURSE,
   FOOTBRIDGE,
   GATES,
-  LOUNGE,
+  LOUNGE_ROOM,
   ISLANDS,
   KIOSK,
   PLAYER,
@@ -33,6 +33,7 @@ export const PRESET_NAMES = [
   'shed',
   'haze',
   'lounge',
+  'loungedoor',
   'booking',
   'concierge',
   'gates',
@@ -49,6 +50,7 @@ export interface CameraPreset {
 }
 
 const EYE = PLAYER.eyeHeight;
+const BALCONY_EYE = LOUNGE_ROOM.floorY + PLAYER.eyeHeight;
 const islandB = ISLANDS.find((i) => i.id === 'B');
 const t3 = TRACKS.find((t) => t.id === 'T3');
 if (!islandB || !t3) throw new Error('layout is missing island B / track T3');
@@ -109,9 +111,18 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
     intent: 'Island B near the shed end, looking north where tracks dissolve into golden fog.',
   },
   lounge: {
-    position: [LOUNGE.wings[0].xMax - 1, LOUNGE.y + EYE, 1.2],
-    target: [LOUNGE.wings[0].xMin + 2, LOUNGE.y + 0.6, 6.5],
-    intent: 'Balcony west wing: the first-class lounge, looking across the armchairs toward the hall rail.',
+    // Inside the room, just past the doors, looking toward the south-west windows: sun beams, drapes, the seating group.
+    position: [4.6, LOUNGE_ROOM.floorY + EYE, LOUNGE_ROOM.zMax - 2.5],
+    target: [-8, LOUNGE_ROOM.floorY + 0.5, LOUNGE_ROOM.zMin + 3.5],
+    fov: 60,
+    intent: 'First-class lounge, just inside the doors, looking toward the south-west windows and the low sun.',
+  },
+  loungedoor: {
+    // From the balcony, looking at the closed etched-glass doors in the hall's south wall.
+    position: [1.6, BALCONY_EYE, 6.2],
+    target: [0, LOUNGE_ROOM.floorY + 2.4, LOUNGE_ROOM.door.zMax],
+    fov: 58,
+    intent: 'From the balcony toward the closed walnut-and-etched-glass doors of the first-class lounge.',
   },
   booking: {
     position: [BOOKING_OFFICE.windowCentersX[1] + 4, EYE, BOOKING_OFFICE.faceZ + 7],

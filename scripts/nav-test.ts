@@ -2,7 +2,7 @@
 import { Vector3 } from 'three';
 import assert from 'node:assert/strict';
 import { heightAt, resolve, setRequireTicketOverride } from '../src/player/navigation';
-import { COLONNADE, FOOTBRIDGE, GATES, ISLANDS, KIOSK, PLAYER, START_POSE, TRACKS, gateLaneCentersX } from '../src/layout';
+import { COLONNADE, FOOTBRIDGE, GATES, ISLANDS, KIOSK, LOUNGE_ROOM, PLAYER, START_POSE, TRACKS, gateLaneCentersX } from '../src/layout';
 import { tickets, type Ticket } from '../src/core/ticket';
 
 let passed = 0;
@@ -263,6 +263,75 @@ test('switch off: lanes open without a ticket; band still blocked between lanes'
   const cab = walk(v(0.7, 90), new Vector3(0.7, 0, 100));
   assert.ok(cab.z < GATES.zMin, 'cabinets still solid');
   setRequireTicketOverride(true);
+});
+
+// --------------------------------------------------------------------------------------------------------------------
+// Phase 4B: the first-class lounge (balcony level, behind the hall's south wall)
+// --------------------------------------------------------------------------------------------------------------------
+const LR = LOUNGE_ROOM;
+const C4 = PLAYER.wallClearance;
+
+test('lounge: start pose -> doorway -> into the room and back, all at y = 6', () => {
+  let p = v(0, 3);
+  p = walk(p, new Vector3(0, 0, -1));
+  near(p.z, -1, 0.05, 'in the doorway');
+  assert.equal(p.y, 6);
+  p = walk(p, new Vector3(2.6, 0, -4)); // around the entrance table (0, -6.6)
+  p = walk(p, new Vector3(2.6, 0, -8.5));
+  p = walk(p, new Vector3(0, 0, -8.5));
+  near(p.z, -8.5, 0.05, 'inside the room');
+  assert.equal(p.y, 6);
+  p = walk(p, new Vector3(2.6, 0, -8.5));
+  p = walk(p, new Vector3(2.6, 0, -4));
+  p = walk(p, new Vector3(0, 0, -1));
+  p = walk(p, new Vector3(0, 0, 3));
+  near(p.z, 3, 0.05, 'back on the balcony');
+  assert.equal(p.y, 6);
+});
+
+test('lounge: sealed - cannot leave through the walls, the windows or the hall wall', () => {
+  // every wall, from several heights along it (window positions included)
+  for (const z of [-4, -9, -13.5, -18, -23]) {
+    const w = walk(v(-8, z), new Vector3(-30, 0, z));
+    assert.ok(w.x >= LR.xMin + C4 - 1e-6, `west wall (z=${z}): x=${w.x}`);
+    const e = walk(v(8, z), new Vector3(30, 0, z));
+    assert.ok(e.x <= LR.xMax - C4 + 1e-6, `east wall (z=${z}): x=${e.x}`);
+  }
+  for (const x of [-9, -4.5, 0, 9, 13]) {
+    const s = walk(v(x, -12), new Vector3(x, 0, -40));
+    assert.ok(s.z >= LR.zMin + C4 - 1e-6, `south wall/window (x=${x}): z=${s.z}`);
+  }
+  for (const x of [-12, -6, -3, 3, 6, 12]) {
+    const n = walk(v(x, -5), new Vector3(x, 0, 6));
+    assert.ok(n.z <= LR.zMax - C4 + 1e-6 || n.z >= 0, `north wall (x=${x}): z=${n.z}`);
+    assert.ok(n.z <= LR.zMax - C4 + 1e-6, `north wall stays shut beside the doors (x=${x}): z=${n.z}`);
+  }
+  const big = resolve(v(0, -10), new Vector3(0, 0, -60));
+  assert.ok(big.z >= LR.zMin + C4 - 1e-6, 'one big move cannot leave through the south wall');
+  const bigW = resolve(v(-5, -9), new Vector3(-60, 0, -9));
+  assert.ok(bigW.x >= LR.xMin + C4 - 1e-6, 'one big move cannot leave through the west wall');
+  for (const [x, z] of [[-16, -9], [-9, -25], [0, -25], [16, -10], [5, -2.2], [-3, -1.2], [0, -50]] as const) {
+    assert.equal(heightAt(x, z, 6), null, `outside the room is not walkable: (${x}, ${z})`);
+  }
+  // the hall's south wall (z -2 .. 0) is only passable through the doorway
+  assert.equal(heightAt(5, -1, 6), null, 'hall wall beside the doors is solid');
+  assert.notEqual(heightAt(0, -1, 6), null, 'doorway is open');
+  // from the hall floor the lounge is not reachable (different level, wall in between)
+  assert.equal(heightAt(0, -5, 0), null, 'no ground-level access to the lounge');
+});
+
+test('lounge: furniture blocks (sofa, desk, fireplace, bookcase) and the room can be crossed', () => {
+  for (const [x, z] of [[0, -11.5], [0, -23.5], [14.5, -13.5], [14.8, -9.9]] as const) assert.equal(heightAt(x, z, 6), null, `blocked: (${x}, ${z})`);
+  const p = walk(v(2.6, -4), new Vector3(2.6, 0, -9));
+  near(p.z, -9, 0.1, 'doors to the middle of the room is free');
+  assert.equal(heightAt(0, -6.6, 6), null, 'entrance table blocks');
+  const q = walk(v(-13, -4), new Vector3(13, 0, -4));
+  assert.ok(q.x > 3, `could walk across the north end, reached x=${q.x}`);
+});
+
+test('fuzz: 150k random moves from the balcony through the lounge stay inside the walkable set', () => {
+  const lv = fuzz('lounge', v(0, -8), 150000, 2468, false);
+  assert.ok(lv.has(6), 'stayed at the lounge level');
 });
 
 console.log(`\n${passed} tests passed`);
