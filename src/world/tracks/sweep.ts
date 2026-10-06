@@ -40,10 +40,15 @@ export class GeoAcc {
   pos: number[] = [];
   nor: number[] = [];
   idx: number[] = [];
+  col: number[] = [];
+  /** Current vertex colour (written for every vertex when `useColor`). */
+  color: [number, number, number] = [1, 1, 1];
+  useColor = false;
 
   vertex(x: number, y: number, z: number, nx: number, ny: number, nz: number): number {
     this.pos.push(x, y, z);
     this.nor.push(nx, ny, nz);
+    if (this.useColor) this.col.push(this.color[0], this.color[1], this.color[2]);
     return this.pos.length / 3 - 1;
   }
 
@@ -128,6 +133,7 @@ export class GeoAcc {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
+    if (this.useColor) g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     g.setIndex(this.idx);
     return g;
   }

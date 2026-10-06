@@ -24,6 +24,7 @@ import { buildSafety } from './world/safety';
 import { buildPlatformEnds } from './world/platformEnds';
 import { buildShops } from './world/shops';
 import { buildTracks } from './world/tracks';
+import { buildTrackDetails } from './world/trackDetails';
 import { buildTrains } from './trains/scheduler';
 
 /**
@@ -164,6 +165,7 @@ async function boot(): Promise<void> {
     buildPlatformEnds(ctx),
     buildShops(ctx),
     buildTracks(ctx),
+    buildTrackDetails(ctx),
     buildTrains(ctx),
   ]);
   setProgress(0.85);

@@ -202,6 +202,35 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
   };
   w.__meridian.bogieDeviation = bogieDeviation;
 
+  /** Test hook: reservation conflicts between trains right now (shared edge / node), plus the max speed with any end of a train in the throat zone. */
+  const routeCheck = (): { conflicts: string[]; throatMaxV: number; nan: boolean } => {
+    const owner = new Map<string, number>();
+    const conflicts: string[] = [];
+    let throatMaxV = 0;
+    let nan = false;
+    for (const t of traffic.trains) {
+      if (!t.active || !t.route) continue;
+      if (!Number.isFinite(t.u) || !Number.isFinite(t.v)) nan = true;
+      const rear = Math.max(0, t.u - TRAIN_L);
+      const claim = (key: string): void => {
+        const o = owner.get(key);
+        if (o !== undefined && o !== t.id) conflicts.push(`${key} train ${o} & ${t.id}`);
+        owner.set(key, t.id);
+      };
+      if (t.kind === 'stabled') claim(`e${t.route.pieces[0]!.edge}`);
+      else {
+        for (const pc of t.route.pieces) {
+          if (pc.u1 > rear + 0.01 && pc.u0 < t.u - 0.01) claim(`e${pc.edge}`);
+          if (pc.nodeEnd >= 0 && pc.u1 > rear + 0.01 && pc.u1 <= t.u + 0.01) claim(`n${pc.nodeEnd}`);
+        }
+        const zs = [traffic.noseZ(t), t.route.outwardPose(t.orient > 0 ? t.u - TRAIN_L : t.u).z];
+        if (!t.waiting && t.v > 0.01 && zs.some((z) => z > 392 && z < 870)) throatMaxV = Math.max(throatMaxV, t.v);
+      }
+    }
+    return { conflicts, throatMaxV, nan };
+  };
+  w.__meridian.routeCheck = routeCheck;
+
   // ----------------------------------------------------------------------------------------- frame
   const pose = { x: 0, z: 0, h: 0 };
   const frustum = new THREE.Frustum();
