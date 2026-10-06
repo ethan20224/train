@@ -24,6 +24,7 @@ import {
   SHED_OBSTACLES,
   SHOP_OBSTACLES,
 } from '../obstacles';
+import { groundY, inRegion, type Region } from './regions';
 
 /**
  * Walkable-surface queries, built ONLY from layout.ts (spec section 3 "Player" + Phase 4 "Systems").
@@ -46,14 +47,6 @@ const C = PLAYER.wallClearance;
 const LEVEL_TOLERANCE = 0.6;
 /** A prop obstacle with a `level` only applies when |ground - level| is under this. */
 const OBSTACLE_LEVEL_TOLERANCE = 1.0;
-
-interface Region extends Rect {
-  /** Ground height; for ramps see `ramp`. */
-  readonly y: number;
-  readonly ramp?: { readonly zFrom: number; readonly zTo: number; readonly yFrom: number; readonly yTo: number };
-  /** Gate lane corridor: only walkable while a ticket is held. */
-  readonly gate?: boolean;
-}
 
 interface Circle {
   readonly x: number;
@@ -115,7 +108,7 @@ const REGIONS: readonly Region[] = (() => {
     zMin: STAIR.zMin,
     zMax: STAIR.zMax,
     y: STAIR.bottomY,
-    ramp: { zFrom: STAIR.zMin, zTo: STAIR.zMax, yFrom: STAIR.topY, yTo: STAIR.bottomY },
+    ramp: { axis: 'z', from: STAIR.zMin, to: STAIR.zMax, yFrom: STAIR.topY, yTo: STAIR.bottomY },
   });
 
   // Concourse floor beside the stair (excludes the stair footprint and its balustrades), both sides.
@@ -204,7 +197,7 @@ const REGIONS: readonly Region[] = (() => {
       zMin: bot,
       zMax: top,
       y: isl.topY,
-      ramp: { zFrom: bot, zTo: top, yFrom: isl.topY, yTo: FOOTBRIDGE.deckTopY },
+      ramp: { axis: 'z', from: bot, to: top, yFrom: isl.topY, yTo: FOOTBRIDGE.deckTopY },
     });
     // Landing where the stair meets the deck (through the deck's south rail).
     r.push({
@@ -235,17 +228,6 @@ const OBSTACLES: readonly Circle[] = [
   ),
 ];
 
-function inRect(r: Rect, x: number, z: number): boolean {
-  return x >= r.xMin && x <= r.xMax && z >= r.zMin && z <= r.zMax;
-}
-
-function groundY(r: Region, z: number): number {
-  const ramp = r.ramp;
-  if (!ramp) return r.y;
-  const t = Math.min(1, Math.max(0, (z - ramp.zFrom) / (ramp.zTo - ramp.zFrom)));
-  return ramp.yFrom + (ramp.yTo - ramp.yFrom) * t;
-}
-
 /** True when a circular obstacle blocks (x, z) for a player standing on ground height `y`. */
 function inObstacle(x: number, z: number, y: number): boolean {
   for (const o of OBSTACLES) {
@@ -257,25 +239,69 @@ function inObstacle(x: number, z: number, y: number): boolean {
   return false;
 }
 
+interface Hit { readonly g: number; readonly region: Region }
+const NO_KEEP: ReadonlySet<Region> = new Set();
+let dynamicRegions: () => readonly Region[] = () => [];
+/** Movers, doors and other time-varying regions (metro runtime). Called on every query: keep it cheap. */
+export function setDynamicRegions(fn: () => readonly Region[]): void {
+  dynamicRegions = fn;
+}
+
 /**
- * Ground height at (x, z) for a player whose feet are at `nearY` (undefined = no preference: the LOWEST
- * level there). `lanes`: gate lane corridors count as walkable.
+ * Best region at (x, z) for a player whose feet are at `nearY` (undefined = the LOWEST level there).
+ * `lanes`: ticket-gate lanes count as walkable. `keep`: connectors the player is standing in (stay open for them).
  */
-function groundAt(x: number, z: number, nearY: number | undefined, lanes: boolean): number | null {
-  let best: number | null = null;
+function pick(x: number, z: number, nearY: number | undefined, lanes: boolean, keep: ReadonlySet<Region>): Hit | null {
+  let best: Hit | null = null;
   let bestD = Infinity;
-  for (const r of REGIONS) {
-    if (r.gate && !lanes) continue;
-    if (!inRect(r, x, z)) continue;
-    const g = groundY(r, z);
-    const d = nearY === undefined ? g : Math.abs(g - nearY);
-    if (nearY !== undefined && d > LEVEL_TOLERANCE) continue;
-    if (d >= bestD) continue;
-    if (inObstacle(x, z, g)) continue;
-    best = g;
-    bestD = d;
+  for (const list of [REGIONS, dynamicRegions()]) {
+    for (const r of list) {
+      if (r.gate && !lanes) continue;
+      if (r.when && !r.when() && !keep.has(r)) continue;
+      if (!inRegion(r, x, z)) continue;
+      const g = groundY(r, x, z);
+      const d = nearY === undefined ? g : Math.abs(g - nearY);
+      if (nearY !== undefined && d > LEVEL_TOLERANCE) continue;
+      if (d >= bestD) continue;
+      if (inObstacle(x, z, g)) continue;
+      best = { g, region: r };
+      bestD = d;
+    }
   }
   return best;
+}
+
+function groundAt(x: number, z: number, nearY: number | undefined, lanes: boolean, keep: ReadonlySet<Region> = NO_KEEP): number | null {
+  return pick(x, z, nearY, lanes, keep)?.g ?? null;
+}
+
+/** Connectors containing the feet position: they stay walkable for this move (nobody is trapped when a door closes). */
+function connectorsAt(p: Vector3): ReadonlySet<Region> {
+  let keep: Set<Region> | null = null;
+  for (const list of [REGIONS, dynamicRegions()]) {
+    for (const r of list) {
+      if (!r.when || !inRegion(r, p.x, p.z) || Math.abs(groundY(r, p.x, p.z) - p.y) > LEVEL_TOLERANCE) continue;
+      (keep ??= new Set()).add(r);
+    }
+  }
+  return keep ?? NO_KEEP;
+}
+
+/** Mover displacement this frame for a rider whose feet are at (x, y, z) BEFORE being carried, or null. */
+export function carryAt(x: number, z: number, y: number): { x: number; y: number; z: number } | null {
+  for (const r of dynamicRegions()) {
+    if (!r.carry || !inRegion(r, x, z)) continue;
+    if (Math.abs(groundY(r, x, z) - r.carry.y - y) <= LEVEL_TOLERANCE) return r.carry;
+  }
+  return null;
+}
+
+/** Moving-walkway velocity (m/s) under feet at (x, y, z); zero when not on one. */
+export function conveyorAt(x: number, z: number, y: number): { x: number; z: number } {
+  const c = pick(x, z, y, lanesOpen(), NO_KEEP)?.region.conveyor;
+  if (!c) return { x: 0, z: 0 };
+  const s = c.speed();
+  return c.axis === 'x' ? { x: s, z: 0 } : { x: 0, z: s };
 }
 
 let requireTicketOverride: boolean | null = null;
@@ -291,7 +317,7 @@ const lanesOpen = (): boolean => !ticketRequired() || tickets.held !== null;
 function inLane(x: number, z: number): boolean {
   // Strictly past the floor regions' edges (z = zMin - C and zMax + C): standing ON the edge is not "in" the lane.
   if (z <= GATES.zMin - C + 0.005 || z >= GATES.zMax + C - 0.005) return false;
-  for (const r of REGIONS) if (r.gate && inRect(r, x, z)) return true;
+  for (const r of REGIONS) if (r.gate && inRegion(r, x, z)) return true;
   return false;
 }
 
@@ -340,7 +366,8 @@ export function resolve(prev: Vector3, next: Vector3): Vector3 {
   const out = new Vector3(prev.x, prev.y, prev.z);
   // Never trap anybody in a lane: while standing in one, lanes stay walkable even if the ticket went away.
   const lanes = lanesOpen() || inLane(prev.x, prev.z);
-  let y = groundAt(prev.x, prev.z, prev.y, lanes) ?? groundAt(prev.x, prev.z, undefined, lanes) ?? null;
+  const keep = connectorsAt(prev);
+  let y = groundAt(prev.x, prev.z, prev.y, lanes, keep) ?? groundAt(prev.x, prev.z, undefined, lanes, keep) ?? null;
   if (y === null) return out;
   out.y = y;
 
@@ -366,7 +393,7 @@ export function resolve(prev: Vector3, next: Vector3): Vector3 {
     for (const [mx, mz] of candidates) {
       if (mx === 0 && mz === 0) continue;
       const [px, pz] = pushOutOfObstacles(x + mx, z + mz, y);
-      const g = groundAt(px, pz, y, lanes);
+      const g = groundAt(px, pz, y, lanes, keep);
       if (g !== null) {
         x = px;
         z = pz;
@@ -383,14 +410,14 @@ export function resolve(prev: Vector3, next: Vector3): Vector3 {
       for (let k = 0; k < 8; k++) {
         const mid = (lo + hi) / 2;
         const [px, pz] = pushOutOfObstacles(x + sx * mid, z + sz * mid, y);
-        if (groundAt(px, pz, y, lanes) !== null) lo = mid;
+        if (groundAt(px, pz, y, lanes, keep) !== null) lo = mid;
         else hi = mid;
       }
       if (lo > 0) {
         const [px, pz] = pushOutOfObstacles(x + sx * lo, z + sz * lo, y);
         x = px;
         z = pz;
-        y = groundAt(x, z, y, lanes) ?? y;
+        y = groundAt(x, z, y, lanes, keep) ?? y;
       }
       break;
     }
