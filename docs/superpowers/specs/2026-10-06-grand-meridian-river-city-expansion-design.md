@@ -1,7 +1,7 @@
 # Grand Meridian — River City, Station Grounds, Weather, and Ticket Kiosks
 
 Date: 2026-10-06 (Asia/Singapore)
-Status: conversational design approved; written specification awaiting user review.
+Status: written specification approved by the user on 2026-10-06; implementation plans awaiting review and execution-method selection.
 
 ## 1. Intent and approved decisions
 
