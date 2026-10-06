@@ -128,6 +128,7 @@ await goto(-7, 36, { run: true, label: 'concourse2' });
 await goto(-7, 50, { run: true, label: 'kiosk-west' });
 await shot('kiosk_west');
 await goto(-3, 60, { run: true, label: 'kiosk-north' });
+await goto(-14, 62, { run: true, label: 'skirt-oculus' }); await goto(-14, 85, { run: true, label: 'skirt-oculus' }); // Meridian Deep: the oculus now sits on the straight line north (x -12..-8.4 throat also avoided)
 await goto(0, 85, { run: true, label: 'to-gates' });
 
 // 4. WITHOUT a ticket the player is stopped at the gates
@@ -145,6 +146,7 @@ await page.keyboard.press('KeyE'); await page.waitForTimeout(300);
 check(await page.evaluate(() => window.__meridian.ticket === null), 'E at the gates issued a ticket');
 
 // 5. back to the booking office window (west frontage), collect the ticket with E
+await goto(-14, 85, { run: true, label: 'skirt-oculus3' }); await goto(-14, 62, { run: true, label: 'skirt-oculus3' });
 await goto(-10, 40, { run: true, label: 'to-booking' });
 await goto(-20.5, 14, { run: true, label: 'to-booking' });
 await goto(-20.5, 9.4, { tol: 0.3, label: 'window' });
@@ -181,6 +183,7 @@ check(tk2 && tk2.serial === ticket.serial, 'E that dismissed the card must not i
 
 // 6. with the ticket: through a gate lane (centre bank, lane centre x = 0)
 await goto(-8, 40, { run: true, label: 'to-gates2' });
+await goto(-14, 62, { run: true, label: 'skirt-oculus2' }); await goto(-14, 85, { run: true, label: 'skirt-oculus2' });
 await goto(0, 85, { run: true, label: 'to-gates2' });
 await shot('gates_approach');
 await goto(0, 94.2, { tol: 0.5, label: 'lane-approach' });
