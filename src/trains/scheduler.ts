@@ -34,6 +34,8 @@ export interface TrainControl {
   requestTrain(track: number): boolean;
   /** Currently reserved track indices. */
   reservedTracks(): number[];
+  /** Phase 4D: read-only per-track state, one entry per TRACKS index (reused buffer, no allocation). */
+  trackStates(): TrackState[];
 }
 export const trainControl: TrainControl = {
   freeTracks: () => [],
@@ -41,9 +43,23 @@ export const trainControl: TrainControl = {
   hasFreeSlot: () => false,
   requestTrain: () => false,
   reservedTracks: () => [],
+  trackStates: () => [],
 };
 
-type Phase = 'cruiseIn' | 'brake' | 'dwell' | 'accel' | 'cruiseOut';
+/** Phase 4D: read-only per-track train state (index = TRACKS index). The returned array and its entries are reused; do not retain. */
+export interface TrackState {
+  track: number;
+  /** null when no train is on this track. */
+  phase: Phase | null;
+  /** Seconds elapsed in the current phase. */
+  t: number;
+  /** Total dwell duration of the current train (s). */
+  dwell: number;
+  nose: number;
+  speed: number;
+}
+
+export type Phase = 'cruiseIn' | 'brake' | 'dwell' | 'accel' | 'cruiseOut';
 
 /** Smootherstep and its integral. */
 const sstep = (u: number): number => u * u * u * (10 + u * (-15 + 6 * u));
@@ -206,6 +222,24 @@ export async function buildTrains(ctx: BuildContext): Promise<WorldModule> {
   trainControl.occupiedTracks = () =>
     slots.filter((s) => s.active && (s.phase === 'dwell' || s.phase === 'brake')).map((s) => trackIndex(s.track));
   trainControl.hasFreeSlot = () => slots.some((s) => !s.active);
+  const stateBuf: TrackState[] = TRACKS.map((_, i) => ({ track: i, phase: null, t: 0, dwell: 0, nose: 0, speed: 0 }));
+  trainControl.trackStates = () => {
+    for (const st of stateBuf) {
+      st.phase = null;
+      st.t = st.dwell = st.nose = st.speed = 0;
+    }
+    for (const x of slots) {
+      if (!x.active) continue;
+      const st = stateBuf[trackIndex(x.track)];
+      if (!st) continue;
+      st.phase = x.phase;
+      st.t = x.t;
+      st.dwell = x.dwell;
+      st.nose = x.nose;
+      st.speed = x.speed;
+    }
+    return stateBuf;
+  };
   trainControl.reservedTracks = () => slots.filter((s) => s.active && s.reserved).map((s) => trackIndex(s.track));
   trainControl.requestTrain = (track: number): boolean => {
     const def = TRACKS[track];

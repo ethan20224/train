@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BuildContext } from '../core/types';
-import { RAIL } from '../layout';
+import { PLATFORM_SAFETY, RAIL } from '../layout';
 import { box, cap, loft, merge, mirrorX, sideShape, xCyl, type V2 } from './geom';
 import { contactShadowTexture, glowAtlas, lettersTexture, windowAtlas } from './textures';
 
@@ -278,13 +278,38 @@ function buildCar(p: Parts, z0: number, tail: boolean, index: number): void {
       g.gold.push(box(...gx(W - 0.01, W + 0.03), y0, y1, zl - t, zl));
       g.gold.push(box(...gx(W - 0.01, W + 0.03), y0, y1, zr, zr + t));
     }
-    // vestibule doors (outline only)
-    const doorZs: [number, number][] = tail ? [[0.45, 1.75]] : [[0.45, 1.75], [23.25, 24.55]];
-    for (const [a, b] of doorZs) {
+    // vestibule doors: gold outline + recessed panel hairlines, centre split, handles, narrow window.
+    // Door centres come from PLATFORM_SAFETY (shared with the platform edge doors).
+    const half = PLATFORM_SAFETY.carDoorWidth / 2;
+    const doorCs = tail ? [PLATFORM_SAFETY.carDoorLocalZ[0]] : PLATFORM_SAFETY.carDoorLocalZ;
+    for (const c of doorCs) {
+      const a = c - half;
+      const b = c + half;
       g.gold.push(box(...gx(W - 0.01, W + 0.025), 0.05, 0.09, a, b));
       g.gold.push(box(...gx(W - 0.01, W + 0.025), 2.1, 2.14, a, b));
       g.gold.push(box(...gx(W - 0.01, W + 0.025), 0.05, 2.14, a, a + 0.04));
       g.gold.push(box(...gx(W - 0.01, W + 0.025), 0.05, 2.14, b - 0.04, b));
+      // centre split of the double leaf
+      g.gold.push(box(...gx(W - 0.01, W + 0.02), 0.09, 2.1, c - 0.012, c + 0.012));
+      // recessed panel hairlines (lower kick panel, upper frame around the window)
+      const hl = (y0: number, y1: number, z0: number, z1: number): void => {
+        const t = 0.011;
+        g.gold.push(box(...gx(W - 0.01, W + 0.017), y0, y0 + t, z0, z1));
+        g.gold.push(box(...gx(W - 0.01, W + 0.017), y1 - t, y1, z0, z1));
+        g.gold.push(box(...gx(W - 0.01, W + 0.017), y0, y1, z0, z0 + t));
+        g.gold.push(box(...gx(W - 0.01, W + 0.017), y0, y1, z1 - t, z1));
+      };
+      for (const [z0, z1] of [[a + 0.1, c - 0.05], [c + 0.05, b - 0.1]] as const) {
+        hl(0.16, 0.36, z0, z1);
+        hl(0.6, 0.86, z0, z1);
+        // narrow door window (dark glass) with a gold surround
+        g.windows.push(windowQuad(s, (z0 + z1) / 2, (index + (s > 0 ? 0 : 1)) % 4, z1 - z0 - 0.04, 0.9, 1.55));
+        hl(1.08, 2.02, z0, z1);
+      }
+      // small brass handles beside the split
+      for (const sz of [-1, 1]) {
+        g.gold.push(box(...gx(W + 0.01, W + 0.05), 1.0, 1.16, c + sz * 0.09 - 0.012, c + sz * 0.09 + 0.012));
+      }
     }
     // lettering
     const lw = 7.4;
