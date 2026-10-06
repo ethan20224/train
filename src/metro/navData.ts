@@ -1,12 +1,13 @@
 import { PLAYER } from '../layout';
 import {
-  DISC, ESCALATOR, ESCALATOR_BANDS, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MERIDIAN, OCULUS, PSD, THRESHOLD, THROAT, VESPER, escalatorUnits,
+  DISC, ESCALATOR, F3_LOW_FOOTPRINT_Z0, FLIGHTS, ESCALATOR_BANDS, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MERIDIAN, OCULUS, PSD, THRESHOLD, THROAT, VESPER, escalatorUnits,
 } from '../layoutMetro';
 import { boundsOf, circleShape, obbShape, rectShape, type Region, type Shape } from '../player/regions';
 import { escalators } from './escalators';
 
 /** Static metro walkability (spec §2). Movers and their gangways are dynamic (src/metro/disc.ts). */
 const C = PLAYER.wallClearance;
+const F3 = FLIGHTS.find((f) => f.id === 'F3')!;
 const { cx, cz } = OCULUS;
 const liftHoles = (): Shape[] => LIFTS.positions.map(([x, z]) => circleShape(x, z, LIFTS.tubeR + C));
 const bandHoles = (bands: readonly (readonly [number, number])[], zMin: number, zMax: number): Shape[] =>
@@ -53,7 +54,7 @@ export function metroStaticRegions(): Region[] {
   return [
     landing(LANDINGS.L1),
     landing(LANDINGS.L2),
-    { ...boundsOf(annulus), y: THRESHOLD.y, circle: annulus, holes: [circleShape(cx, cz, THRESHOLD.rInner + C)] },
+    { ...boundsOf(annulus), y: THRESHOLD.y, circle: annulus, holes: [circleShape(cx, cz, THRESHOLD.rInner + C), ...bandHoles(ESCALATOR_BANDS.outer, F3_LOW_FOOTPRINT_Z0, F3.to - 0.3)] },
     landing(LANDINGS.thresholdBridge),
     {
       xMin: -doorX, xMax: doorX, zMin: isl.zMin + C, zMax: isl.zMax - C, y: MERIDIAN.topY,

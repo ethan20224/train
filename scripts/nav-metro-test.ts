@@ -20,6 +20,20 @@ const at = (x: number, z: number, y: number) => new Vector3(x, heightAt(x, z, y)
 const unit = (flight: string, dir: 'down' | 'up', side: 1 | -1) =>
   escalatorUnits().find((u) => u.flight === flight && u.dir === dir && Math.sign(u.across) === side)!;
 
+test('every up unit can be ridden from its lower landing to its upper landing', () => {
+  for (const f of FLIGHTS) for (const side of [1, -1] as const) {
+    const u = f.axis === 'z' ? unit(f.id, 'up', side) : escalatorUnits().find((e) => e.flight === f.id && e.dir === 'up')!;
+    if (f.axis === 'z' && !u) continue;
+    const dl = Math.sign(u.from - u.to) || 1; // from the lower end towards the upper end
+    const pt = (a: number, y: number) => (u.axis === 'z' ? at(u.across, a, y) : at(a, u.across, y));
+    const to = (a: number) => (u.axis === 'z' ? new Vector3(u.across, 0, a) : new Vector3(a, 0, u.across));
+    const start = pt(u.to - dl * 0.4, u.yTo);
+    const p = walk(start, to(u.from + dl * 0.4));
+    near(p.y, u.yFrom, 0.05, `${u.id} up unit: start y ${start.y}, ended at (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`);
+    if (f.axis === 'x') break;
+  }
+});
+
 test('hall: cannot step into the oculus or a throat; floor around them is walkable', () => {
   assert.equal(heightAt(0, OCULUS.cz, 0), null, 'oculus centre');
   assert.equal(heightAt(OCULUS.curbOuterR, OCULUS.cz, 0), null, 'curb');

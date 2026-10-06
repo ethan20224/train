@@ -88,6 +88,9 @@ export const FLIGHTS: readonly FlightDef[] = [
   { id: 'F6', axis: 'x', bands: [VESPER_F6_OPENING_Z], from: -47, to: -47 + run(12), yFrom: -70, yTo: -82 },
 ];
 
+/** z where F3 (whose low end sits over the Threshold deck) is 3.3 m above that deck: the Threshold annulus is open from here to F3's low end. */
+export const F3_LOW_FOOTPRINT_Z0 = Z1 - 3.3 / Math.tan((ESCALATOR.angleDeg * Math.PI) / 180);
+
 export interface EscalatorUnit {
   readonly id: string;
   readonly flight: FlightId;
