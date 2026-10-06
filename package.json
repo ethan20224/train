@@ -15,7 +15,9 @@
     "graph-test": "tsx scripts/graph-test.ts",
     "traffic-sim": "tsx scripts/traffic-sim.ts",
     "metro-layout-test": "tsx scripts/metro-layout-test.ts",
-    "nav-metro-test": "tsx scripts/nav-metro-test.ts"
+    "nav-metro-test": "tsx scripts/nav-metro-test.ts",
+    "zones-test": "tsx scripts/zones-test.ts",
+    "metro-test": "npm run metro-layout-test && npm run nav-regions-test && npm run nav-metro-test && npm run metro-runtime-test && npm run zones-test"
   },
   "dependencies": {
     "n8ao": "2.0.1",
