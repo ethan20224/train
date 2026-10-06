@@ -1,6 +1,6 @@
 import { ESCALATOR, escalatorUnits, type EscalatorUnit } from '../layoutMetro';
 
-/** Escalator speeds (Task 4 adds sensing in `update`). Velocity is signed along the unit's axis. */
+/** Escalator speeds with proximity sensing. Velocity is signed along the unit's axis. */
 export class Escalators {
   readonly units: readonly EscalatorUnit[] = escalatorUnits();
   protected readonly speeds = new Float64Array(this.units.length).fill(ESCALATOR.idleSpeed);
@@ -9,10 +9,30 @@ export class Escalators {
     const i = this.index.get(id);
     return i === undefined ? 0 : (this.speeds[i] ?? 0);
   }
+  /** Sensing: units within `senseRadius` of the player (3D, to the step line) run at active speed, others idle. */
+  update(dt: number, p: { x: number; y: number; z: number }): void {
+    for (let i = 0; i < this.units.length; i++) {
+      const u = this.units[i]!;
+      const want = distToUnit(u, p) <= ESCALATOR.senseRadius ? ESCALATOR.activeSpeed : ESCALATOR.idleSpeed;
+      const s = this.speeds[i] ?? ESCALATOR.idleSpeed;
+      const step = ESCALATOR.accel * dt;
+      this.speeds[i] = s < want ? Math.min(want, s + step) : Math.max(want, s - step);
+    }
+  }
   velocity(id: string): number {
     const i = this.index.get(id);
     const u = i === undefined ? undefined : this.units[i];
     return u ? this.speed(id) * u.sign : 0;
   }
 }
+/** Distance from p to the unit's step line (segment from the upper end to the lower end). */
+function distToUnit(u: EscalatorUnit, p: { x: number; y: number; z: number }): number {
+  const a = u.axis === 'z' ? [u.across, u.yFrom, u.from] : [u.from, u.yFrom, u.across];
+  const b = u.axis === 'z' ? [u.across, u.yTo, u.to] : [u.to, u.yTo, u.across];
+  const d = [b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!];
+  const w = [p.x - a[0]!, p.y - a[1]!, p.z - a[2]!];
+  const t = Math.min(1, Math.max(0, (w[0]! * d[0]! + w[1]! * d[1]! + w[2]! * d[2]!) / (d[0]! ** 2 + d[1]! ** 2 + d[2]! ** 2)));
+  return Math.hypot(w[0]! - d[0]! * t, w[1]! - d[1]! * t, w[2]! - d[2]! * t);
+}
+
 export const escalators = new Escalators();

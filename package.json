@@ -10,6 +10,7 @@
     "fetch-textures": "node scripts/fetch-textures.mjs",
     "shot": "node scripts/shot.mjs",
     "nav-test": "tsx scripts/nav-test.ts",
+    "metro-runtime-test": "tsx scripts/metro-runtime-test.ts",
     "nav-regions-test": "tsx scripts/nav-regions-test.ts",
     "graph-test": "tsx scripts/graph-test.ts",
     "traffic-sim": "tsx scripts/traffic-sim.ts",

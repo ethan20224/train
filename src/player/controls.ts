@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { PLAYER, START_POSE } from '../layout';
 import type { AudioEngine } from '../core/types';
-import { heightAt, resolve } from './navigation';
+import { carryAt, heightAt } from './navigation';
+import { walkStep } from './walk';
 
 /**
  * First-person controller: pointer-lock look, WASD / arrows, Shift to run, smooth acceleration,
@@ -10,8 +11,6 @@ import { heightAt, resolve } from './navigation';
  * Collision comes from navigation.ts (feet positions); the camera is feet + eye height + bob.
  */
 
-const ACCEL = 16; // m/s^2 toward the desired velocity
-const DECEL = 11; // m/s^2 when no input (a ~0.3 s glide, never an instant stop)
 const EYE_SMOOTH_RATE = 14; // 1/s exponential follow of eye height (stairs)
 const STRIDE_WALK = 1.55; // meters per footstep at walking pace
 const STRIDE_RUN = 2.1;
@@ -33,7 +32,7 @@ export class PlayerControls {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly audio: AudioEngine;
   private readonly keys = new Set<string>();
-  private readonly velocity = new THREE.Vector2(); // x, z
+  private readonly velocity = { x: 0, z: 0 };
   private eyeY = 0;
   private bobPhase = 0; // in steps; integer crossings = foot contacts
   private bobAmount = 0; // 0..1 smoothed speed factor
@@ -68,7 +67,8 @@ export class PlayerControls {
     this.enabled = enabled;
     if (!enabled) {
       this.keys.clear();
-      this.velocity.set(0, 0);
+      this.velocity.x = 0;
+      this.velocity.z = 0;
     }
   }
 
@@ -78,6 +78,14 @@ export class PlayerControls {
 
   update(dt: number): void {
     if (!this.enabled || dt <= 0) return;
+    // Ride movers (Sinking Floor, cabins): carried by the floor's displacement this frame, eye included (no smoothing lag).
+    const carry = carryAt(this.feet.x, this.feet.z, this.feet.y);
+    if (carry) {
+      this.feet.x += carry.x;
+      this.feet.y += carry.y;
+      this.feet.z += carry.z;
+      this.eyeY += carry.y;
+    }
     const locked = this.pointer.isLocked;
 
     // Desired horizontal velocity in world space from camera yaw.
@@ -101,24 +109,7 @@ export class PlayerControls {
     if (this.desired.lengthSq() > 1) this.desired.normalize();
     this.desired.multiplyScalar(speed);
 
-    // Accelerate / decelerate toward the desired velocity (no instant stop).
-    const hasInput = this.desired.lengthSq() > 1e-6;
-    const rate = (hasInput ? ACCEL : DECEL) * dt;
-    const dvx = this.desired.x - this.velocity.x;
-    const dvz = this.desired.y - this.velocity.y;
-    const dv = Math.hypot(dvx, dvz);
-    if (dv <= rate) this.velocity.copy(this.desired);
-    else this.velocity.set(this.velocity.x + (dvx / dv) * rate, this.velocity.y + (dvz / dv) * rate);
-
-    // Move with collision; velocity follows what actually happened (sliding along walls).
-    let moved = 0;
-    if (this.velocity.lengthSq() > 1e-8) {
-      this.nextFeet.set(this.feet.x + this.velocity.x * dt, this.feet.y, this.feet.z + this.velocity.y * dt);
-      const r = resolve(this.feet, this.nextFeet);
-      moved = Math.hypot(r.x - this.feet.x, r.z - this.feet.z);
-      this.velocity.set((r.x - this.feet.x) / dt, (r.z - this.feet.z) / dt);
-      this.feet.copy(r);
-    }
+    const moved = walkStep(this.feet, this.velocity, { x: this.desired.x, z: this.desired.y }, dt, this.nextFeet);
 
     this.syncCamera(dt, moved);
   }
