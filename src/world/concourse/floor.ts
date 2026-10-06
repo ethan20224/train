@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARCHES, BALCONY, KIOSK } from '../../layout';
+import { ARCHES, BALCONY, KIOSK, OCULUS, THROAT } from '../../layout';
 import { Soup, at, boxMM, v3 } from './geo';
 import type { Bags } from './shell';
 
@@ -101,8 +101,14 @@ export function buildFloor(bags: Bags): void {
   bags.dark.add(planarShape([-30, zS, 30, zN], [rectPts(-29, zS + 1, 29, zN - 1)], 0));
   // brass inline between border and field
   bags.brass.add(planarShape([-29, zS + 1, 29, zN - 1], [rectPts(-28.94, zS + 1.06, 28.94, zN - 1.06)], 0));
-  // field with the medallion hole
-  bags.floor.add(planarShape([-28.94, zS + 1.06, 28.94, zN - 1.06], [hole], 0));
+  const oculus: Array<[number, number]> = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    oculus.push([OCULUS.cx + OCULUS.curbOuterR * Math.cos(a), OCULUS.cz + OCULUS.curbOuterR * Math.sin(a)]);
+  }
+  const throats = THROAT.bands.map(([a, b]) => rectPts(a, THROAT.zMin, b, THROAT.zMax));
+  // field with the medallion, oculus and throat holes (non-overlapping: checked by metro-layout-test)
+  bags.floor.add(planarShape([-28.94, zS + 1.06, 28.94, zN - 1.06], [hole, oculus, ...throats], 0));
   medallion(bags, 0, kx, kz);
   // (the arcade recess floor strips were removed: the under-balcony frontages are now sealed walls, Phase 4 hotel)
 

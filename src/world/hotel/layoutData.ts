@@ -3,7 +3,7 @@
  * ONE source of truth. Convention: a piece's local +z is its FRONT; yaw rotates about +Y, so yaw 0 faces +z,
  * yaw PI faces -z, yaw +PI/2 faces +x and yaw -PI/2 faces -x.
  */
-import { BOOKING_OFFICE, CONCIERGE, KIOSK, LOUNGE_ROOM, STAIR } from '../../layout';
+import { BOOKING_OFFICE, CONCIERGE, KIOSK, LOUNGE_ROOM, OCULUS, STAIR } from '../../layout';
 
 export type PieceKind =
   | 'sofa' | 'chair' | 'coffeeTable' | 'roundTable' | 'standardLamp' | 'palm' | 'trolley'
@@ -71,7 +71,9 @@ export const KIOSK_RING_R = 5.1;
 export const RUNNER_WIDTH = 3.0;
 export const RUNNERS: readonly Runner[] = [
   { x: 0, width: RUNNER_WIDTH, z0: STAIR.zMax - 0.26, z1: KIOSK.center[1] - KIOSK_RING_R },
-  { x: 0, width: RUNNER_WIDTH, z0: KIOSK.center[1] + KIOSK_RING_R, z1: 88 },
+  // The runner leads from the kiosk to the oculus gangway gate, and resumes beyond the oculus to the gates.
+  { x: 0, width: RUNNER_WIDTH, z0: KIOSK.center[1] + KIOSK_RING_R, z1: OCULUS.cz - OCULUS.curbOuterR - 0.3 },
+  { x: 0, width: RUNNER_WIDTH, z0: OCULUS.cz + OCULUS.curbOuterR + 0.3, z1: 88 },
 ];
 
 // ---------------------------------------------------------------------------------------------

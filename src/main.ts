@@ -9,7 +9,11 @@ import { UI } from './ui/intro';
 import { TicketUI } from './ui/ticketUi';
 import { Interaction } from './core/interaction';
 import { tickets, type Ticket } from './core/ticket';
-import { setRequireTicketOverride } from './player/navigation';
+import { setDynamicRegions, setRequireTicketOverride } from './player/navigation';
+import { buildMetro } from './world/metro';
+import { DepthLook } from './lighting/looks';
+import { updateMetroRuntime, metroDynamicRegions } from './metro/runtime';
+import { disc } from './metro/disc';
 import { createAudioEngine } from './audio/audio';
 import { buildAtmosphere } from './lighting/atmosphere';
 import { buildLighting } from './lighting/lighting';
@@ -61,6 +65,7 @@ declare global {
       setRequireTicket?: (v: boolean | null) => void;
       /** Phase 4 debug: ticket UI state. */
       ticketUi?: () => { card: string; badge: boolean; prompt: string };
+      metro?: () => unknown;
     };
   }
 }
@@ -150,6 +155,7 @@ async function boot(): Promise<void> {
   window.__meridian.ticketUi = () => ticketUi.debugState;
   const ctx: BuildContext = { renderer, scene, camera, materials, audio, quality: quality.state };
 
+  setDynamicRegions(metroDynamicRegions);
   // --- build all modules in parallel -------------------------------------------------------------
   const modules: WorldModule[] = await Promise.all([
     buildConcourse(ctx),
@@ -167,6 +173,7 @@ async function boot(): Promise<void> {
     buildTracks(ctx),
     buildTrackDetails(ctx),
     buildTrains(ctx),
+    buildMetro(ctx),
   ]);
   setProgress(0.85);
   for (const m of modules) scene.add(m.object);
@@ -178,6 +185,14 @@ async function boot(): Promise<void> {
 
   // --- one-time finalize hooks (lighting: env capture etc.), sequential in module order -----------
   for (const m of modules) await m.finalize?.(ctx);
+  const metroRoot = modules.find((m) => m.name === 'metro')?.object;
+  if (!metroRoot) throw new Error('metro module missing');
+  const depthLook = new DepthLook({
+    renderer, scene, camera, postfx, metroRoot,
+    surfaceRoots: modules.filter((m) => m.name !== 'lighting' && m.name !== 'metro').map((m) => m.object),
+  });
+  await depthLook.captureDeep();
+  window.__meridian.metro = () => ({ zone: depthLook.airlock.zone, look: depthLook.factor, disc: { y: disc.y, docked: disc.docked }, feet: controls.feet.toArray() });
   // Guarantee: the static sun shadow map is rendered once, then never again (autoUpdate = false).
   renderer.shadowMap.needsUpdate = true;
   renderer.render(scene, camera);
@@ -200,6 +215,7 @@ async function boot(): Promise<void> {
     const dt = Math.min(rawDt, 0.05);
     // Scaled sim step: fast-forwarding runs several clamped (<= 0.05 s) sub-steps so physics/animation stay sane.
     const simDt = dt * timescale;
+    updateMetroRuntime(dt, controls.feet); // real time, before the controller (riders are carried this frame)
     controls.update(dt);
     interaction.update();
     let remaining = simDt;
@@ -214,6 +230,7 @@ async function boot(): Promise<void> {
     window.__meridian.time = frame.time;
     audio.update(frame);
 
+    depthLook.update(camera.position.y);
     renderer.info.reset();
     postfx.render(dt);
 

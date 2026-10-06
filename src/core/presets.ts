@@ -7,6 +7,16 @@ import {
   CONCIERGE,
   CONCOURSE,
   FOOTBRIDGE,
+  HALCYON,
+  LANDINGS,
+  MAP_WALL,
+  MERIDIAN,
+  OCULUS,
+  SKY,
+  THRESHOLD,
+  VESPER,
+  WATER_WALL,
+  FUNICULAR,
   GATES,
   LOUNGE_ROOM,
   ISLANDS,
@@ -46,6 +56,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
+  'oculus', 'oculusdown', 'void', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -184,6 +195,19 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
     fov: 50,
     intent: 'From the footbridge deck looking north down the platforms to the throat and the lines beyond.',
   },
+  oculus: { position: [7, EYE, OCULUS.cz - 20], target: [0, -4, OCULUS.cz], intent: 'From the hall floor south of the oculus: curb, balustrade, chandelier above, light rising.' },
+  oculusdown: { position: [2.5, EYE + 0.2, OCULUS.cz - OCULUS.curbOuterR - 0.5], target: [0, -30, OCULUS.cz + 2], fov: 70, intent: 'Leaning over the rail: the void, crisscross flights, the disc, the eclipse far below.' },
+  void: { position: [-14, LANDINGS.L1.y + EYE, 81.8], target: [6, -24, 66], fov: 68, intent: 'On L1: era bands, light rings, flights crossing the void.' },
+  threshold: { position: [-9.5, THRESHOLD.y + EYE, 82.6], target: [5, -42, 58], fov: 66, intent: 'Threshold: speed gates, F4 dropping through the sky hole.' },
+  skyhole: { position: [12, VESPER.topY + EYE, 66], target: [0, SKY.y, OCULUS.cz], fov: 70, intent: 'From the Crossing floor looking up at the eclipse, flights and disc descending out of the sky.' },
+  crossing: { position: [-40, VESPER.topY + EYE, 70], target: [20, -52, 78], fov: 66, intent: 'Along the transept: Meridian bridge crossing overhead, sky, funicular beyond.' },
+  meridian: { position: [3, MERIDIAN.topY + EYE, 40], target: [0, MERIDIAN.topY - 2, 110], intent: 'On the floating Meridian island looking north along the bridge.' },
+  glassfloor: { position: [-24, VESPER.topY + EYE, 66], target: [-16, HALCYON.topY, 80], intent: 'Standing on the glass panel looking down at the Halcyon platform.' },
+  glassup: { position: [HALCYON.centre[0], HALCYON.topY + EYE, HALCYON.centre[1]], target: [-10, -40, 80], fov: 72, intent: 'From the Halcyon platform looking up through the glass: bridge, droplets, sky.' },
+  mapwall: { position: [0, MERIDIAN.topY + EYE, 70], target: [0, (MAP_WALL.yMin + MAP_WALL.yMax) / 2, MAP_WALL.z], intent: 'From the Meridian island facing the map wall and running clock under the sky.' },
+  waterwall: { position: [-40, VESPER.topY + EYE, 74], target: [WATER_WALL.x, -55, 74], intent: 'Crossing floor west end facing the water wall and the Vesper portals.' },
+  funicular: { position: [40, VESPER.topY + EYE, 80], target: [FUNICULAR.top[0], -40, FUNICULAR.z], fov: 66, intent: 'From the east floor looking up the funicular track into the sky.' },
+  deep: { position: [-35, HALCYON.topY + EYE, 59], target: [0, HALCYON.topY + 1, 94], intent: 'Along the Halcyon platform diagonal.' },
 };
 
 /** Parses `?cam=` from a query string; returns null if absent or unknown. */
