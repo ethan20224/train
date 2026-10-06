@@ -24,6 +24,7 @@ import {
   SHED_OBSTACLES,
   SHOP_OBSTACLES,
 } from '../obstacles';
+import { HALL_HOLES, metroStaticRegions } from '../metro/navData';
 import { groundY, inRegion, type Region } from './regions';
 
 /**
@@ -47,6 +48,7 @@ const C = PLAYER.wallClearance;
 const LEVEL_TOLERANCE = 0.6;
 /** A prop obstacle with a `level` only applies when |ground - level| is under this. */
 const OBSTACLE_LEVEL_TOLERANCE = 1.0;
+const SURFACE_OBSTACLE_MIN_Y = -5; // unscoped (surface) props never apply to metro levels
 
 interface Circle {
   readonly x: number;
@@ -135,6 +137,7 @@ const REGIONS: readonly Region[] = (() => {
     zMin: STAIR.zMax,
     zMax: GATES.zMin - C,
     y: CONCOURSE.floorY,
+    holes: HALL_HOLES,
   });
   r.push({
     xMin: CONCOURSE.xMin + C,
@@ -217,6 +220,7 @@ const REGIONS: readonly Region[] = (() => {
     zMax: FOOTBRIDGE.zMax - C,
     y: FOOTBRIDGE.deckTopY,
   });
+  r.push(...metroStaticRegions());
   return r;
 })();
 
@@ -231,7 +235,7 @@ const OBSTACLES: readonly Circle[] = [
 /** True when a circular obstacle blocks (x, z) for a player standing on ground height `y`. */
 function inObstacle(x: number, z: number, y: number): boolean {
   for (const o of OBSTACLES) {
-    if (o.level !== undefined && Math.abs(y - o.level) >= OBSTACLE_LEVEL_TOLERANCE) continue;
+    if (o.level !== undefined ? Math.abs(y - o.level) >= OBSTACLE_LEVEL_TOLERANCE : y < SURFACE_OBSTACLE_MIN_Y) continue;
     const dx = x - o.x;
     const dz = z - o.z;
     if (dx * dx + dz * dz < o.r * o.r) return true;
@@ -248,7 +252,7 @@ export function setDynamicRegions(fn: () => readonly Region[]): void {
 }
 
 /**
- * Best region at (x, z) for a player whose feet are at `nearY` (undefined = the LOWEST level there).
+ * Best region at (x, z) for a player whose feet are at `nearY` (undefined = the level closest to y = 0).
  * `lanes`: ticket-gate lanes count as walkable. `keep`: connectors the player is standing in (stay open for them).
  */
 function pick(x: number, z: number, nearY: number | undefined, lanes: boolean, keep: ReadonlySet<Region>): Hit | null {
@@ -260,10 +264,14 @@ function pick(x: number, z: number, nearY: number | undefined, lanes: boolean, k
       if (r.when && !r.when() && !keep.has(r)) continue;
       if (!inRegion(r, x, z)) continue;
       const g = groundY(r, x, z);
-      const d = nearY === undefined ? g : Math.abs(g - nearY);
+      const d = nearY === undefined ? Math.abs(g) : Math.abs(g - nearY);
       if (nearY !== undefined && d > LEVEL_TOLERANCE) continue;
       if (d >= bestD) continue;
-      if (inObstacle(x, z, g)) continue;
+      if (inObstacle(x, z, g)) {
+        // No level given: the surface level nearest y = 0 owns the spot, so a prop there blocks it (nothing below shows through).
+        if (nearY === undefined && g >= SURFACE_OBSTACLE_MIN_Y) return null;
+        continue;
+      }
       best = { g, region: r };
       bestD = d;
     }
@@ -324,7 +332,7 @@ function inLane(x: number, z: number): boolean {
 /**
  * Ground (feet) height at (x, z), or null where it is not walkable (void, tracks, walls, obstacles).
  * `nearY`: the player's current feet y, selecting the level where regions overlap (footbridge deck over
- * the islands). Omitted = the lowest level at that point.
+ * the islands). Omitted = the level whose ground is closest to y = 0.
  */
 export function heightAt(x: number, z: number, nearY?: number): number | null {
   return groundAt(x, z, nearY, lanesOpen());
@@ -338,7 +346,7 @@ function pushOutOfObstacles(x: number, z: number, y: number): [number, number] {
   for (let iter = 0; iter < 3; iter++) {
     let moved = false;
     for (const o of OBSTACLES) {
-      if (o.level !== undefined && Math.abs(y - o.level) >= OBSTACLE_LEVEL_TOLERANCE) continue;
+      if (o.level !== undefined ? Math.abs(y - o.level) >= OBSTACLE_LEVEL_TOLERANCE : y < SURFACE_OBSTACLE_MIN_Y) continue;
       const dx = x - o.x;
       const dz = z - o.z;
       const d2 = dx * dx + dz * dz;

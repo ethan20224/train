@@ -13,7 +13,8 @@
     "nav-regions-test": "tsx scripts/nav-regions-test.ts",
     "graph-test": "tsx scripts/graph-test.ts",
     "traffic-sim": "tsx scripts/traffic-sim.ts",
-    "metro-layout-test": "tsx scripts/metro-layout-test.ts"
+    "metro-layout-test": "tsx scripts/metro-layout-test.ts",
+    "nav-metro-test": "tsx scripts/nav-metro-test.ts"
   },
   "dependencies": {
     "n8ao": "2.0.1",

@@ -80,7 +80,7 @@ test('cannot step off the balcony edge outside the stair opening; can through it
 
 test('full route: balcony -> stair -> concourse -> centre arch -> island B z = 370', () => {
   const waypoints: Array<[number, number]> = [
-    [0, 3], [0, 22], [10, 40], [10, 70], [0, 96], [0, 101], [0, 104], [0, 112], [3, 130], [3, 370],
+    [0, 3], [0, 22], [10, 40], [14, 70], [14, 86], [0, 90], [0, 96], [0, 101], [0, 104], [0, 112], [3, 130], [3, 370],
   ];
   tickets.set(TICKET); // the gate lanes are open only with a ticket
   let p = v(...(waypoints[0] as [number, number]));
