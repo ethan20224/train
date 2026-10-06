@@ -299,7 +299,7 @@ export function getTrainGeometry(): TrainGeometry {
           uph.solid([[Z(rake(Y_SILL + 0.73)), Y_SILL + 0.73], [Z(rake(Y_SILL + 0.73) + 0.11), Y_SILL + 0.73], [Z(rake(Y_SILL + 0.95) + 0.1), Y_SILL + 0.93], [Z(rake(Y_SILL + 0.93) + 0.05), Y_SILL + 0.97], [Z(rake(Y_SILL + 0.93) - 0.0), Y_SILL + 0.96]], pa, pb);
         }
         // slim champagne end partitions
-        champ.box(a - 0.025, a, Y_SILL + 0.1, Y_SILL + 1.0, s * 1.0, s * 1.37); champ.box(b, b + 0.025, Y_SILL + 0.1, Y_SILL + 1.0, s * 1.0, s * 1.37);
+        champ.box(a - 0.012, a, Y_SILL + 0.04, Y_SILL + 0.6, s * 0.94, s * 1.0); champ.box(b, b + 0.012, Y_SILL + 0.04, Y_SILL + 0.6, s * 0.94, s * 1.0);
       }
       for (const d of dc) {
         for (const o of [-0.97, 0.97]) body.pole(d + o, s * 0.98, Y_SILL, 3.04, 0.02, 10);
@@ -346,38 +346,52 @@ export function getTrainGeometry(): TrainGeometry {
   // floor centre line of warm light (a hairline) for depth
   lights.quad([[xa, Y_SILL + 0.004, -0.015], [xb, Y_SILL + 0.004, -0.015], [xb, Y_SILL + 0.004, 0.015], [xa, Y_SILL + 0.004, 0.015]], [0, 1, 0], WARM(0.9));
 
-  // --- end caps: mirror frame + flush glass front + light edge + head/tail lamps
+  // dark vaulted roof lining above the ceiling (seen through the glass fronts)
+  lights.extrude(roofProfile(0.05), -L_HALF, L_HALF, true, WARM(0.05));
+
+  // --- end caps: rounded monocoque nose (frame), one curved glass panel inset 30 mm, black bulkhead ring, edge light, lamps
   for (const end of [1, -1] as const) {
     const hint: V3 = [end, 0, 0];
-    const cols = 12;
-    // the frame surface (whole cross-section, y from skirt to crown)
-    // mirror frame around the glazed opening (no body behind the glass: you look into the saloon)
-    const gy0 = 1.0, gy1 = 3.3, gk = 0.94;
-    const fy = (y0: number, y1: number, u0: number, u1: number, nu: number, nv: number): void =>
-      body.grid((u, v) => capPoint(end, u, v), nu, nv, hint, [1, 1, 1], u0, u1, y0, y1);
-    fy(Y_SKIRT, gy0, -1, 1, cols, 4); fy(gy1, Y_TOP, -1, 1, cols, 6);
-    fy(gy0, gy1, -1, -gk, 2, 14); fy(gy0, gy1, gk, 1, 2, 14);
-    // glass: inset, forward by 1 cm
-    const gp = (u: number, v: number): V3 => { const y = gy0 + (gy1 - gy0) * v; const p = capPoint(end, u * gk, y); return [p[0] + end * 0.012, p[1], p[2]]; };
-    glass.grid((u, v) => gp(u * 2 - 1, v), cols, 14, hint);
-    // edge light ring around the glass
-    const ring = (t: number, grow: number): V3 => {
-      // rectangle perimeter in (u, v) -> point; t in 0..1
-      const q = (t % 1) * 4, side = Math.floor(q), f2 = q - side;
-      const uv: [number, number] = side === 0 ? [-1 + 2 * f2, 0] : side === 1 ? [1, f2] : side === 2 ? [1 - 2 * f2, 1] : [-1, 1 - f2];
-      const u = uv[0] * (1 + 0.022 * grow), v = (uv[1] - 0.5) * (1 + 0.02 * grow) + 0.5;
-      const y = gy0 + (gy1 - gy0) * v; const p = capPoint(end, u * gk, y);
-      return [p[0] + end * (0.012 + 0.004 * grow), p[1], p[2]];
+    const gy0 = 1.0, gy1 = 3.72, gk = 0.95, rc = 0.25, band = 0.14, NR = 44;
+    /** Half-extent of the glass panel as a fraction of the local half-width, with ~0.25 m corner radii at top and bottom. */
+    const ulim = (y: number): number => {
+      const R = halfWidthAt(y), d = Math.min(y - gy0, gy1 - y);
+      const sh = d < rc ? rc - Math.sqrt(Math.max(0, rc * rc - (rc - d) * (rc - d))) : 0;
+      return Math.max(0.05, gk * R - sh) / R;
     };
-    const N = 64;
-    for (let i = 0; i < N; i++) {
-      lights.quad([ring(i / N, 0), ring((i + 1) / N, 0), ring((i + 1) / N, 1), ring(i / N, 1)], hint, end > 0 ? [1.5, 1.5, 1.45] : [1.0, 1.0, 0.95]);
-    }
-    // lamps low on the frame: white headlights (front, +x), dim red (rear, -x)
-    for (const s of sides) {
-      const zr = 0.62, y = 0.78;
-      const lp = (dz: number, dy: number): V3 => { const p = capPoint(end, (s * zr + dz) / halfWidthAt(y + dy), y + dy); return [p[0] + end * 0.012, p[1], p[2]]; };
-      lights.quad([lp(-0.22, -0.03), lp(0.22, -0.03), lp(0.22, 0.03), lp(-0.22, 0.03)], hint, end > 0 ? [3.2, 3.2, 3.0] : [0.9, 0.02, 0.02]);
+    const cp = (zRel: number, y: number, dx = 0): V3 => { const p = capPoint(end, zRel, y); return [p[0] + end * dx, p[1], p[2]]; };
+    // frame: full rows below / above the panel, and strips either side following its rounded edge
+    body.grid((u, y) => cp(u, y), 12, 4, hint, [1, 1, 1], -1, 1, Y_SKIRT, gy0);
+    body.grid((u, y) => cp(u, y), 12, 8, hint, [1, 1, 1], -1, 1, gy1, Y_TOP);
+    body.grid((t, y) => cp(-1 + t * (1 - ulim(y)), y), 2, NR, hint, [1, 1, 1], 0, 1, gy0, gy1);
+    body.grid((t, y) => cp(ulim(y) + t * (1 - ulim(y)), y), 2, NR, hint, [1, 1, 1], 0, 1, gy0, gy1);
+    // glass panel: follows the cap curvature, recessed 30 mm, tucked 7 cm behind the frame edge
+    glass.grid((t, y) => cp((2 * t - 1) * Math.min(1, ulim(y) + 0.07 / halfWidthAt(y)), y, -0.03), 16, NR, hint, [1, 1, 1], 0, 1, gy0, gy1);
+    // slim black bulkhead ring just behind the glass
+    const black: RGB = [0.004, 0.004, 0.005];
+    lights.grid((t, y) => cp(-ulim(y) + t * (band / halfWidthAt(y)), y, -0.06), 2, NR, hint, black, 0, 1, gy0, gy1);
+    lights.grid((t, y) => cp(ulim(y) - t * (band / halfWidthAt(y)), y, -0.06), 2, NR, hint, black, 0, 1, gy0, gy1);
+    lights.grid((t, y) => cp((2 * t - 1) * ulim(y), y, -0.06), 10, 3, hint, black, 0, 1, gy1 - band, gy1);
+    lights.grid((t, y) => cp((2 * t - 1) * ulim(y), y, -0.06), 10, 3, hint, black, 0, 1, gy0, gy0 + band);
+    // light line following the panel edge (counter-clockwise loop in (z, y))
+    const loop: Array<[number, number]> = [];
+    for (let i = 0; i <= NR; i++) { const y = gy0 + ((gy1 - gy0) * i) / NR; loop.push([halfWidthAt(y) * ulim(y), y]); }
+    for (let i = 1; i < 12; i++) loop.push([halfWidthAt(gy1) * ulim(gy1) * (1 - (2 * i) / 12), gy1]);
+    for (let i = NR; i >= 0; i--) { const y = gy0 + ((gy1 - gy0) * i) / NR; loop.push([-halfWidthAt(y) * ulim(y), y]); }
+    for (let i = 1; i < 12; i++) loop.push([-halfWidthAt(gy0) * ulim(gy0) * (1 - (2 * i) / 12), gy0]);
+    const edgeCol: RGB = end > 0 ? [1.5, 1.5, 1.45] : [1.0, 1.0, 0.95];
+    const lpt = (i: number, grow: number): V3 => {
+      const q = loop[(i + loop.length) % loop.length]!, a = loop[(i - 1 + loop.length) % loop.length]!, b = loop[(i + 1) % loop.length]!;
+      const dz = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dz, dy) || 1;
+      const z = q[0] + (dy / l) * 0.022 * grow, y = q[1] - (dz / l) * 0.022 * grow;
+      return cp(z / halfWidthAt(y), y, 0.004);
+    };
+    for (let i = 0; i < loop.length; i++) lights.quad([lpt(i, 0), lpt(i + 1, 0), lpt(i + 1, 1), lpt(i, 1)], hint, edgeCol);
+    // lamps: small slots in the skirt, white headlights (front, +x), dim red tail lights (rear, -x)
+    for (const sd of sides) {
+      const y = 0.7, zc = sd * 0.62;
+      const lp = (dz: number, dy: number): V3 => cp((zc + dz) / halfWidthAt(y + dy), y + dy, 0.006);
+      lights.quad([lp(-0.18, -0.016), lp(0.18, -0.016), lp(0.18, 0.016), lp(-0.18, 0.016)], hint, end > 0 ? [3.2, 3.2, 3.0] : [0.9, 0.02, 0.02]);
     }
   }
 
@@ -424,17 +438,17 @@ export function createSharedMaterials(champagneBase?: THREE.MeshStandardMaterial
   const lights = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: true });
   const underframe = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.02, 0.022, 0.026), metalness: 0.6, roughness: 0.55 });
   const upholstery = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.05, 0.035, 0.032), roughness: 0.38, metalness: 0, emissive: new THREE.Color(1.0, 0.56, 0.27), emissiveIntensity: 0.03,
+    color: new THREE.Color(0.04, 0.046, 0.06), roughness: 0.85, metalness: 0, emissive: new THREE.Color(1.0, 0.56, 0.27), emissiveIntensity: 0.008,
   });
-  const champagne = champagneBase ? champagneBase.clone() : new THREE.MeshStandardMaterial({ color: new THREE.Color(0.62, 0.5, 0.33), metalness: 1, roughness: 0.28 });
-  champagne.emissive = new THREE.Color(1.0, 0.56, 0.27); champagne.emissiveIntensity = 0.06;
+  const champagne = champagneBase ? champagneBase.clone() : new THREE.MeshStandardMaterial({ color: new THREE.Color(0.58, 0.52, 0.42), metalness: 1, roughness: 0.3 });
+  champagne.emissive = new THREE.Color(1.0, 0.56, 0.27); champagne.emissiveIntensity = 0.03;
   const card = new THREE.MeshBasicMaterial({ color: new THREE.Color(...WARM(0.5)) });
   return { body, glass, lights, underframe, upholstery, champagne, card };
 }
 
 function glassMaterial(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.006, 0.01, 0.014), metalness: 0.0, roughness: 0.04, transparent: true, opacity: 0.3, depthWrite: false, envMapIntensity: 0.55,
+    color: new THREE.Color(0.004, 0.012, 0.009), metalness: 0.0, roughness: 0.02, transparent: true, opacity: 0.22, depthWrite: false, envMapIntensity: 0.55,
   });
 }
 
