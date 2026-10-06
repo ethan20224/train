@@ -10,6 +10,7 @@
     "platformStone":  { "asset": "precast_stone_paving", "res": "1k", "metersPerTile": 2.24, "note": "worn stone paving slabs" },
     "trackBallast":   { "asset": "gravel_floor_03",      "res": "1k", "metersPerTile": 2.5,  "note": "dark grey ballast" },
     "sleeperWood":    { "asset": "weathered_planks",     "res": "1k", "metersPerTile": 2.0,  "note": "dark weathered timber" },
-    "railSteel":      { "asset": "rust_coarse_01",       "res": "1k", "metersPerTile": 2.2,  "note": "rusted steel, darkened in library" }
+    "railSteel":      { "asset": "rust_coarse_01",       "res": "1k", "metersPerTile": 2.2,  "note": "rusted steel, darkened in library" },
+    "strata":         { "asset": "dark_rock_02",       "res": "1k", "metersPerTile": 2.0,  "note": "Meridian Deep void strata: stratified/striated fractured rock (Poly Haven tags stratified, striated, fissured), cool dark grey; chosen over rock_06 (yellow) and marble_cliff_* (drone scale 4-20 m tiles). No clean pale limestone/plaster set exists (plastered_stone_wall is crumbling), so honedLimestone reuses wallStone desaturated" }
   }
 }

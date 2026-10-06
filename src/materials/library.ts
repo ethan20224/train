@@ -41,6 +41,8 @@ const TUNING: Record<TexturedName, Tuning> = {
   sleeperWood: { color: 0xb8b0a6, roughness: 1.0, metalness: 0, normalScale: 1.0 },
   // Rusted steel darkened toward polished-dark rail; rust remains in the diffuse.
   railSteel: { color: 0x9a8f86, roughness: 0.9, metalness: 1, normalScale: 0.8 },
+  // Raw stratified rock for the Meridian Deep void; metro/materials.ts clones and tints it.
+  strata: { color: 0xffffff, roughness: 1.0, metalness: 0, normalScale: 1.2 },
 };
 
 /** Tile size (meters) for the procedural materials (no manifest entry). */

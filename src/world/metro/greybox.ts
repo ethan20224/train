@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   CAVERN, CROSS_OUTLINE, DISC, FLIGHTS, FUNICULAR, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
-  THRESHOLD, THROAT, VESPER, VOID, WATER_WALL, voidRadiusAt, DEEP_SUN,
+  THRESHOLD, THROAT, TRENCH, VESPER, VOID, WATER_WALL, voidRadiusAt, DEEP_SUN,
 } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
 
@@ -101,7 +101,7 @@ export function buildGreybox(): Greybox {
   // --- deep (drawn below the airlock) ----------------------------------------------------------------
   const D = new THREE.Group(); D.name = 'metroDeep';
   const cross = CROSS_OUTLINE.map(([x, z]) => [x, z] as [number, number]);
-  const skyHoles = [circle(cx, cz, SKY.holeR), ...LIFTS.positions.map(([x, z]) => circle(x, z, LIFTS.tubeR + 0.2, 32)), rectPts(FUNICULAR.top[0] + 0.5, FUNICULAR.z - 1.6, FUNICULAR.top[0] + 4, FUNICULAR.z + 1.6)];
+  const skyHoles = [circle(cx, cz, SKY.holeR), ...LIFTS.positions.map(([x, z]) => circle(x, z, LIFTS.tubeR + 0.2, 32)), rectPts(FUNICULAR.skySlot.xMin, FUNICULAR.z - FUNICULAR.skySlot.halfZ, FUNICULAR.skySlot.xMax, FUNICULAR.z + FUNICULAR.skySlot.halfZ)];
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.DoubleSide, fog: false,
     uniforms: { uSunDir: { value: new THREE.Vector3(...DEEP_SUN.direction).normalize() } },
@@ -125,18 +125,18 @@ export function buildGreybox(): Greybox {
   D.add(new THREE.Mesh(slab(rectPts(CAVERN.transept.xMin, VESPER.floor.zMax + 1.6, CAVERN.transept.xMax, CAVERN.transept.zMax), [], CAVERN.baseFloorY, 0.3), darkFloor));
   D.add(new THREE.Mesh(slab(rectPts(CAVERN.nave.xMin, CAVERN.nave.zMin, CAVERN.nave.xMax, CAVERN.transept.zMin), [], CAVERN.baseFloorY, 0.3), darkFloor));
   D.add(new THREE.Mesh(slab(rectPts(CAVERN.nave.xMin, CAVERN.transept.zMax, CAVERN.nave.xMax, CAVERN.nave.zMax), [], CAVERN.baseFloorY, 0.3), darkFloor));
-  for (const tz of VESPER.trackZ) D.add(box(trench, CAVERN.transept.xMin, CAVERN.baseFloorY, tz - 1.6, CAVERN.transept.xMax, VESPER.railY, tz + 1.6));
+  for (const tz of VESPER.trackZ) D.add(box(trench, CAVERN.transept.xMin, CAVERN.baseFloorY, tz - TRENCH.halfWidth, CAVERN.transept.xMax, VESPER.railY, tz + TRENCH.halfWidth));
   const fl = VESPER.floor;
   D.add(new THREE.Mesh(slab(rectPts(fl.xMin, fl.zMin, fl.xMax, fl.zMax), [
-    circle(cx, cz, DISC.wellR), rectPts(VESPER.f6OpeningX[0], 66, VESPER.f6OpeningX[1], 69.6),
+    circle(cx, cz, DISC.wellR), rectPts(VESPER.f6OpeningX[0], VESPER.f6OpeningZ[0], VESPER.f6OpeningX[1], VESPER.f6OpeningZ[1]),
     rectPts(GLASS_FLOOR.xMin, GLASS_FLOOR.zMin, GLASS_FLOOR.xMax, GLASS_FLOOR.zMax),
   ], VESPER.topY, VESPER.slabThickness), darkFloor));
   D.add(new THREE.Mesh(slab(rectPts(GLASS_FLOOR.xMin, GLASS_FLOOR.zMin, GLASS_FLOOR.xMax, GLASS_FLOOR.zMax), LIFTS.positions.map(([x, z]) => circle(x, z, LIFTS.tubeR, 32)), VESPER.topY, 0.08), glass));
   const isl = MERIDIAN.island;
   D.add(new THREE.Mesh(slab(rectPts(isl.xMin, isl.zMin, isl.xMax, isl.zMax), [
-    circle(cx, cz, DISC.wellR), ...[[-7.8, -4.2], [4.2, 7.8]].map(([a, b]) => rectPts(a!, MERIDIAN.f5OpeningZ[0], b!, MERIDIAN.f5OpeningZ[1])),
+    circle(cx, cz, DISC.wellR), ...MERIDIAN.f5OpeningX.map(([a, b]) => rectPts(a, MERIDIAN.f5OpeningZ[0], b, MERIDIAN.f5OpeningZ[1])),
   ], MERIDIAN.topY, MERIDIAN.deckThickness), deepStone));
-  D.add(box(deepSteel, -12.3, MERIDIAN.railY - 0.6, isl.zMin - 9, 12.3, MERIDIAN.railY, isl.zMax + 9));
+  D.add(box(deepSteel, -MERIDIAN.railDeckHalfWidth, MERIDIAN.railY - 0.6, isl.zMin - 9, MERIDIAN.railDeckHalfWidth, MERIDIAN.railY, isl.zMax + 9));
   for (const f of FLIGHTS.filter((q) => q.id === 'F5' || q.id === 'F6')) for (const [a, b] of f.bands) D.add(flightSlab(deepSteel, f.axis, a, b, f.from, f.to, f.yFrom, f.yTo));
   const deepIsland = new THREE.Mesh(new THREE.BoxGeometry(HALCYON.halfLength * 2, 1.2, HALCYON.halfWidth * 2), deepStone);
   deepIsland.rotation.y = -Math.atan2(HALCYON.dir[1], HALCYON.dir[0]); deepIsland.position.set(HALCYON.centre[0], HALCYON.topY - 0.6, HALCYON.centre[1]);
@@ -153,7 +153,7 @@ export function buildGreybox(): Greybox {
     tube.position.set(x, (LIFTS.headY + CAVERN.yBottom) / 2, z); D.add(tube);
   }
   const [tx, ty] = FUNICULAR.top; const [bx, by] = FUNICULAR.bottom;
-  const track = flightSlab(deepSteel, 'x', FUNICULAR.z - 1.3, FUNICULAR.z + 1.3, tx, bx, ty, by);
+  const track = flightSlab(deepSteel, 'x', FUNICULAR.z - FUNICULAR.trackHalfWidth, FUNICULAR.z + FUNICULAR.trackHalfWidth, tx, bx, ty, by);
   const cabin = box(glass, tx, ty, FUNICULAR.z - FUNICULAR.cabinWidth / 2, tx + FUNICULAR.cabinLength, ty + FUNICULAR.cabinHeight, FUNICULAR.z + FUNICULAR.cabinWidth / 2);
   D.add(track, cabin);
   D.add(box(std(0x0c0d0f, 0.25), WATER_WALL.x - 0.6, WATER_WALL.yMin, WATER_WALL.zMin, WATER_WALL.x, WATER_WALL.yMax, WATER_WALL.zMax));

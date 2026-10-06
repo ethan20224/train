@@ -15,5 +15,6 @@ Maps used: diffuse (`diff.jpg`, sRGB), OpenGL normal (`nor.jpg`), packed ARM (`a
 | trackBallast | [gravel_floor_03](https://polyhaven.com/a/gravel_floor_03) (Gravel Floor 03) | 1k | Charlotte Baglioni | CC0 | dark grey ballast |
 | sleeperWood | [weathered_planks](https://polyhaven.com/a/weathered_planks) (Weathered Planks) | 1k | Dario Barresi, Dimitrios Savva | CC0 | dark weathered timber |
 | railSteel | [rust_coarse_01](https://polyhaven.com/a/rust_coarse_01) (Rust Coarse 01) | 1k | Dimitrios Savva, Rico Cilliers | CC0 | rusted steel, darkened in library |
+| strata | [dark_rock_02](https://polyhaven.com/a/dark_rock_02) (Dark Rock 02) | 1k | Amal Kumar | CC0 | Meridian Deep void strata: stratified/striated fractured rock (Poly Haven tags stratified, striated, fissured), cool dark grey; chosen over rock_06 (yellow) and marble_cliff_* (drone scale 4-20 m tiles). No clean pale limestone/plaster set exists (plastered_stone_wall is crumbling), so honedLimestone reuses wallStone desaturated |
 
 Brass, trainPaint, trainGold and glass are procedural (no downloaded textures).

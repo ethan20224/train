@@ -76,6 +76,7 @@ export type MaterialName =
   | 'trackBallast'
   | 'sleeperWood'
   | 'railSteel'
+  | 'strata'
   | 'trainPaint'
   | 'trainGold'
   | 'glass';

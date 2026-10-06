@@ -39,8 +39,15 @@ export function voidRadiusAt(y: number): number {
 }
 
 type Band = readonly [number, number];
-const INNER: readonly Band[] = [[-7.8, -4.2], [4.2, 7.8]];
-const OUTER: readonly Band[] = [[-12, -8.4], [8.4, 12]];
+/** Across-axis (x) ranges of the escalator bands: each holds a down and an up unit (ESCALATOR.unitWidth each + 0.4 m deck). */
+export const ESCALATOR_BANDS = {
+  /** F2, F4, F5 and the Meridian/Vesper deck openings (MERIDIAN.f5OpeningX, navData holes). */
+  inner: [[-7.8, -4.2], [4.2, 7.8]] as readonly Band[],
+  /** F1, F3 and the hall-floor throats. */
+  outer: [[-12, -8.4], [8.4, 12]] as readonly Band[],
+} as const;
+const INNER = ESCALATOR_BANDS.inner;
+const OUTER = ESCALATOR_BANDS.outer;
 
 /** Openings in the hall floor where F1 dives under the slab. */
 export const THROAT = { bands: OUTER, zMin: 62.5, zMax: 69.3, domeSlotEndZ: 68.5 } as const;
@@ -68,6 +75,8 @@ export interface FlightDef {
   readonly yFrom: number;
   readonly yTo: number;
 }
+/** z extent of F6 (and of its openings in the Vesper floor and the Halcyon hall): one 3.6 m band. */
+const VESPER_F6_OPENING_Z: Band = [66, 69.6];
 const Z0 = THROAT.zMin; // 62.5
 const Z1 = Z0 + run(10); // 79.82
 export const FLIGHTS: readonly FlightDef[] = [
@@ -76,7 +85,7 @@ export const FLIGHTS: readonly FlightDef[] = [
   { id: 'F3', axis: 'z', bands: OUTER, from: Z0, to: Z1, yFrom: -20, yTo: -30 },
   { id: 'F4', axis: 'z', bands: INNER, from: Z1, to: Z1 - run(16), yFrom: -30, yTo: -46 },
   { id: 'F5', axis: 'z', bands: INNER, from: 113.6, to: 113.6 - run(24), yFrom: -46, yTo: -70 },
-  { id: 'F6', axis: 'x', bands: [[66, 69.6]], from: -47, to: -47 + run(12), yFrom: -70, yTo: -82 },
+  { id: 'F6', axis: 'x', bands: [VESPER_F6_OPENING_Z], from: -47, to: -47 + run(12), yFrom: -70, yTo: -82 },
 ];
 
 export interface EscalatorUnit {
@@ -153,7 +162,14 @@ export const FUNICULAR = {
   top: [18, -30] as readonly [number, number],
   bottom: [58, -70] as readonly [number, number],
   z: 74, cabinLength: 4, cabinWidth: 2.4, cabinHeight: 2.6,
+  /** Half-width (across z) of the inclined track slab. */
+  trackHalfWidth: 1.3,
+  /** Slot in the sky plane where the track passes through (x from xMin to xMax, z = FUNICULAR.z +- halfZ). */
+  skySlot: { xMin: 18.5, xMax: 22, halfZ: 1.6 },
 } as const;
+
+/** Half-width (across z) of each rail trench cut into the Crossing base floor, about VESPER.trackZ. */
+export const TRENCH = { halfWidth: 1.6 } as const;
 
 export const CAVERN = {
   transept: { xMin: -60, xMax: 60, zMin: 54, zMax: 94 },
@@ -179,6 +195,10 @@ export const MERIDIAN = {
   trackX: [-10.55, 10.55] as const,
   /** Deck opening where F5 drops below the bridge (rider headroom under the deck edge). */
   f5OpeningZ: [107.0, 113.6] as const,
+  /** The same two inner bands, as x ranges of the deck openings. */
+  f5OpeningX: ESCALATOR_BANDS.inner,
+  /** Half-width (x) of the rail deck under the island (tracks on both sides). */
+  railDeckHalfWidth: 12.3,
   /** F4 body is too low over the deck here: not walkable beneath it. */
   f4FootprintZ: [52.11, 58.0] as const,
 } as const;
@@ -192,6 +212,8 @@ export const VESPER = {
   f5FootprintZ: [72.03, 78.0] as const,
   /** F6 drops below the floor here (rider headroom under the slab edge). */
   f6OpeningX: [-46.7, -41.0] as const,
+  /** F6 opening z range (same band as FLIGHTS F6). */
+  f6OpeningZ: VESPER_F6_OPENING_Z,
 } as const;
 
 const SQRT1_2 = Math.SQRT1_2;

@@ -1,6 +1,6 @@
 import { PLAYER } from '../layout';
 import {
-  DISC, ESCALATOR, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MERIDIAN, OCULUS, PSD, THRESHOLD, THROAT, VESPER, escalatorUnits,
+  DISC, ESCALATOR, ESCALATOR_BANDS, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MERIDIAN, OCULUS, PSD, THRESHOLD, THROAT, VESPER, escalatorUnits,
 } from '../layoutMetro';
 import { boundsOf, circleShape, obbShape, rectShape, type Region, type Shape } from '../player/regions';
 import { escalators } from './escalators';
@@ -42,7 +42,7 @@ function escalatorRegions(): Region[] {
 
 /** Every static metro region. Order matters on exact ties: levels before escalators, so conveyors stop at the ends. */
 export function metroStaticRegions(): Region[] {
-  const inner = [[-7.8, -4.2], [4.2, 7.8]] as const;
+  const inner = ESCALATOR_BANDS.inner;
   const annulus = circleShape(cx, cz, THRESHOLD.rOuter - C);
   const isl = MERIDIAN.island;
   const doorX = isl.xMax - PSD.inset - C;
@@ -68,11 +68,11 @@ export function metroStaticRegions(): Region[] {
       holes: [
         circleShape(cx, cz, DISC.wellR + C),
         ...bandHoles(inner, VESPER.f5FootprintZ[0] + 0.3, VESPER.f5FootprintZ[1]),
-        rectShape(VESPER.f6OpeningX[0], VESPER.f6OpeningX[1] + C, 66 - C, 69.6 + C),
+        rectShape(VESPER.f6OpeningX[0], VESPER.f6OpeningX[1] + C, VESPER.f6OpeningZ[0] - C, VESPER.f6OpeningZ[1] + C),
         ...liftHoles(),
       ],
     },
-    { ...boundsOf(deep), y: HALCYON.topY, obb: deep, holes: [...liftHoles(), rectShape(-60, -26.52, 66 - C, 69.6 + C)] },
+    { ...boundsOf(deep), y: HALCYON.topY, obb: deep, holes: [...liftHoles(), rectShape(-60, -26.52, VESPER.f6OpeningZ[0] - C, VESPER.f6OpeningZ[1] + C)] },
     ...escalatorRegions(),
   ];
 }
