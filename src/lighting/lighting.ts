@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import type { BuildContext, WorldModule } from '../core/types';
-import { BAYS, CONCOURSE, LOUNGE_ROOM, SHED, VAULT } from '../layout';
+import { BAYS, CAVERN, CONCOURSE, DEEP_SUN, LOUNGE_ROOM, SHED, SKY, VAULT } from '../layout';
 import { SUN_COLOR, SUN_DIR, lookShared } from './shared';
 
 /**
@@ -17,6 +17,14 @@ const CAPTURE_SIZE = 256;
 /** Total shadow texels (4096^2); the aspect of the light-space box decides the split. */
 const SHADOW_TEXELS = 4096 * 4096;
 
+// z reaches the first-class lounge behind the south wall (and its terrace), so the low sun is shadow-mapped there too
+const SURFACE_MIN = new THREE.Vector3(CONCOURSE.xMin - 3, -3, LOUNGE_ROOM.zMin - LOUNGE_ROOM.wallThickness - 1.2);
+const SURFACE_MAX = new THREE.Vector3(SHED.xMax + 3, VAULT.crownY + 2, SHED.zMax + 2);
+const DEEP_MIN = new THREE.Vector3(CAVERN.transept.xMin, CAVERN.yBottom, CAVERN.nave.zMin);
+const DEEP_MAX = new THREE.Vector3(CAVERN.transept.xMax, SKY.y, CAVERN.nave.zMax);
+const DEEP_DIR = new THREE.Vector3(...DEEP_SUN.direction).normalize();
+const DEEP_COLOR = new THREE.Color(...DEEP_SUN.color);
+
 function floorPow2(n: number): number {
   return 2 ** Math.floor(Math.log2(n));
 }
@@ -26,13 +34,10 @@ function floorPow2(n: number): number {
  * concourse + shed. The corners of the world AABB are projected onto the light's axes programmatically.
  * Returns the extents so the map resolution can follow the box aspect.
  */
-function fitSunShadow(sun: THREE.DirectionalLight): { w: number; h: number } {
-  // z reaches the first-class lounge behind the south wall (and its terrace), so the low sun is shadow-mapped there too
-  const min = new THREE.Vector3(CONCOURSE.xMin - 3, -3, LOUNGE_ROOM.zMin - LOUNGE_ROOM.wallThickness - 1.2);
-  const max = new THREE.Vector3(SHED.xMax + 3, VAULT.crownY + 2, SHED.zMax + 2);
+function fitSunShadow(sun: THREE.DirectionalLight, dir: THREE.Vector3, min: THREE.Vector3, max: THREE.Vector3): { w: number; h: number } {
   const centre = min.clone().add(max).multiplyScalar(0.5);
 
-  const zAxis = SUN_DIR.clone(); // light looks along -z (camera convention): from the sun toward the centre
+  const zAxis = dir.clone(); // light looks along -z (camera convention): from the sun toward the centre
   const xAxis = new THREE.Vector3(0, 1, 0).cross(zAxis).normalize();
   const yAxis = zAxis.clone().cross(xAxis).normalize();
 
@@ -60,6 +65,18 @@ function fitSunShadow(sun: THREE.DirectionalLight): { w: number; h: number } {
   cam.far = dist - lz0 + 20;
   cam.updateProjectionMatrix();
   return { w: lx1 - lx0, h: ly1 - ly0 };
+}
+
+export type SunMode = 'surface' | 'deep';
+/** Re-aims the single sun and refits its static shadow camera. Caller sets renderer.shadowMap.needsUpdate. */
+export function setSunMode(sun: THREE.DirectionalLight, mode: SunMode): void {
+  if (mode === 'surface') {
+    sun.color.copy(SUN_COLOR);
+    fitSunShadow(sun, SUN_DIR, SURFACE_MIN, SURFACE_MAX);
+  } else {
+    sun.color.copy(DEEP_COLOR);
+    fitSunShadow(sun, DEEP_DIR, DEEP_MIN, DEEP_MAX);
+  }
 }
 
 /** Floor-level upward spots that fake the warm bounce of the sun pools onto vault, walls and column undersides. */
@@ -92,7 +109,7 @@ export async function buildLighting(ctx: BuildContext): Promise<WorldModule> {
   const sun = new THREE.DirectionalLight(SUN_COLOR, SUN_INTENSITY);
   sun.name = 'sun';
   sun.castShadow = true;
-  const { w, h } = fitSunShadow(sun);
+  const { w, h } = fitSunShadow(sun, SUN_DIR, SURFACE_MIN, SURFACE_MAX);
   // 4096^2 worth of texels, split to follow the light-space aspect (the world is long and low).
   const texW = Math.min(16384, floorPow2(Math.sqrt((SHADOW_TEXELS * w) / h)));
   const texH = Math.max(1024, Math.min(8192, floorPow2(SHADOW_TEXELS / texW)));

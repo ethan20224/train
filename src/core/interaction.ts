@@ -40,7 +40,7 @@ const facing = (eye: V3, fwd: V3, tx: number, ty: number, tz: number): boolean =
 
 /** What is the player at / looking at? `fwd` is the unit camera forward. Pure. */
 export function findTarget(feet: V3, eye: V3, fwd: V3, hasTicket: boolean, ticketRequired = true): Target | null {
-  if (feet.y > 1.0) return null; // balcony, bridge deck: nothing to press up there
+  if (feet.y > 1.0 || feet.y < -1.0) return null; // balcony, bridge deck, metro: no surface targets there
   const bo = BOOKING_OFFICE;
   for (let i = 0; i < bo.windowCentersX.length; i++) {
     const wx = bo.windowCentersX[i] as number;
