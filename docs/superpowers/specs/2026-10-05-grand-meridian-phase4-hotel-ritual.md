@@ -104,3 +104,16 @@ Goal: modern platform safety that looks like it was always part of the 1930s lux
   of truth for door z offsets in layout.ts).
 - Nav: unchanged (the edge inset already keeps the player off the barrier line).
 - Footbridge parts stay ≥ 1.0 m clear of island long edges.
+
+## Phase 4B revision — "warmer, a bit" (user decisions, 2026-10-06)
+- Warmth only **a bit** in the hall: warm accents at human height (walnut wainscoting/dado with brass
+  trim along the walls, carpet runners stair → kiosk → gate approach), booking office + concierge as
+  specified. At most a couple of small armchair groups in the side aisles. Stone architecture unchanged.
+- The **hotel-lobby feeling lives in a SEPARATE First-Class Lounge room** (`LOUNGE_ROOM` in layout.ts):
+  behind the hall's south wall at balcony level, through tall walnut-and-etched-glass double doors
+  centered in the south wall (they swing open as the player approaches). Interior x ∈ [-15, 15],
+  z ∈ [-24, -2], floor y 6, coffered ceiling y 12.5; wood-panelled walls, carpet, Chesterfields,
+  wingbacks, lamps, palms, a writing desk; windows on the south and west walls admit the low golden
+  sun in beams. Own environment capture for correct reflections. The balcony itself keeps only a
+  restrained touch (no lounge sprawl).
+- Uncanny emptiness stays **exactly**: no steam, no traces of people, no music.
