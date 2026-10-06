@@ -130,6 +130,20 @@ class Builder {
         [nrm[i]!, nrm[i]!, nrm[i + 1]!, nrm[i + 1]!]);
     }
   }
+  /** Closed convex (z, y) outline extruded along X with smooth normals and flat end caps (cushions). */
+  solid(pts: Array<[number, number]>, x0: number, x1: number, c: RGB = [1, 1, 1]): void {
+    let area = 0;
+    for (let i = 0; i < pts.length; i++) { const a = pts[i]!, b = pts[(i + 1) % pts.length]!; area += a[0] * b[1] - b[0] * a[1]; }
+    const cw = area > 0 ? pts.slice() : pts.slice().reverse();          // counter-clockwise in (z, y) => outward normals (extrude convention)
+    this.extrude([...cw, cw[0]!], x0, x1, false, c);
+    const cz = cw.reduce((a, p) => a + p[0], 0) / cw.length, cy = cw.reduce((a, p) => a + p[1], 0) / cw.length;
+    for (const [x, h] of [[x0, -1], [x1, 1]] as const) {
+      for (let i = 0; i < cw.length; i++) {
+        const a = cw[i]!, b = cw[(i + 1) % cw.length]!;
+        this.quad([[x, cy, cz], [x, a[1], a[0]], [x, b[1], b[0]], [x, b[1], b[0]]], [h, 0, 0], c);
+      }
+    }
+  }
   /** Parametric surface, (u, v) in the given counts; normals by finite differences, oriented along `hint`. */
   grid(fn: (u: number, v: number) => V3, nu: number, nv: number, hint: V3, c: RGB = [1, 1, 1], u0 = 0, u1 = 1, v0 = 0, v1 = 1): void {
     const e = 1e-3;
@@ -170,7 +184,6 @@ export interface TrainGeometry {
 
 const WARM_STRIP: RGB = [1.0, 0.56, 0.27];      // ~3500 K
 const WARM = (k: number): RGB => [WARM_STRIP[0] * k, WARM_STRIP[1] * k, WARM_STRIP[2] * k];
-const DISPLAY: RGB = [0.62, 0.86, 1.0];
 
 /** Roof half-ring profile points on the right side from belt to crown (z, y). */
 function roofHalf(n = 14): Array<[number, number]> {
@@ -227,7 +240,7 @@ export function getTrainGeometry(): TrainGeometry {
         const a = d - DOOR_HALF - POCKET, b = d + DOOR_HALF + POCKET;
         glass.slab(from, a, Y_WIN, Y_BELT, s, -0.03, 0.02);
         body.slab(from, a, Y_SILL, Y_WIN, s, 0, 0.05);
-        stripe.slab(stripeFrom, d - DOOR_HALF, Y_SILL + 0.06, Y_SILL + 0.14, s, 0.008, 0.006);
+        stripe.slab(stripeFrom, d - DOOR_HALF, Y_SILL + 0.075, Y_SILL + 0.135, s, 0.008, 0.006);
         stripeFrom = d + DOOR_HALF;
         body.slab(a, d - DOOR_HALF, Y_SILL, Y_BELT, s, 0, 0.05); body.slab(d + DOOR_HALF, b, Y_SILL, Y_BELT, s, 0, 0.05);
         // door leaves: inboard of the pockets so they slide behind them
@@ -244,7 +257,7 @@ export function getTrainGeometry(): TrainGeometry {
       }
       glass.slab(from, x1 - 0.1, Y_WIN, Y_BELT, s, -0.03, 0.02);
       body.slab(from, x1 - 0.1, Y_SILL, Y_WIN, s, 0, 0.05);
-      stripe.slab(stripeFrom, x1 - 0.12, Y_SILL + 0.06, Y_SILL + 0.14, s, 0.008, 0.006);   // line-colour band at sill level
+      stripe.slab(stripeFrom, x1 - 0.12, Y_SILL + 0.075, Y_SILL + 0.135, s, 0.008, 0.006);   // line-colour band at sill level
     }
     // thresholds (champagne) across each door
     for (const d of dc) for (const s of sides) champ.box(d - DOOR_HALF, d + DOOR_HALF, Y_SILL, Y_SILL + 0.015, s * 1.28, s * 1.43);
@@ -270,21 +283,39 @@ export function getTrainGeometry(): TrainGeometry {
         if (b - a < 0.8) continue;
         const n = Math.max(2, Math.round((b - a) / 0.58));
         const w = (b - a) / n;
-        champ.box(a, b, Y_SILL + 0.08, Y_SILL + 0.36, s * 0.97, s * 1.33);                // pedestal / base
+        // champagne frame visible beneath the pan: recessed panel, plinth and a front rail
+        champ.box(a, b, Y_SILL + 0.1, Y_SILL + 0.3, s * 1.0, s * 1.3);
+        champ.box(a, b, Y_SILL + 0.04, Y_SILL + 0.1, s * 0.96, s * 1.32);
+        champ.box(a, b, Y_SILL + 0.3, Y_SILL + 0.335, s * 0.9, s * 0.945);
         for (let i = 0; i < n; i++) {
           const pa = a + i * w + 0.008, pb = a + (i + 1) * w - 0.008;
-          uph.box(pa, pb, Y_SILL + 0.36, Y_SILL + 0.47, s * 0.9, s * 1.33);                // seat pad
-          uph.box(pa, pb, Y_SILL + 0.5, Y_SILL + 0.96, s * 1.3, s * 1.37);                 // back pad
-          champ.box(pa + 0.01, pb - 0.01, Y_SILL + 0.96, Y_SILL + 0.985, s * 1.29, s * 1.375);   // champagne cap rail
+          const Z = (d: number): number => s * (1.37 - d);
+          const y0 = Y_SILL + 0.34;
+          // seat pan with a front radius
+          uph.solid([[Z(0.02), y0], [Z(0.44), y0], [Z(0.5), y0 + 0.02], [Z(0.53), y0 + 0.06], [Z(0.52), y0 + 0.1], [Z(0.46), y0 + 0.125], [Z(0.2), y0 + 0.13], [Z(0.02), y0 + 0.12]], pa, pb);
+          // raked two-panel backrest (lower bolster + upper) with a seam gap
+          const rake = (y: number): number => 0.02 + 0.08 * ((y - (Y_SILL + 0.48)) / 0.5);
+          uph.solid([[Z(rake(Y_SILL + 0.48)), Y_SILL + 0.48], [Z(rake(Y_SILL + 0.48) + 0.1), Y_SILL + 0.49], [Z(rake(Y_SILL + 0.72) + 0.11), Y_SILL + 0.72], [Z(rake(Y_SILL + 0.72)), Y_SILL + 0.72]], pa, pb);
+          uph.solid([[Z(rake(Y_SILL + 0.73)), Y_SILL + 0.73], [Z(rake(Y_SILL + 0.73) + 0.11), Y_SILL + 0.73], [Z(rake(Y_SILL + 0.95) + 0.1), Y_SILL + 0.93], [Z(rake(Y_SILL + 0.93) + 0.05), Y_SILL + 0.97], [Z(rake(Y_SILL + 0.93) - 0.0), Y_SILL + 0.96]], pa, pb);
         }
         // slim champagne end partitions
-        champ.box(a - 0.025, a, Y_SILL + 0.1, Y_SILL + 1.55, s * 0.92, s * 1.37); champ.box(b, b + 0.025, Y_SILL + 0.1, Y_SILL + 1.55, s * 0.92, s * 1.37);
+        champ.box(a - 0.025, a, Y_SILL + 0.1, Y_SILL + 1.0, s * 1.0, s * 1.37); champ.box(b, b + 0.025, Y_SILL + 0.1, Y_SILL + 1.0, s * 1.0, s * 1.37);
       }
       for (const d of dc) {
-        for (const o of [-0.97, 0.97]) champ.pole(d + o, s * 0.98, Y_SILL, 3.04, 0.02);
-        champ.pole(d, s * 0.42, Y_SILL, 3.04, 0.018);
+        for (const o of [-0.97, 0.97]) body.pole(d + o, s * 0.98, Y_SILL, 3.04, 0.02, 10);
+        body.pole(d, s * 0.42, Y_SILL, 3.04, 0.018, 10);
         // hairline display above the door (inside the transom)
-        lights.box(d - 0.5, d + 0.5, 2.9, 2.935, s * (halfWidthAt(2.9) - 0.1), s * (halfWidthAt(2.9) - 0.09), DISPLAY.map((v) => v * 2.4) as unknown as RGB);
+        {
+          const zi = s * (halfWidthAt(2.9) - 0.1);
+          lights.box(d - 0.5, d + 0.5, 2.875, 2.925, zi - s * 0.006, zi + s * 0.006, [0.012, 0.015, 0.02]);
+          let gx = d - 0.42, k = 0;                                     // faint dot-matrix "text": two short words of blocks
+          while (gx < d + 0.4) {
+            const gw = 0.025 + 0.02 * ((k * 7 + 3) % 4); k++;
+            if (k % 6 === 0 || k % 6 === 3) { gx += 0.05; continue; }
+            for (const f of [-1, 1]) lights.box(gx, gx + gw, 2.892, 2.908, zi + f * s * 0.0065, zi + f * s * 0.0067, [0.2, 0.34, 0.42]);
+            gx += gw + 0.014;
+          }
+        }
       }
       // warm sill wash under the seats (inner wall)
       {
@@ -292,9 +323,9 @@ export function getTrainGeometry(): TrainGeometry {
         lights.quad([[x0, Y_SILL, za], [x1, Y_SILL, za], [x1, Y_SILL + 0.5, zb], [x0, Y_SILL + 0.5, zb]], [0, 0, -s], WARM(0.07));
       }
     }
-    // overhead champagne grab rail along the saloon, fed by short hangers at each door pole
-    for (const s of sides) champ.box(x0 + 0.4, x1 - 0.4, 2.62, 2.65, s * 0.76, s * 0.79);
-    for (const d of dc) for (const s of sides) champ.box(d - 0.012, d + 0.012, 2.62, 3.04, s * 0.76, s * 0.79);
+    // overhead stainless grab rail along the saloon, fed by short hangers at each door pole
+    for (const s of sides) body.box(x0 + 0.4, x1 - 0.4, 2.62, 2.65, s * 0.76, s * 0.79);
+    for (const d of dc) for (const s of sides) body.box(d - 0.012, d + 0.012, 2.62, 3.04, s * 0.76, s * 0.79);
 
     // --- gangway sleeve to the next car
     if (c < cars - 1) {
@@ -318,11 +349,15 @@ export function getTrainGeometry(): TrainGeometry {
   // --- end caps: mirror frame + flush glass front + light edge + head/tail lamps
   for (const end of [1, -1] as const) {
     const hint: V3 = [end, 0, 0];
-    const rows = 22, cols = 12;
+    const cols = 12;
     // the frame surface (whole cross-section, y from skirt to crown)
-    body.grid((u, v) => capPoint(end, u * 2 - 1, Y_SKIRT + (Y_TOP - Y_SKIRT) * v), cols, rows, hint);
+    // mirror frame around the glazed opening (no body behind the glass: you look into the saloon)
+    const gy0 = 1.0, gy1 = 3.3, gk = 0.94;
+    const fy = (y0: number, y1: number, u0: number, u1: number, nu: number, nv: number): void =>
+      body.grid((u, v) => capPoint(end, u, v), nu, nv, hint, [1, 1, 1], u0, u1, y0, y1);
+    fy(Y_SKIRT, gy0, -1, 1, cols, 4); fy(gy1, Y_TOP, -1, 1, cols, 6);
+    fy(gy0, gy1, -1, -gk, 2, 14); fy(gy0, gy1, gk, 1, 2, 14);
     // glass: inset, forward by 1 cm
-    const gy0 = 1.0, gy1 = 3.62, gk = 0.94;
     const gp = (u: number, v: number): V3 => { const y = gy0 + (gy1 - gy0) * v; const p = capPoint(end, u * gk, y); return [p[0] + end * 0.012, p[1], p[2]]; };
     glass.grid((u, v) => gp(u * 2 - 1, v), cols, 14, hint);
     // edge light ring around the glass
@@ -330,13 +365,13 @@ export function getTrainGeometry(): TrainGeometry {
       // rectangle perimeter in (u, v) -> point; t in 0..1
       const q = (t % 1) * 4, side = Math.floor(q), f2 = q - side;
       const uv: [number, number] = side === 0 ? [-1 + 2 * f2, 0] : side === 1 ? [1, f2] : side === 2 ? [1 - 2 * f2, 1] : [-1, 1 - f2];
-      const u = uv[0] * (1 + 0.04 * grow), v = (uv[1] - 0.5) * (1 + 0.035 * grow) + 0.5;
+      const u = uv[0] * (1 + 0.022 * grow), v = (uv[1] - 0.5) * (1 + 0.02 * grow) + 0.5;
       const y = gy0 + (gy1 - gy0) * v; const p = capPoint(end, u * gk, y);
       return [p[0] + end * (0.012 + 0.004 * grow), p[1], p[2]];
     };
     const N = 64;
     for (let i = 0; i < N; i++) {
-      lights.quad([ring(i / N, 0), ring((i + 1) / N, 0), ring((i + 1) / N, 1), ring(i / N, 1)], hint, end > 0 ? [2.0, 2.0, 1.9] : [1.4, 1.4, 1.3]);
+      lights.quad([ring(i / N, 0), ring((i + 1) / N, 0), ring((i + 1) / N, 1), ring(i / N, 1)], hint, end > 0 ? [1.5, 1.5, 1.45] : [1.0, 1.0, 0.95]);
     }
     // lamps low on the frame: white headlights (front, +x), dim red (rear, -x)
     for (const s of sides) {
@@ -378,7 +413,7 @@ export interface TrainSharedMaterials {
   card: THREE.MeshBasicMaterial;
 }
 export interface TrainPerTrainMaterials {
-  doorFrame: THREE.MeshStandardMaterial; doorGlass: THREE.MeshStandardMaterial; stripe: THREE.MeshBasicMaterial;
+  doorFrame: THREE.MeshStandardMaterial; doorGlass: THREE.MeshStandardMaterial; stripe: THREE.MeshStandardMaterial;
   /** Door open amount (0..1) drives the leaf slide in the vertex shader. */
   doorUniform: { value: number };
 }
@@ -399,7 +434,7 @@ export function createSharedMaterials(champagneBase?: THREE.MeshStandardMaterial
 
 function glassMaterial(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.02, 0.03, 0.04), metalness: 0.25, roughness: 0.03, transparent: true, opacity: 0.16, depthWrite: false, envMapIntensity: 1.0,
+    color: new THREE.Color(0.006, 0.01, 0.014), metalness: 0.0, roughness: 0.04, transparent: true, opacity: 0.3, depthWrite: false, envMapIntensity: 0.55,
   });
 }
 
@@ -418,14 +453,14 @@ export function createPerTrainMaterials(shared: TrainSharedMaterials, line: Line
   };
   const doorFrame = patch(shared.body.clone());
   const doorGlass = patch(shared.glass.clone());
-  const stripe = new THREE.MeshBasicMaterial({ color: new THREE.Color(0, 0, 0) });
+  const stripe = new THREE.MeshStandardMaterial({ color: new THREE.Color(0, 0, 0), metalness: 0.1, roughness: 0.45 });
   const t: TrainPerTrainMaterials = { doorFrame, doorGlass, stripe, doorUniform };
   setLine(t, line);
   return t;
 }
 export function setLine(t: TrainPerTrainMaterials, line: LineId): void {
   const c = LINE_COLORS[line];
-  t.stripe.color.setRGB(c[0] * 1.8, c[1] * 1.8, c[2] * 1.8);
+  t.stripe.color.setRGB(c[0] * 0.75, c[1] * 0.75, c[2] * 0.75);
 }
 
 // ---- rig ----
