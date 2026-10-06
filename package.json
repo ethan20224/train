@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "fetch-textures": "node scripts/fetch-textures.mjs",
     "shot": "node scripts/shot.mjs",
-    "nav-test": "tsx scripts/nav-test.ts"
+    "nav-test": "tsx scripts/nav-test.ts",
+    "graph-test": "tsx scripts/graph-test.ts",
+    "traffic-sim": "tsx scripts/traffic-sim.ts"
   },
   "dependencies": {
     "n8ao": "2.0.1",

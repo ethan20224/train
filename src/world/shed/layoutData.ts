@@ -56,7 +56,8 @@ export const BENCHES: readonly PlacedBench[] = ISLANDS.flatMap((i) =>
 export const CLOCK_XS = [-10, 10] as const;
 export const CLOCK_Z = 104.4;
 
-export const SIGNAL_GANTRY_ZS = [470, 610, 770, 960] as const;
+/** Old straight-track gantries are parked out of sight (z 1500, in the haze): the throat network (src/tracks) owns the real gantry stations. */
+export const SIGNAL_GANTRY_ZS = [1500] as const;
 export const TRUSS_ZS: readonly number[] = Array.from({ length: Math.round((SHED.zMax - 108) / SHED.trussSpacing) + 1 }, (_, k) => 108 + k * SHED.trussSpacing);
 
 export interface Circle {

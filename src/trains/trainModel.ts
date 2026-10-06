@@ -7,7 +7,7 @@ import { contactShadowTexture, glowAtlas, lettersTexture, windowAtlas } from './
 /**
  * Art Deco streamliner (20th Century Limited spirit). Local frame: nose at z = 0, consist extends toward +z,
  * floor at y = 0 (platform height), rail top at y = RAIL.topY, roof 4.4 m above the rail.
- * Everything is merged per material: 8 draw calls for the whole train.
+ * Everything is merged per material and skinned onto one bone per vehicle (articulation): 8 draw calls per train.
  */
 export const LOCO_LENGTH = 24;
 export const CAR_LENGTH = 25;
@@ -354,6 +354,104 @@ function buildCar(p: Parts, z0: number, tail: boolean, index: number): void {
   }
 }
 
+
+// ------------------------------------------------------------------------------------------------ articulation rig
+/** One entry per vehicle (loco + cars): model-z start / centre and the two bogie centres (model z = distance from the nose). */
+export const VEHICLES: { start: number; end: number; centre: number; bogieA: number; bogieB: number }[] = (() => {
+  const v = [{ start: 0, end: LOCO_LENGTH, centre: LOCO_LENGTH / 2, bogieA: 4.25, bogieB: 17 }];
+  for (let i = 0; i < CAR_COUNT; i++) {
+    const s0 = LOCO_LENGTH + GAP + i * (CAR_LENGTH + GAP);
+    const tail = i === CAR_COUNT - 1;
+    v.push({ start: s0, end: s0 + CAR_LENGTH, centre: s0 + CAR_LENGTH / 2, bogieA: s0 + 4.3, bogieB: tail ? s0 + 15.9 : s0 + 20.7 });
+  }
+  return v;
+})();
+const NBONES = VEHICLES.length;
+
+/** Rigid skinning by model z: each vehicle's vertices follow its bone; the 1 m gaps (bellows, shadow strip) blend linearly. */
+function addSkin(g: THREE.BufferGeometry): void {
+  const pos = g.getAttribute('position');
+  const idx = new Uint16Array(pos.count * 4);
+  const wgt = new Float32Array(pos.count * 4);
+  for (let i = 0; i < pos.count; i++) {
+    const z = pos.getZ(i);
+    let b0 = 0;
+    let b1 = 0;
+    let w1 = 0;
+    // vehicle containing z (tail cars overhang slightly: use start..start + CAR_LENGTH + GAP/2)
+    let found = -1;
+    for (let k = 0; k < NBONES; k++) {
+      const v = VEHICLES[k]!;
+      if (z >= v.start - 1e-6 && z <= v.end + 1e-6) {
+        found = k;
+        break;
+      }
+    }
+    if (found >= 0) b0 = found;
+    else if (z < 0) b0 = 0;
+    else if (z > VEHICLES[NBONES - 1]!.end) b0 = NBONES - 1;
+    else {
+      for (let k = 0; k + 1 < NBONES; k++) {
+        const a = VEHICLES[k]!;
+        const c = VEHICLES[k + 1]!;
+        if (z > a.end && z < c.start) {
+          b0 = k;
+          b1 = k + 1;
+          w1 = (z - a.end) / (c.start - a.end);
+          break;
+        }
+      }
+    }
+    idx[i * 4] = b0;
+    idx[i * 4 + 1] = b1;
+    wgt[i * 4] = 1 - w1;
+    wgt[i * 4 + 1] = w1;
+  }
+  g.setAttribute('skinIndex', new THREE.BufferAttribute(idx, 4));
+  g.setAttribute('skinWeight', new THREE.BufferAttribute(wgt, 4));
+}
+
+export interface RigPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _off = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _e = new THREE.Euler(0, 0, 0, 'YXZ');
+
+/**
+ * Pose every vehicle from its two bogie points on the track. `sample(d, out)` writes the rail-top point of the track at
+ * distance d from the NOSE (world). Vehicle position = bogie midpoint-consistent, yaw / pitch from the bogie chord.
+ */
+export function poseTrain(g: THREE.Group, sample: (d: number, out: RigPoint) => void): void {
+  const bones = g.userData.bones as THREE.Bone[];
+  const pa: RigPoint = { x: 0, y: 0, z: 0 };
+  const pb: RigPoint = { x: 0, y: 0, z: 0 };
+  for (let k = 0; k < NBONES; k++) {
+    const v = VEHICLES[k]!;
+    sample(v.bogieA, pa);
+    sample(v.bogieB, pb);
+    _a.set(pa.x, pa.y, pa.z);
+    _b.set(pb.x, pb.y, pb.z);
+    _b.sub(_a);
+    const len = _b.length();
+    if (len < 1e-6) continue;
+    _b.divideScalar(len);
+    const yaw = Math.atan2(_b.x, _b.z);
+    const pitch = Math.asin(Math.max(-1, Math.min(1, _b.y)));
+    _e.set(-pitch, yaw, 0);
+    _q.setFromEuler(_e);
+    // world pos of bone origin such that model point (0, topY, bogieA) lands on pa
+    _off.set(0, RAIL.topY, v.bogieA - v.centre).applyQuaternion(_q);
+    const bone = bones[k]!;
+    bone.position.set(pa.x - _off.x, pa.y - _off.y, pa.z - _off.z);
+    bone.quaternion.copy(_q);
+  }
+}
+
 // ------------------------------------------------------------------------------------------------ kit / model
 interface Kit {
   geos: Record<keyof Parts | 'shadow', THREE.BufferGeometry>;
@@ -378,7 +476,7 @@ function getKit(ctx: BuildContext): Kit {
     buildCar(p, z0, i === CAR_COUNT - 1, i);
     if (i < CAR_COUNT - 1) p.bellows.push(pleatedBellows(z0 + CAR_LENGTH, z0 + CAR_LENGTH + GAP));
   }
-  const shadowQuad = new THREE.PlaneGeometry(4.9, TRAIN_LENGTH + 4);
+  const shadowQuad = new THREE.PlaneGeometry(4.9, TRAIN_LENGTH + 4, 1, TRAIN_LENGTH + 4);
   shadowQuad.rotateX(-Math.PI / 2);
   shadowQuad.translate(0, RAIL.topY + 0.05, TRAIN_LENGTH / 2);
   const geos = {
@@ -391,6 +489,8 @@ function getKit(ctx: BuildContext): Kit {
     glow: merge(p.glow),
     shadow: shadowQuad,
   };
+
+  for (const g of Object.values(geos)) addSkin(g);
 
   const M = ctx.materials;
   const base = M.get('trainPaint') as THREE.MeshPhysicalMaterial;
@@ -440,13 +540,24 @@ function getKit(ctx: BuildContext): Kit {
   return kitCache;
 }
 
-/** Build one train (all instances share geometry and, except livery paint, materials). */
+/** Build one train: 8 SkinnedMeshes sharing one 6-bone skeleton (one bone per vehicle). Keep the group at the world origin. */
 export function buildTrainModel(ctx: BuildContext, livery = 0): THREE.Group {
   const kit = getKit(ctx);
   const g = new THREE.Group();
   g.name = 'trainModel';
-  const add = (key: keyof Kit['geos'], mat: THREE.Material, order = 0): THREE.Mesh => {
-    const m = new THREE.Mesh(kit.geos[key], mat);
+  const bones: THREE.Bone[] = [];
+  for (let k = 0; k < NBONES; k++) {
+    const b = new THREE.Bone();
+    b.name = `vehicle${k}`;
+    g.add(b);
+    bones.push(b);
+  }
+  const inverses = VEHICLES.map((v) => new THREE.Matrix4().makeTranslation(0, 0, -v.centre));
+  const skeleton = new THREE.Skeleton(bones, inverses);
+  const add = (key: keyof Kit['geos'], mat: THREE.Material, order = 0): THREE.SkinnedMesh => {
+    const m = new THREE.SkinnedMesh(kit.geos[key], mat);
+    m.bind(skeleton, new THREE.Matrix4());
+    m.frustumCulled = false; // the rest-pose bounds are meaningless; the scheduler culls per train
     m.castShadow = false; // trains never bake into the static sun map
     m.userData.noShadow = true; // lighting.finalize's catch-all would otherwise flip castShadow on
     m.receiveShadow = key !== 'shadow';
@@ -464,6 +575,7 @@ export function buildTrainModel(ctx: BuildContext, livery = 0): THREE.Group {
   add('shadow', kit.shadow, 0);
   g.userData.paintMesh = paintMesh;
   g.userData.kit = kit;
+  g.userData.bones = bones;
   return g;
 }
 

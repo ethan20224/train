@@ -9,6 +9,8 @@ const COPING = 0.6;
 const LINE_W = 0.12;
 const RAIL_BASE = RAIL.topY - 0.15;
 const TRACK_START = CROSS_PLATFORM.zMax + 6.4; // 108.4: rails start at the buffer stops
+/** The old straight tracks end here; src/world/tracks.ts (the throat network) continues from this z. */
+const TRACK_END = 392;
 
 /** Platforms, ground, ballast, rails, sleepers, buffer stops. */
 export function buildPlatforms(ctx: BuildContext): THREE.Object3D {
@@ -65,7 +67,7 @@ export function buildPlatforms(ctx: BuildContext): THREE.Object3D {
   const spans: [number, number][] = [];
   const edges = [X0, ...ISLANDS.flatMap((i) => [i.xMin, i.xMax]), X1];
   for (let k = 0; k < edges.length; k += 2) spans.push([edges[k]!, edges[k + 1]!]);
-  const bed = spans.map(([a, b]) => box(a, b, -1.62, BED_TOP, CROSS_PLATFORM.zMax, RAIL.endZ));
+  const bed = spans.map(([a, b]) => box(a, b, -1.62, BED_TOP, CROSS_PLATFORM.zMax, TRACK_END));
   // Ground under everything (gravel to the horizon) so no void shows through the arcade or past the beds.
   bed.push(box(-1600, 1600, -1.9, -1.62, CROSS_PLATFORM.zMax, RAIL.endZ + 160));
   const ballast = mesh(finish(ctx, bed, 'trackBallast'), ctx.materials.get('trackBallast'), false);
@@ -79,7 +81,7 @@ export function buildPlatforms(ctx: BuildContext): THREE.Object3D {
   ];
   pts.forEach(([x, y], i) => (i === 0 ? prof.moveTo(x, y) : prof.lineTo(x, y)));
   prof.closePath();
-  const railLen = RAIL.endZ - TRACK_START;
+  const railLen = TRACK_END - TRACK_START;
   const railGeo = new THREE.ExtrudeGeometry(prof, { depth: railLen, bevelEnabled: false });
   const railG = finish(ctx, [railGeo], 'railSteel');
   const railMat = tinted(ctx, 'railSteel', 0x7a7e86, { roughness: 0.75 });
@@ -90,7 +92,7 @@ export function buildPlatforms(ctx: BuildContext): THREE.Object3D {
   // Sleepers (instanced) out to z = 900; beyond that the haze swallows them.
   const sleeperGeo = finish(ctx, [box(-1.3, 1.3, -0.15, 0, -0.13, 0.13)], 'sleeperWood');
   const sMats: THREE.Matrix4[] = [];
-  for (const t of TRACKS) for (let z = TRACK_START + 0.3; z < 900; z += 0.65) sMats.push(T(t.centerX, RAIL_BASE - 0.0, z));
+  for (const t of TRACKS) for (let z = TRACK_START + 0.3; z < TRACK_END; z += 0.65) sMats.push(T(t.centerX, RAIL_BASE - 0.0, z));
   root.add(instanced(sleeperGeo, ctx.materials.get('sleeperWood'), sMats, false));
 
   return root;

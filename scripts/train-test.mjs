@@ -24,11 +24,12 @@ while (Date.now() - t0 < 180000) {
   const snap = await page.evaluate(() => ({ ...window.__meridian.trains(), t: window.__meridian.time, mem: { ...window.__meridian.renderer.info.memory } }));
   const act = snap.trains.filter((x) => x.active);
   maxActive = Math.max(maxActive, act.length);
-  const tracks = act.map((x) => x.track);
+  // stabled / yard / cleared trains have no platform track (null): only platform assignments can collide
+  const tracks = act.map((x) => x.track).filter((t) => t !== null);
   check(new Set(tracks).size === tracks.length, `two trains on one track at t=${snap.t.toFixed(1)}: ${tracks}`);
   for (const tr of snap.trains) {
-    if (tr.active && tr.phase === 'dwell') dwellNose.push(tr.noseZ);
-    if (tr.active && (tr.phase === 'accel' || tr.phase === 'cruiseOut')) {
+    if (tr.active && tr.phase === 'dwell' && tr.kind === 'dwell') dwellNose.push(tr.noseZ);
+    if (tr.active && tr.kind === 'departure' && (tr.phase === 'accel' || tr.phase === 'cruiseOut')) {
       const a = accelSamples.get(tr.slot) ?? [];
       a.push({ speed: tr.speed, noseZ: tr.noseZ, t: snap.t });
       accelSamples.set(tr.slot, a);
@@ -54,7 +55,7 @@ while (Date.now() - t0 < 180000) {
       const slot = departures.indexOf(a);
       let maxStep = 0;
       for (let i = 1; i < a.length; i++) {
-        check(a[i].speed >= a[i - 1].speed - 1e-6, `slot ${slot}: speed decreased in departure`);
+        check(a[i].speed >= a[i - 1].speed - 1e-6, `slot ${slot}: speed decreased in departure (${a[i - 1].speed.toFixed(3)} -> ${a[i].speed.toFixed(3)} at nose z ${a[i].noseZ.toFixed(1)})`);
         check(a[i].noseZ >= a[i - 1].noseZ - 1e-6, `slot ${slot}: nose moved backward in departure`);
         maxStep = Math.max(maxStep, Math.abs(a[i].speed - a[i - 1].speed) / Math.max(1e-3, a[i].t - a[i - 1].t));
       }
