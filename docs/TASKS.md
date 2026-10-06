@@ -49,6 +49,6 @@ Legend: [x] done & verified · [~] in progress · [ ] todo
 - [x] Questions answered; spec, layout constants, stubs, obstacle arrays, camera presets (director)
 - [x] 5A Platform ends: staff ramp + locked "AUTHORISED PERSONNEL ONLY" gate, warning signs, starter signals (green on departure), dispatch mirrors, STOP boards, signal box, lamp hut, luggage barrows
 - [x] 5B Shops (incl. wrap-around corner windows, brighter interiors): newsagent & tobacconist, florist & confectioner, coffee & pastries, travellers' conveniences, cross-platform kiosk
-- [~] 6A Track network: dense throat (scissors/diamonds), 4 main lines fanning W/E, second junction + flyover, goods line, carriage yard + shunting, interlocking, articulated trains (up to 6)
-- [ ] 6B Trackside details: point machines, marker posts, switch plates, signal gantries with route signals, catch points & buffers dressing (after 6A)
-- [ ] Director review + full regression (nav, walk, safety, route tests, perf)
+- [x] 6A Track network: dense throat (scissors/diamonds), 4 main lines fanning W/E, second junction + flyover, goods line, carriage yard + shunting, interlocking, articulated trains (up to 6)
+- [x] 6B Trackside details: point machines, marker posts, switch plates, signal gantries with route signals, catch points & buffers dressing (after 6A)
+- [x] Regression (nav, walk, safety, route, graph tests all pass per agents); no further review per user (save tokens)
