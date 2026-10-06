@@ -52,3 +52,8 @@ Legend: [x] done & verified · [~] in progress · [ ] todo
 - [x] 6A Track network: dense throat (scissors/diamonds), 4 main lines fanning W/E, second junction + flyover, goods line, carriage yard + shunting, interlocking, articulated trains (up to 6)
 - [x] 6B Trackside details: point machines, marker posts, switch plates, signal gantries with route signals, catch points & buffers dressing (after 6A)
 - [x] Regression (nav, walk, safety, route, graph tests all pass per agents); no further review per user (save tokens)
+
+## Meridian Deep (spec: `docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md`, plan: `docs/superpowers/plans/2026-10-06-meridian-deep-plan.md`)
+- [x] Phase 0 baseline (2026-10-06): build/nav/graph/traffic all PASS (nav-test 20 tests passed); walk-test FAIL (1), pre-existing, left as is: "FAIL deck samples left y 7: (20.07, 6.95, 226.11) ..." (everything else in the walk passed, 0 console errors); train/safety/route PASS; balcony 20.6 fps/245 calls/2,647,785 tris, concourse 29.0/231/2,323,317, kiosk 34.0/221/2,264,151, gates 31.9/214/2,241,955, arches 32.7/216/2,253,511 (q=auto, ANGLE Apple M2)
+- [ ] Phase 1 foundations + greybox
+- [ ] Phase 2 descent · [ ] Phase 3 cavern · [ ] Phase 4 metro · [ ] Phase 5 acceptance
