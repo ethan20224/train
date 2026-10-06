@@ -56,17 +56,37 @@ export function buildShell(f: Frame, id: ShopId, atlas: ShopAtlas): void {
   f.box('brass', -HL + 0.12, 1.0, 0.05, HL - 0.12, 1.025, 0.115);
   f.box('brass', -HL + 0.12, 2.75, 0.05, HL - 0.12, 2.775, 0.09); // picture rail
   for (const s of [-1, 1] as const) {
-    const x0 = s < 0 ? -HL : HL - 0.12;
-    f.box('wood', x0, 0.25, 0, x0 + 0.12, H, D);
+    // END RETURN: wraps the shopfront around the corner with a plate-glass display window, dark-marble riser and a fascia return
+    const xa = s < 0 ? -HL : HL - 0.12;
+    const xb = xa + 0.12;
+    const zb = 0.4;
+    const zf = D - 0.32;
+    f.box('wood', xa, 0.25, 0, xb, H, zb); // back stile
+    f.box('wood', xa, 0.25, zf, xb, H, D); // corner stile
+    f.box('wood', xa, HEAD, zb, xb, H, zf); // lintel carrying the fascia return
     f.box('dark', s < 0 ? -HL - 0.03 : HL - 0.12, 0, 0, s < 0 ? -HL + 0.12 : HL + 0.03, 0.25, D + 0.02);
-    // brass keyline panel on the outer end face
-    const ox = s * (HL + 0.001);
-    const t = 0.012;
-    f.box('brass', ox - 0.001, 0.45, 0.25, ox + 0.001, 0.45 + t, D - 0.25);
-    f.box('brass', ox - 0.001, 3.1, 0.25, ox + 0.001, 3.1 + t, D - 0.25);
-    f.box('brass', ox - 0.001, 0.45, 0.25, ox + 0.001, 3.1, 0.25 + t);
-    f.box('brass', ox - 0.001, 0.45, D - 0.25 - t, ox + 0.001, 3.1, D - 0.25);
-    f.box('brass', ox - 0.001, 1.75, 0.25, ox + 0.001, 1.75 + t, D - 0.25);
+    f.box('dark', xa - (s < 0 ? 0.02 : 0), 0.25, zb, xb + (s < 0 ? 0 : 0.02), SILL - 0.04, zf);
+    f.box('brass', xa - (s < 0 ? 0.025 : 0), 0.25, zb, xb + (s < 0 ? 0 : 0.025), 0.3, zf);
+    f.box('wood', xa - (s < 0 ? 0.03 : 0), SILL - 0.05, zb, xb + (s < 0 ? 0 : 0.03), SILL, zf);
+    f.box('brass', xa - (s < 0 ? 0.03 : 0), SILL, zb, xb + (s < 0 ? 0 : 0.03), SILL + 0.012, zf);
+    const gx = s * (HL - 0.06);
+    f.add('glass', new THREE.PlaneGeometry(zf - zb, HEAD - SILL).rotateY(Math.PI / 2).translate(gx, (HEAD + SILL) / 2, (zb + zf) / 2));
+    const bt = 0.03;
+    const mz = (zb + zf) / 2;
+    f.box('brass', gx - 0.03, SILL, zb, gx + 0.03, SILL + bt, zf);
+    f.box('brass', gx - 0.03, HEAD - bt, zb, gx + 0.03, HEAD, zf);
+    f.box('brass', gx - 0.03, SILL, zb, gx + 0.03, HEAD, zb + bt);
+    f.box('brass', gx - 0.03, SILL, zf - bt, gx + 0.03, HEAD, zf);
+    f.box('brass', gx - 0.03, SILL, mz - 0.015, gx + 0.03, HEAD, mz + 0.015);
+    f.box('brass', gx - 0.03, 2.48, zb, gx + 0.03, 2.5, zf);
+    // fascia return: black-glass monogram sign, gilt keyline
+    const ox = s * (HL + 0.003);
+    f.plane(atlas.cell[`mono_${id}`]!, ox, 3.255, (zb + zf) / 2 + 0.2, 2.1, 0.47, s * Math.PI / 2);
+    f.box('brass', s < 0 ? -HL - 0.012 : HL - 0.002, 3.0, 0.3, s < 0 ? -HL + 0.002 : HL + 0.012, 3.012, D - 0.3);
+    f.box('brass', s < 0 ? -HL - 0.012 : HL - 0.002, 3.51, 0.3, s < 0 ? -HL + 0.002 : HL + 0.012, 3.522, D - 0.3);
+    // brass corner post
+    f.tube('brass', s * (HL + 0.02), 0.2, D + 0.04, s * (HL + 0.02), HEAD + 0.1, D + 0.04, 0.03, 10);
+    f.ball('brass', s * (HL + 0.02), HEAD + 0.12, D + 0.04, 0.045);
     // brass edge cap
     f.box('brass', s < 0 ? -HL - 0.01 : HL - 0.02, H - 0.1, 0, s < 0 ? -HL + 0.02 : HL + 0.01, H - 0.04, D + 0.2);
   }

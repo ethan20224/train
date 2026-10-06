@@ -7,6 +7,7 @@ import { makeShopAtlas } from './shops/atlas';
 import { buildShell } from './shops/shell';
 import { stockFlorist, stockNewsstand } from './shops/stockA';
 import { stockCoffee, stockConveniences } from './shops/stockB';
+import { stockEnds } from './shops/stockEnds';
 import { buildKiosk } from './shops/kiosk';
 import type { ShopId } from './shops/layoutData';
 
@@ -29,23 +30,23 @@ export async function buildShops(ctx: BuildContext): Promise<WorldModule> {
   if (marbleMat.normalScale) marbleMat.normalScale.set(0.1, 0.1);
   marbleMat.roughness = 0.38;
   const woodMat = lib.get('wood').clone();
-  woodMat.emissive = new THREE.Color(0x4a2410);
-  woodMat.emissiveIntensity = 0.55;
+  woodMat.emissive = new THREE.Color(0x7a4220);
+  woodMat.emissiveIntensity = 0.8;
   const brassMat = lib.get('brass').clone();
   brassMat.emissive = new THREE.Color(0x7a5214);
-  brassMat.emissiveIntensity = 0.5;
+  brassMat.emissiveIntensity = 0.7;
   const silverMat = new THREE.MeshStandardMaterial({ name: 'shopSilver', color: 0xe4e4e8, metalness: 1, roughness: 0.22, envMapIntensity: 1.3, side: THREE.DoubleSide });
   const glassMat = new THREE.MeshStandardMaterial({
     name: 'shopGlass', color: 0xe6eef2, transparent: true, opacity: 0.1, roughness: 0.04, metalness: 0, envMapIntensity: 1.6, depthWrite: false, side: THREE.DoubleSide,
   });
   const glowMat = new THREE.MeshBasicMaterial({ name: 'shopGlow', color: new THREE.Color().setRGB(3.6, 2.5, 1.3), vertexColors: true, toneMapped: true });
   const warmMat = new THREE.MeshStandardMaterial({
-    name: 'shopWarm', vertexColors: true, roughness: 0.85, metalness: 0, emissive: new THREE.Color(0xffa45c), emissiveIntensity: 0.4, envMapIntensity: 0.7,
+    name: 'shopWarm', vertexColors: true, roughness: 0.85, metalness: 0, emissive: new THREE.Color(0xffa45c), emissiveIntensity: 0.75, envMapIntensity: 0.7,
   });
   const goodsMat = new THREE.MeshStandardMaterial({ name: 'shopGoods', vertexColors: true, roughness: 0.52, metalness: 0, envMapIntensity: 0.9, side: THREE.DoubleSide });
   const paintMat = new THREE.MeshStandardMaterial({ name: 'shopPaint', vertexColors: true, roughness: 0.28, metalness: 0.1, envMapIntensity: 1.3 });
   const atlasMat = new THREE.MeshStandardMaterial({
-    name: 'shopAtlas', map: atlas.texture, emissiveMap: atlas.texture, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.32, roughness: 0.5, metalness: 0,
+    name: 'shopAtlas', map: atlas.texture, emissiveMap: atlas.texture, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.5, roughness: 0.5, metalness: 0,
     polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
   });
 
@@ -87,6 +88,7 @@ export async function buildShops(ctx: BuildContext): Promise<WorldModule> {
     const f = unitFrame(u.side, u.bayZ);
     guard(`${u.id} shell`, () => buildShell(f, u.id, atlas));
     guard(`${u.id} stock`, () => stock[u.id](f, atlas));
+    guard(`${u.id} ends`, () => stockEnds(f, u.id, atlas));
   }
   guard('kiosk', () => {
     const k = SHOPS.kiosk;

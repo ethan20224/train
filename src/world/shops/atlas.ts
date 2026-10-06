@@ -440,6 +440,11 @@ export function makeShopAtlas(renderer: THREE.WebGLRenderer): ShopAtlas {
     g.strokeRect(570 + i * 130, 1730, 108, 108);
     text(g, ['PLAYER’S', 'NAVY CUT', 'GOLD FLAKE', 'CAPSTAN'][i]!, 560 + i * 130 + 64, 1784, 17, '#f6e6b0', { w: 700 });
   }
+  const monos: Record<string, string> = { newsstand: 'NEWSAGENT', florist: 'FLORIST', coffee: 'COFFEE', conveniences: 'TRAVELLERS’' };
+  SHOPS.units.forEach((u, i) => {
+    put(`mono_${u.id}`, i * 810, 1862, 800, 180);
+    fascia(g, i * 810, 1862, 800, 180, monos[u.id]!, 62, 0.12);
+  });
   put('plain', 4060, 2000, 30, 30);
   g.fillStyle = '#ffffff';
   g.fillRect(4060, 2000, 30, 30);
