@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   CAVERN, CROSS_OUTLINE, DISC, FLIGHTS, FUNICULAR, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
-  THRESHOLD, THROAT, TRENCH, VESPER, VOID, WATER_WALL, voidRadiusAt, DEEP_SUN,
+  THRESHOLD, TRENCH, VESPER, VOID, WATER_WALL, voidRadiusAt, DEEP_SUN,
 } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
 
@@ -63,11 +63,6 @@ export function buildGreybox(): Greybox {
 
   // --- void (always drawn) ---------------------------------------------------------------------------
   const V = new THREE.Group(); V.name = 'metroVoid';
-  const curb = new THREE.Mesh(slab(circle(cx, cz, OCULUS.curbOuterR), [circle(cx, cz, OCULUS.r)], OCULUS.curbHeight, OCULUS.curbHeight + 1.5), stone);
-  const balustrade = new THREE.Mesh(new THREE.CylinderGeometry(OCULUS.balustradeR, OCULUS.balustradeR, 1.0, 96, 1, true), std(0x5a4632, 0.5, 0.6));
-  balustrade.position.set(cx, OCULUS.curbHeight + 0.5, cz);
-  V.add(curb, balustrade, box(stone, -1.2, -0.3, cz - OCULUS.r, 1.2, 0, cz - DISC.r));
-  for (const [a, b] of THROAT.bands) V.add(box(stone, a - 0.1, 0, THROAT.zMin, a, 1.0, THROAT.zMax), box(stone, b, 0, THROAT.zMin, b + 0.1, 1.0, THROAT.zMax));
   VOID.eras.forEach((e, i) => {
     const pts: THREE.Vector2[] = [];
     for (let y = e.yTop; y >= e.yBottom - 1e-6; y -= 0.5) pts.push(new THREE.Vector2(voidRadiusAt(y), y));

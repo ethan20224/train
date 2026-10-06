@@ -150,7 +150,39 @@ export const DISC = {
 } as const;
 
 /** Gangways from the hall rim (south) and from the Crossing-floor well rim (south) onto the disc. */
-export const GANGWAY = { halfWidth: 1.2 } as const;
+export const GANGWAY = {
+  halfWidth: 1.2,
+  /** Bronze bridge girder: depth below the deck top, and the clear gap kept to the disc edge. */
+  girderDepth: 0.55, discClearance: 0.05,
+  /** Glass parapet: total height to the top of the bronze cap; stanchion pitch. */
+  parapetHeight: 1.08, stanchionPitch: 1.2,
+  /** Gate piers either side of the gate leaves: they house the leaves when open. Inner face at halfWidth, outer face here. */
+  pierOuterX: 2.5, pierDepth: 0.34, pierHeight: 1.5,
+  /** Gate leaves slide open/closed over this many seconds (ease in-out). */
+  gateSeconds: 0.6,
+} as const;
+
+/** Beaux-Arts dressing of the hall-side oculus and throats (src/world/metro/oculus.ts). Heights are above the hall floor (y = 0). */
+export const OCULUS_DETAIL = {
+  /** The curb ring uses the hall floor hole's 96-vertex polygon exactly (src/world/concourse/floor.ts). */
+  ringSegments: 96,
+  /** The curb is interrupted this many 96-grid steps either side of due south for the gangway. */
+  curbGapSteps: 2,
+  /** The ring balustrade stops this many degrees either side of due south (the gate piers fill the gap). */
+  balustradeGapDeg: 17,
+  /** Top of the brass handrail above the floor: the curb top plus the guard height. */
+  handrailTopY: OCULUS.curbHeight + OCULUS.balustradeHeight,
+  balusterPitch: 0.18, postSpacing: 3.0,
+  /** Brass inlay band in the hall floor just outside the curb, as radii. */
+  inlayR: [9.65, 9.72] as readonly [number, number],
+  /** Throat stone curb width (outside the floor hole edge). */
+  throatCurbWidth: 0.32,
+  /** The oculus-side throat curbs stop short of the oculus curb ring: z limit of the inner long side, x start of the north end. */
+  throatInnerCurbZMax: 68.7, throatNorthInnerX: 8.55,
+  /** Carved dome: radial rib count and the y range it covers (spec §2.1). */
+  ribCount: 48, ribYTop: -1.55, ribYBottom: -6.0,
+  ribRingYs: [-2.4, -3.5, -4.7, -6.0] as readonly number[],
+} as const;
 
 export const LIFTS = {
   cabinR: 1.2, tubeR: 1.4,

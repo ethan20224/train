@@ -1,20 +1,26 @@
 import * as THREE from 'three';
-import type { BuildContext, WorldModule } from '../core/types';
+import type { BuildContext, FrameInfo, WorldModule } from '../core/types';
 import { disc } from '../metro/disc';
 import { buildGreybox } from './metro/greybox';
+import { createMetroMaterials } from './metro/materials';
+import { buildOculus } from './metro/oculus';
 
-/** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Phase 1: greybox. */
-export async function buildMetro(_ctx: BuildContext): Promise<WorldModule> {
+/** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Phase 2: greybox plus the finished oculus. */
+export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const root = new THREE.Group();
   root.name = 'metro';
   const gb = buildGreybox();
+  const kit = createMetroMaterials(ctx.renderer, ctx.materials);
+  const oculus = buildOculus(ctx.materials, kit, disc.gateOpen('top'));
+  gb.voidGroup.add(oculus.group);
   root.add(gb.voidGroup, gb.deepGroup, gb.deepImpostor, gb.surfaceImpostor);
   root.userData.deepMaterials = gb.deepMaterials;
   return {
     name: 'metro',
     object: root,
-    update(): void {
+    update(f: FrameInfo): void {
       gb.disc.position.y = disc.y;
+      oculus.update(f.dt, disc.gateOpen('top'));
     },
   };
 }

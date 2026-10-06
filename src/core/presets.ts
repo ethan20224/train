@@ -56,7 +56,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'void', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep',
+  'oculus', 'oculusdown', 'rim', 'void', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -196,7 +196,8 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
     intent: 'From the footbridge deck looking north down the platforms to the throat and the lines beyond.',
   },
   oculus: { position: [7, EYE, OCULUS.cz - 20], target: [0, -4, OCULUS.cz], intent: 'From the hall floor south of the oculus: curb, balustrade, chandelier above, light rising.' },
-  oculusdown: { position: [2.5, EYE + 0.2, OCULUS.cz - OCULUS.curbOuterR - 0.5], target: [0, -30, OCULUS.cz + 2], fov: 70, intent: 'Leaning over the rail: the void, crisscross flights, the disc, the eclipse far below.' },
+  oculusdown: { position: [-10.7, EYE + 0.2, OCULUS.cz + 1.5], target: [3, -15, OCULUS.cz], fov: 70, intent: 'Leaning over the rail: the void, crisscross flights, the disc, the eclipse far below.' },
+  rim: { position: [-8.0, EYE, 66.4], target: [3, -2.5, 77], fov: 72, intent: 'Standing at the south-west balustrade: the ring, the gangway gates and the void seen through the openwork.' },
   void: { position: [-14, LANDINGS.L1.y + EYE, 81.8], target: [6, -24, 66], fov: 68, intent: 'On L1: era bands, light rings, flights crossing the void.' },
   threshold: { position: [-9.5, THRESHOLD.y + EYE, 82.6], target: [5, -42, 58], fov: 66, intent: 'Threshold: speed gates, F4 dropping through the sky hole.' },
   skyhole: { position: [12, VESPER.topY + EYE, 66], target: [0, SKY.y, OCULUS.cz], fov: 70, intent: 'From the Crossing floor looking up at the eclipse, flights and disc descending out of the sky.' },
