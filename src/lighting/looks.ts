@@ -99,6 +99,9 @@ export class DepthLook {
     this.deepGroup = req(metroRoot, 'metroDeep');
     this.deepImpostor = req(metroRoot, 'metroDeepImpostor');
     this.surfaceImpostor = req(metroRoot, 'metroSurfaceImpostor');
+    for (const o of [this.deepGroup, this.deepImpostor, this.surfaceImpostor]) {
+      if (hasLight(o)) throw new Error(`DepthLook: ${o.name} contains a light (toggling visibility would change the light count)`);
+    }
     this.godRaysAllowed = postfx.godRays.enabled;
     this.godRayBase = postfx.godRays.intensity;
     this.airlock = new Airlock(d.camera.position.y);
@@ -160,20 +163,25 @@ export class DepthLook {
     const { renderer, scene, camera, metroRoot } = this.d;
     const mats = (metroRoot.userData.deepMaterials ?? []) as THREE.MeshStandardMaterial[];
     const saved = this.airlock.zone;
-    this.applyZone('deep');
-    this.blend(1);
-    this.sun.intensity = DEEP_SUN.intensity;
-    renderer.shadowMap.needsUpdate = true;
-    renderer.render(scene, camera);
     const hidden: THREE.Object3D[] = [];
-    scene.traverse((o) => { if (o.userData.noCapture && o.visible) { o.visible = false; hidden.push(o); } });
-    const rt = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, generateMipmaps: false, minFilter: THREE.LinearFilter });
-    const cube = new THREE.CubeCamera(0.2, 800, rt);
-    cube.position.set(...DEEP_LOOK.capture);
-    scene.add(cube);
-    cube.updateMatrixWorld(true);
-    const pmrem = new THREE.PMREMGenerator(renderer);
+    let rt: THREE.WebGLCubeRenderTarget | null = null;
+    let cube: THREE.CubeCamera | null = null;
+    let pmrem: THREE.PMREMGenerator | null = null;
     try {
+      this.applyZone('deep');
+      this.blend(1);
+      this.sun.intensity = DEEP_SUN.intensity;
+      // Surface practicals must not bleed into the deep env / SH.
+      for (const { light } of this.dimmable) light.intensity = 0;
+      renderer.shadowMap.needsUpdate = true;
+      renderer.render(scene, camera);
+      scene.traverse((o) => { if (o.userData.noCapture && o.visible) { o.visible = false; hidden.push(o); } });
+      rt = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, generateMipmaps: false, minFilter: THREE.LinearFilter });
+      cube = new THREE.CubeCamera(0.2, 800, rt);
+      cube.position.set(...DEEP_LOOK.capture);
+      scene.add(cube);
+      cube.updateMatrixWorld(true);
+      pmrem = new THREE.PMREMGenerator(renderer);
       let env: THREE.WebGLRenderTarget | null = null;
       for (let pass = 0; pass < 2; pass++) {
         cube.update(renderer, scene);
@@ -187,9 +195,9 @@ export class DepthLook {
         console.warn('deep light probe generation failed', e);
       }
     } finally {
-      scene.remove(cube);
-      pmrem.dispose();
-      rt.dispose();
+      if (cube) scene.remove(cube);
+      pmrem?.dispose();
+      rt?.dispose();
       for (const o of hidden) o.visible = true;
       this.applyZone(saved);
       this.update(camera.position.y);
