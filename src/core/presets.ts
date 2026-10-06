@@ -162,13 +162,14 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
     intent: 'Island B near its far end: staff ramp, locked gate, warning signs, starter signals, mirrors.',
   },
   shops: {
-    position: [-21, EYE, SHOPS.units[0].bayZ - 9],
-    target: [-29, 1.8, SHOPS.units[0].bayZ + 1],
+    // Inside the aisle (between colonnade face x -24 and shopfront face x -27.2) so no column blocks the view.
+    position: [-25.4, EYE, SHOPS.units[0].bayZ - 11],
+    target: [-28.6, 1.7, SHOPS.units[0].bayZ],
     intent: 'West aisle: the newsagent & tobacconist shopfront, florist beyond.',
   },
   shopseast: {
-    position: [21, EYE, SHOPS.units[2].bayZ - 9],
-    target: [29, 1.8, SHOPS.units[2].bayZ + 1],
+    position: [25.4, EYE, SHOPS.units[2].bayZ - 11],
+    target: [28.6, 1.7, SHOPS.units[2].bayZ],
     intent: 'East aisle: coffee & pastries counter, travellers\u2019 conveniences beyond.',
   },
   throat: {
