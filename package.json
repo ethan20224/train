@@ -11,7 +11,8 @@
     "shot": "node scripts/shot.mjs",
     "nav-test": "tsx scripts/nav-test.ts",
     "graph-test": "tsx scripts/graph-test.ts",
-    "traffic-sim": "tsx scripts/traffic-sim.ts"
+    "traffic-sim": "tsx scripts/traffic-sim.ts",
+    "metro-layout-test": "tsx scripts/metro-layout-test.ts"
   },
   "dependencies": {
     "n8ao": "2.0.1",

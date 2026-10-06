@@ -447,3 +447,8 @@ export const SHOPS = {
   /** Combined newsstand + coffee kiosk on the cross platform, past the gates. */
   kiosk: { xMin: 7.5, xMax: 12.5, zMin: 102.6, zMax: 105.4 },
 } as const;
+
+// ---------------------------------------------------------------------------
+// Meridian Deep metro (docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md)
+// ---------------------------------------------------------------------------
+export * from './layoutMetro';
