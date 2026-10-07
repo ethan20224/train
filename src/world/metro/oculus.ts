@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
-import { DISC, GANGWAY, OCULUS, OCULUS_DETAIL as OD, THROAT, VOID, voidRadiusAt } from '../../layoutMetro';
+import { DISC, GANGWAY, OCULUS, OCULUS_DETAIL as OD, THROAT, voidRadiusAt } from '../../layoutMetro';
 import { GeoBag, at, boxMM, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import type { MetroMaterials } from './materials';
 
@@ -19,6 +19,8 @@ const UP = v3(0, 1, 0);
 const CURB_TOP = OCULUS.curbHeight;
 const GATE_Z = CZ - OCULUS.balustradeR;
 const RAIL_TOP = OD.handrailTopY;
+const SLAB = OCULUS.slabUnderY;
+const COLLAR_BOTTOM = SLAB - OD.collarDepth;
 
 // ---------------------------------------------------------------------------------------------
 // profile helpers
@@ -49,19 +51,19 @@ function ogee(a0: number, b0: number, a1: number, b1: number, n: number): P2[] {
 
 /** Ring curb section, a = radial offset from r = 9.3 (inner face at the opening, r 9.02), b = height above the floor. */
 const RING_CURB: P2[] = dedupe([
-  [0.3, -1.5], [0.3, 0.025], ...ogee(0.3, 0.025, 0.19, 0.105, 6), [0.19, 0.105], [0.19, CURB_TOP], [-0.25, CURB_TOP],
-  ...arcPts(-0.25, 0.1, 0.05, 90, 270, 8), [-0.28, 0.05], [-0.28, -1.5],
+  [0.3, SLAB], [0.3, 0.025], ...ogee(0.3, 0.025, 0.19, CURB_TOP - 0.045, 6), [0.19, CURB_TOP - 0.045], [0.19, CURB_TOP], [-0.25, CURB_TOP],
+  ...arcPts(-0.25, CURB_TOP - 0.05, 0.05, 90, 270, 8), [-0.28, CURB_TOP - 0.1], [-0.28, SLAB],
 ]);
 
 /** Throat curb section, a = outward from the hole edge (face at 0). Same family as the ring curb, narrower. */
 const THROAT_CURB: P2[] = dedupe([
-  [OD.throatCurbWidth, -1.5], [OD.throatCurbWidth, 0.02], ...ogee(OD.throatCurbWidth, 0.02, 0.22, 0.1, 5), [0.22, 0.1], [0.22, CURB_TOP],
-  [0.05, CURB_TOP], ...arcPts(0.05, 0.1, 0.05, 90, 270, 8), [0.0, 0.05], [0.0, -1.5],
+  [OD.throatCurbWidth, SLAB], [OD.throatCurbWidth, 0.02], ...ogee(OD.throatCurbWidth, 0.02, 0.22, CURB_TOP - 0.05, 5), [0.22, CURB_TOP - 0.05], [0.22, CURB_TOP],
+  [0.05, CURB_TOP], ...arcPts(0.05, CURB_TOP - 0.05, 0.05, 90, 270, 8), [0.0, CURB_TOP - 0.1], [0.0, SLAB],
 ]);
 
 /** Hanging collar under the slab edge (the soffit moulding): a = outward from the opening face, free side negative. */
 const COLLAR: P2[] = [
-  [0.03, -1.78], [0.03, -1.5], [-0.02, -1.5], [-0.04, -1.54], [-0.12, -1.58], [-0.2, -1.62], [-0.22, -1.68], [-0.2, -1.74], [-0.14, -1.78],
+  [0.03, COLLAR_BOTTOM], [0.03, SLAB], [-0.02, SLAB], [-0.04, SLAB - 0.04], [-0.12, SLAB - 0.08], [-0.2, SLAB - 0.12], [-0.22, SLAB - 0.18], [-0.2, SLAB - 0.24], [-0.14, COLLAR_BOTTOM],
 ];
 
 /** Bronze bottom rail resting on the curb: relative to the curb top. */
@@ -203,8 +205,8 @@ function buildGate(lib: MaterialLibrary, bronzeMat: THREE.Material, glassMat: TH
 // ---------------------------------------------------------------------------------------------
 export interface OculusBuild {
   group: THREE.Group;
-  /** Per displayed frame: slides the gate leaves toward `open` (0.6 s ease). */
-  update(dt: number, open: boolean): void;
+  /** Per displayed frame: slides the gate leaves toward `open` (GANGWAY.gateSeconds, real time, ease). */
+  update(open: boolean): void;
 }
 
 export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen: boolean): OculusBuild {
@@ -215,7 +217,9 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   const hallBronze = new THREE.MeshStandardMaterial({ name: 'oculusBronze', color: 0x5b4126, metalness: 0.88, roughness: 0.4 });
   const hallBrass = (lib.get('brass') as THREE.MeshStandardMaterial).clone();
   hallBrass.name = 'oculusBrass';
-  hallBrass.polygonOffset = true; hallBrass.polygonOffsetFactor = -2; hallBrass.polygonOffsetUnits = -2; // the floor inlay wins against the floor plane
+  const inlayBrass = hallBrass.clone();
+  inlayBrass.name = 'oculusInlayBrass';
+  inlayBrass.polygonOffset = true; inlayBrass.polygonOffsetFactor = -2; inlayBrass.polygonOffsetUnits = -2; // wins against the coplanar floor
   const hallGlass = new THREE.MeshPhysicalMaterial({
     name: 'oculusGlass', color: 0xe4f2ee, metalness: 0, roughness: 0.03, transparent: true, opacity: 0.14, depthWrite: false, envMapIntensity: 1.4,
   });
@@ -226,6 +230,7 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   const dark = new GeoBag(lib, 'darkMarble');
   const bronze = new GeoBag(lib, 'castIron', 1);
   const brass = new GeoBag(lib, 'brass');
+  const inlayBag = new GeoBag(lib, 'brass');
   const glass = new GeoBag(lib, 'glass', 1);
   const voidStone = new GeoBag(lib, 'wallStone', kit.metersPerTile.carvedStone);
 
@@ -252,7 +257,7 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
     const inThroat = (x: number, z: number): boolean => THROAT.bands.some(([a, b]) => x > a - 0.25 && x < b + 0.25 && z < THROAT.zMax + 0.25);
     const n = OD.ringSegments * 2;
     let cur: Frame[] = [];
-    const flush = (): void => { if (cur.length >= 2) brass.add(sweep(inlay, cur, { closed: true, caps: true })); cur = []; };
+    const flush = (): void => { if (cur.length >= 2) inlayBag.add(sweep(inlay, cur, { closed: true, caps: true })); cur = []; };
     for (let i = 0; i <= n; i++) {
       const t = gapA + ((gapB - gapA) * i) / n;
       const radial = v3(Math.cos(t), 0, Math.sin(t));
@@ -269,8 +274,7 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   // ---- balustrade ---------------------------------------------------------------------------------
   const balusters: THREE.Matrix4[] = [];
   const posts: Array<{ p: THREE.Vector3 }> = [];
-  function balustrade(run: Run, name: string): void {
-    void name;
+  function balustrade(run: Run): void {
     const fr = runFrames(run, 0);
     const at0 = (y: number): Frame[] => fr.map((f) => ({ ...f, o: f.o.clone().setY(y) }));
     bronze.add(sweep(RAIL_BOTTOM, at0(CURB_TOP), { closed: true, caps: true }));
@@ -278,7 +282,10 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
     brass.add(sweep(HANDRAIL, at0(HANDRAIL_Y), { closed: true }));
     const nSeg = Math.max(1, Math.round(run.length / OD.postSpacing));
     const clear = POST_R + 0.08;
-    for (let i = 0; i <= nSeg; i++) posts.push({ p: pointAt(run, (run.length * i) / nSeg).p });
+    for (let i = 0; i <= nSeg; i++) {
+      const p = pointAt(run, (run.length * i) / nSeg).p;
+      if (!posts.some((q) => q.p.distanceTo(p) < 0.1)) posts.push({ p }); // runs meeting at a corner share one post
+    }
     for (let i = 0; i < nSeg; i++) {
       const s0 = (run.length * i) / nSeg + clear, s1 = (run.length * (i + 1)) / nSeg - clear;
       const n = Math.max(1, Math.round((s1 - s0) / OD.balusterPitch));
@@ -289,7 +296,7 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
     }
   }
   const gapDeg = deg(OD.balustradeGapDeg);
-  balustrade(arcRun(OCULUS.balustradeR, SOUTH + gapDeg, SOUTH + TAU - gapDeg), 'ring');
+  balustrade(arcRun(OCULUS.balustradeR, SOUTH + gapDeg, SOUTH + TAU - gapDeg));
 
   const postGeo = latheMeters(POST, 12, 1, 1);
   const finialGeo = latheMeters(FINIAL, 10, 1, 1);
@@ -299,7 +306,8 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   const cw = OD.throatCurbWidth;
   const off = cw / 2;
   for (const sg of [1, -1] as const) {
-    const xIn = sg * 8.4, xOut = sg * 12; // hole edges (the bands in layoutMetro are symmetric about x = 0)
+    const band = THROAT.bands.find(([a, b]) => Math.sign(a + b) === sg)!;
+    const xIn = sg > 0 ? band[0] : band[1], xOut = sg > 0 ? band[1] : band[0]; // hole edges: nearer / farther from the axis
     const toAxis = v3(-sg, 0, 0), away = v3(sg, 0, 0), north = v3(0, 0, 1);
     // curbs lining the hole edge (face on the edge, section outward)
     stone.add(sweep(THROAT_CURB, edgeFrames(v3(xIn, 0, zMin), v3(xIn, 0, OD.throatInnerCurbZMax), toAxis), { closed: true, caps: true }));
@@ -309,9 +317,9 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
     voidStone.add(sweep(COLLAR, edgeFrames(v3(sg * OD.throatNorthInnerX, 0, zMax), v3(xOut, 0, zMax), north), { closed: true, caps: true }));
     // bronze balustrade on the curbs
     const zEndIn = OD.throatInnerCurbZMax - 0.25, zNorth = zMax + off;
-    balustrade(legRun(xIn - sg * off, zMin + 0.15, xIn - sg * off, zEndIn), 'throat-in');
-    balustrade(legRun(xOut + sg * off, zMin + 0.15, xOut + sg * off, zNorth), 'throat-out');
-    balustrade(legRun(xOut + sg * off, zNorth, sg * (OD.throatNorthInnerX + 0.2), zNorth), 'throat-north');
+    balustrade(legRun(xIn - sg * off, zMin + 0.15, xIn - sg * off, zEndIn));
+    balustrade(legRun(xOut + sg * off, zMin + 0.15, xOut + sg * off, zNorth));
+    balustrade(legRun(xOut + sg * off, zNorth, sg * (OD.throatNorthInnerX + 0.2), zNorth));
   }
   for (const { p } of posts) {
     const m = new THREE.Matrix4().makeTranslation(p.x, CURB_TOP, p.z);
@@ -354,22 +362,21 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
       const bx = (xa: number, ya: number, xb: number, yb: number, dz: number): void => {
         bronze.add(boxMM(Math.min(sg * xa, sg * xb), ya, GATE_Z - dz, Math.max(sg * xa, sg * xb), yb, GATE_Z + dz));
       };
-      bx(hw - 0.04, 0, po + 0.04, 0.22, d + 0.03);
-      bx(hw - 0.02, 0.22, po + 0.02, 0.29, d + 0.015);
-      bx(hw, 0.29, po, ph - 0.18, d);
-      bx(hw - 0.05, ph - 0.18, po + 0.05, ph - 0.1, d + 0.05);
-      bx(hw - 0.02, ph - 0.1, po + 0.02, ph - 0.05, d + 0.03);
-      bx(hw + 0.04, ph - 0.05, po - 0.04, ph, d - 0.02);
+      bx(hw - 0.03, 0, po + 0.03, 0.2, d + 0.03);            // plinth
+      bx(hw - 0.01, 0.2, po + 0.01, 0.26, d + 0.012);
+      bx(hw, 0.26, po, ph - 0.12, d);                          // slim shaft
+      bx(hw - 0.03, ph - 0.12, po + 0.03, ph - 0.07, d + 0.03); // bronze necking
+      brass.add(boxMM(Math.min(sg * (hw - 0.05), sg * (po + 0.05)), ph - 0.07, GATE_Z - d - 0.05, Math.max(sg * (hw - 0.05), sg * (po + 0.05)), ph, GATE_Z + d + 0.05)); // brass cap
       // brass fillet frames on the two broad faces
       for (const fz of [-1, 1]) {
         const zf = GATE_Z + fz * (d + 0.004);
         const t = 0.014;
-        const xa = hw + 0.14, xb = po - 0.14, ya = 0.45, yb = ph - 0.4;
+        const xa = hw + 0.14, xb = po - 0.14, ya = 0.4, yb = ph - 0.3;
         for (const [x0, y0, x1, y1] of [[xa, ya, xb, ya + t], [xa, yb - t, xb, yb], [xa, ya, xa + t, yb], [xb - t, ya, xb, yb]] as const) {
           brass.add(boxMM(Math.min(sg * x0, sg * x1), y0, zf - 0.004, Math.max(sg * x0, sg * x1), y1, zf + 0.004));
         }
       }
-      brass.add(finialGeo, new THREE.Matrix4().makeTranslation(sg * (hw + po) / 2, ph, GATE_Z).multiply(new THREE.Matrix4().makeScale(1.5, 1.5, 1.5)));
+      brass.add(finialGeo, new THREE.Matrix4().makeTranslation(sg * (hw + po) / 2, ph, GATE_Z));
     }
   }
 
@@ -412,7 +419,6 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
       voidStone.add(sweep(RIB, fr, { closed: true }));
     }
   }
-  void VOID;
 
   // ---- meshes ----------------------------------------------------------------------------------------
   const addMesh = (bag: GeoBag, mat: THREE.Material, name: string, renderOrder = 0): void => {
@@ -428,6 +434,7 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   addMesh(dark, darkMat, 'oculusDeck');
   addMesh(bronze, hallBronze, 'oculusBronze');
   addMesh(brass, hallBrass, 'oculusBrass');
+  addMesh(inlayBag, inlayBrass, 'oculusInlay');
   addMesh(glass, hallGlass, 'oculusParapetGlass', 2);
   addMesh(voidStone, kit.carvedStone, 'oculusDome');
 
@@ -444,10 +451,14 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   group.add(gate.bronze, gate.glass);
 
   let phase = startOpen ? 1 : 0;
+  let lastS = performance.now() / 1000;
   gate.setOpen(phase);
   return {
     group,
-    update(dt: number, open: boolean): void {
+    update(open: boolean): void {
+      const nowS = performance.now() / 1000;
+      const dt = Math.min(0.1, nowS - lastS); // REAL time: the gate must work at ?timescale=0 too
+      lastS = nowS;
       const target = open ? 1 : 0;
       if (phase === target) return;
       const dir = Math.sign(target - phase);

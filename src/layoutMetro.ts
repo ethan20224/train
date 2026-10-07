@@ -157,9 +157,9 @@ export const GANGWAY = {
   /** Glass parapet: total height to the top of the bronze cap; stanchion pitch. */
   parapetHeight: 1.08, stanchionPitch: 1.2,
   /** Gate piers either side of the gate leaves: they house the leaves when open. Inner face at halfWidth, outer face here. */
-  pierOuterX: 2.5, pierDepth: 0.34, pierHeight: 1.5,
-  /** Gate leaves slide open/closed over this many seconds (ease in-out). */
-  gateSeconds: 0.6,
+  pierOuterX: 2.5, pierDepth: 0.22, pierHeight: 1.34,
+  /** Gate leaves slide open/closed over this many REAL seconds (ease in-out). */
+  gateSeconds: 0.35,
 } as const;
 
 /** Beaux-Arts dressing of the hall-side oculus and throats (src/world/metro/oculus.ts). Heights are above the hall floor (y = 0). */
@@ -172,6 +172,8 @@ export const OCULUS_DETAIL = {
   balustradeGapDeg: 17,
   /** Top of the brass handrail above the floor: the curb top plus the guard height. */
   handrailTopY: OCULUS.curbHeight + OCULUS.balustradeHeight,
+  /** Hanging soffit collar depth below the slab underside; moulding foot and bead sizes of the curbs. */
+  collarDepth: 0.28,
   balusterPitch: 0.18, postSpacing: 3.0,
   /** Brass inlay band in the hall floor just outside the curb, as radii. */
   inlayR: [9.65, 9.72] as readonly [number, number],

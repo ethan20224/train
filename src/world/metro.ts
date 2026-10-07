@@ -19,9 +19,9 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   return {
     name: 'metro',
     object: root,
-    update(f: FrameInfo): void {
+    update(_f: FrameInfo): void {
       gb.disc.position.y = disc.y;
-      oculus.update(f.dt, disc.gateOpen('top'));
+      oculus.update(disc.gateOpen('top'));
     },
   };
 }
