@@ -1,9 +1,12 @@
-import { ESCALATOR, escalatorUnits, type EscalatorUnit } from '../layoutMetro';
+import { ESCALATOR, ESCALATOR_VIS, escalatorUnits, type EscalatorUnit } from '../layoutMetro';
 
 /** Escalator speeds with proximity sensing. Velocity is signed along the unit's axis. */
 export class Escalators {
   readonly units: readonly EscalatorUnit[] = escalatorUnits();
   protected readonly speeds = new Float64Array(this.units.length).fill(ESCALATOR.idleSpeed);
+  /** Per-unit step phase (metres of chain travel modulo the step pitch, along the from->to path). Real-time, survives hidden frames; read by the step shader. */
+  readonly phase = new Float32Array(escalatorUnits().length);
+  protected readonly travel = new Float64Array(this.phase.length);
   protected readonly index = new Map(this.units.map((u, i) => [u.id, i] as const));
   speed(id: string): number {
     const i = this.index.get(id);
@@ -16,7 +19,13 @@ export class Escalators {
       const want = distToUnit(u, p) <= ESCALATOR.senseRadius ? ESCALATOR.activeSpeed : ESCALATOR.idleSpeed;
       const s = this.speeds[i] ?? ESCALATOR.idleSpeed;
       const step = ESCALATOR.accel * dt;
-      this.speeds[i] = s < want ? Math.min(want, s + step) : Math.max(want, s - step);
+      const next = s < want ? Math.min(want, s + step) : Math.max(want, s - step);
+      this.speeds[i] = next;
+      // path rate (from -> to) = speed * sign * sign(to - from): down units run +speed, up units -speed
+      const pitch = ESCALATOR_VIS.pitch;
+      const t = (this.travel[i]! + ((s + next) / 2) * u.sign * (Math.sign(u.to - u.from) || 1) * dt) % pitch;
+      this.travel[i] = t < 0 ? t + pitch : t;
+      this.phase[i] = this.travel[i]!;
     }
   }
   velocity(id: string): number {

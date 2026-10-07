@@ -63,6 +63,30 @@ export const ESCALATOR = {
   endOverlap: 0.6,
 } as const;
 
+/** Visual dimensions of the escalators (src/world/metro/escalators.ts). Metres; v is height above the step line, u runs along the flight from the upper end. */
+export const ESCALATOR_VIS = {
+  /** Step pitch along the chain (a 0.2 m riser at 30 degrees). */
+  pitch: 0.4, stepTreadDepth: 0.4, stepRiserHeight: 0.2, stepThickness: 0.04, stepHalfWidth: 0.497,
+  /** Transition radius between the flat run and the incline (both ends). */
+  transitionR: 1.2,
+  /** Flat run beyond each end of the incline: 3 steps, hidden under the landing deck except for the combplate zone. */
+  flatEnd: 1.2,
+  /** Steps beyond the combplate sink this far below the landing (smoothstep over sinkStart..sinkEnd metres past the end). */
+  sink: 0.14, sinkStart: 0.3, sinkEnd: 0.65,
+  /** Stainless truss: perpendicular depth 1.1 m, half-width, and its top below the step line. */
+  trussDepth: 1.1, trussHalfWidth: 0.78, trussTop: -0.26,
+  /** Balustrade base (skirt + deck), glass, handrail; offsets from the unit centre. */
+  skirtX: 0.505, baseOuterX: 0.76, baseTop: 0.07, baseBottom: -0.3,
+  glassX: 0.62, glassThickness: 0.012, glassTop: 0.96,
+  railProfileHalf: 0.055, railProfileBottom: 0.925, railProfileTop: 0.96, rubberHalfW: 0.04, rubberHalfH: 0.022, rubberCentreV: 0.978,
+  /** Newel end: how far the balustrade base runs past the incline end, and the radius of the handrail loop. */
+  newelLength: 0.4, handrailLoopR: 0.1,
+  /** Warm skirt light strip height range on the skirt face (above the tread). */
+  stripV0: 0.022, stripV1: 0.034,
+  /** Combplate: body depth outside the end, tooth length and pitch, thickness, lip height (bottom ends) above the landing. */
+  combBody: 0.4, combTeeth: 0.1, combToothPitch: 0.0355, combToothWidth: 0.018, combThickness: 0.012, combLip: 0.045,
+} as const;
+
 export type FlightId = 'F1' | 'F2' | 'F3' | 'F4' | 'F5' | 'F6';
 export interface FlightDef {
   readonly id: FlightId;

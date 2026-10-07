@@ -105,10 +105,21 @@ ${s.sky ? `  vec3 Ls = ${v3s(s.sky.pos)} - P;
  * go through `modelMatrix`, so any mesh transform is honoured.
  */
 export function installVoidLight(mat: THREE.MeshStandardMaterial, sources: VoidLightSources, tag: string): void {
-  const code = glsl(sources);
+  install(mat, () => glsl(sources), tag);
+}
+
+let shared: VoidLightSources | null = null;
+/** The void shell registers its sources here; materials made elsewhere (escalators) install them lazily at first compile. */
+export function setSharedVoidLight(s: VoidLightSources): void { shared = s; }
+export function installSharedVoidLight(mat: THREE.MeshStandardMaterial, tag: string): void {
+  install(mat, () => { if (!shared) throw new Error('voidLight: shared sources not set before first compile'); return glsl(shared); }, tag);
+}
+
+function install(mat: THREE.MeshStandardMaterial, getCode: () => string, tag: string): void {
   const prev = mat.onBeforeCompile.bind(mat);
   mat.onBeforeCompile = (shader, renderer) => {
     prev(shader, renderer);
+    const code = getCode();
     shader.vertexShader = shader.vertexShader
       .replace('void main() {', 'varying vec3 vVoidW;\nvarying vec3 vVoidN;\nvoid main() {')
       .replace('#include <project_vertex>', '#include <project_vertex>\n  vVoidW = (modelMatrix * vec4(transformed, 1.0)).xyz;\n  vVoidN = normalize(mat3(modelMatrix) * objectNormal);');

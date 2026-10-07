@@ -56,7 +56,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -209,6 +209,7 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   mapwall: { position: [0, MERIDIAN.topY + EYE, 70], target: [0, (MAP_WALL.yMin + MAP_WALL.yMax) / 2, MAP_WALL.z], intent: 'From the Meridian island facing the map wall and running clock under the sky.' },
   waterwall: { position: [-40, VESPER.topY + EYE, 74], target: [WATER_WALL.x, -55, 74], intent: 'Crossing floor west end facing the water wall and the Vesper portals.' },
   funicular: { position: [40, VESPER.topY + EYE, 80], target: [FUNICULAR.top[0], -40, FUNICULAR.z], fov: 66, intent: 'From the east floor looking up the funicular track into the sky.' },
+  escalator: { position: [5.0, LANDINGS.L1.y + EYE, 80.7], target: [5.6, -17.5, 66], fov: 62, intent: 'At the top of F2 looking down the flight: steps flowing away, glass balustrades, handrails, warm skirt lines.' },
   deep: { position: [-35, HALCYON.topY + EYE, 59], target: [0, HALCYON.topY + 1, 94], intent: 'Along the Halcyon platform diagonal.' },
 };
 

@@ -3,6 +3,7 @@ import type { BuildContext, FrameInfo, WorldModule } from '../core/types';
 import { disc } from '../metro/disc';
 import { buildGreybox } from './metro/greybox';
 import { createMetroMaterials } from './metro/materials';
+import { buildEscalators } from './metro/escalators';
 import { buildOculus } from './metro/oculus';
 import { buildVoidShell } from './metro/void';
 
@@ -14,8 +15,11 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const kit = createMetroMaterials(ctx.renderer, ctx.materials);
   const oculus = buildOculus(ctx.materials, kit, disc.gateOpen('top'));
   gb.voidGroup.add(oculus.group, buildVoidShell(ctx.materials, kit).group);
+  const esc = buildEscalators(kit);
+  gb.voidGroup.add(esc.voidGroup);
+  gb.deepGroup.add(esc.deepGroup);
   root.add(gb.voidGroup, gb.deepGroup, gb.deepImpostor, gb.surfaceImpostor);
-  root.userData.deepMaterials = gb.deepMaterials;
+  root.userData.deepMaterials = [...gb.deepMaterials, ...esc.deepMaterials];
   return {
     name: 'metro',
     object: root,

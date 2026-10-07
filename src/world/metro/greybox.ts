@@ -1,10 +1,8 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
-  CAVERN, CROSS_OUTLINE, DISC, FLIGHTS, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
+  CAVERN, CROSS_OUTLINE, DISC, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
   TRENCH, VESPER, WATER_WALL, DEEP_SUN,
 } from '../../layoutMetro';
-import { excludeDirectionalLight } from '../../lighting/sunMask';
 
 export interface Greybox {
   voidGroup: THREE.Group; deepGroup: THREE.Group; deepImpostor: THREE.Mesh; surfaceImpostor: THREE.Mesh;
@@ -50,29 +48,15 @@ function flightSlab(m: THREE.Material, axis: 'x' | 'z', a: number, b: number, fr
 export function buildGreybox(): Greybox {
   const { cx, cz } = OCULUS;
   const darkFloor = std(0x26292d, 0.35);  // terrazzo stand-in
-  const steel = std(0xb9c0c6, 0.35, 0.7);
   const trench = std(0x15171a, 0.9);
   const glass = new THREE.MeshStandardMaterial({ color: 0xcfe3ee, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false });
-  excludeDirectionalLight(steel);
   // independent materials (not clones): the void ones are sun-excluded, deep surfaces must receive the deep sun.
   const deepStone = std(0xd8d2c6, 0.6); const deepSteel = std(0xb9c0c6, 0.35, 0.7);
   const deepMaterials = [deepStone, darkFloor, deepSteel, trench];
 
   // --- void (always drawn) ---------------------------------------------------------------------------
   const V = new THREE.Group(); V.name = 'metroVoid';
-  // F1–F4 live in the void group (F4 crosses the sky and is seen from both worlds); F5/F6 are deep-only.
-  // One merged mesh (the void shell is built by void.ts: eras, rings, landings, Threshold).
-  const flightGeos: THREE.BufferGeometry[] = [];
-  for (const f of FLIGHTS.filter((q) => q.id === 'F1' || q.id === 'F2' || q.id === 'F3' || q.id === 'F4')) {
-    for (const [a, b] of f.bands) {
-      const m = flightSlab(steel, f.axis, a, b, f.from, f.to, f.yFrom, f.yTo);
-      m.updateMatrix();
-      flightGeos.push(m.geometry.applyMatrix4(m.matrix));
-    }
-  }
-  const flights = new THREE.Mesh(mergeGeometries(flightGeos, false)!, steel);
-  flights.name = 'metroVoidFlights';
-  V.add(flights);
+  // F1–F4 are built by escalators.ts (real units); the void shell by void.ts.
   const discMesh = new THREE.Mesh(new THREE.CylinderGeometry(DISC.r, DISC.r, 0.4, 96), std(0xe8e2d6, 0.3));
   discMesh.geometry.translate(0, -0.2, 0); discMesh.position.set(cx, DISC.topY, cz); discMesh.name = 'metroDisc';
   discMesh.userData.noShadow = true; V.add(discMesh);
@@ -119,7 +103,6 @@ export function buildGreybox(): Greybox {
     circle(cx, cz, DISC.wellR), ...MERIDIAN.f5OpeningX.map(([a, b]) => rectPts(a, MERIDIAN.f5OpeningZ[0], b, MERIDIAN.f5OpeningZ[1])),
   ], MERIDIAN.topY, MERIDIAN.deckThickness), deepStone));
   D.add(box(deepSteel, -MERIDIAN.railDeckHalfWidth, MERIDIAN.railY - 0.6, isl.zMin - 9, MERIDIAN.railDeckHalfWidth, MERIDIAN.railY, isl.zMax + 9));
-  for (const f of FLIGHTS.filter((q) => q.id === 'F5' || q.id === 'F6')) for (const [a, b] of f.bands) D.add(flightSlab(deepSteel, f.axis, a, b, f.from, f.to, f.yFrom, f.yTo));
   const deepIsland = new THREE.Mesh(new THREE.BoxGeometry(HALCYON.halfLength * 2, 1.2, HALCYON.halfWidth * 2), deepStone);
   deepIsland.rotation.y = -Math.atan2(HALCYON.dir[1], HALCYON.dir[0]); deepIsland.position.set(HALCYON.centre[0], HALCYON.topY - 0.6, HALCYON.centre[1]);
   D.add(deepIsland);

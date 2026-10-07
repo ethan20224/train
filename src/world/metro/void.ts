@@ -9,7 +9,7 @@ import { excludeDirectionalLight } from '../../lighting/sunMask';
 import { GeoBag, boxMM, rng, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import { hdrFromKelvin, type MetroMaterials } from './materials';
 import { createStrata, type StrataPocket } from './strata';
-import { installVoidLight, type RingSource, type StripSource } from './voidLight';
+import { installVoidLight, setSharedVoidLight, type RingSource, type StripSource } from './voidLight';
 
 /**
  * The void shell (spec §2.2, §4; Phase 2 task P2-3). Everything is built once, in world coordinates, merged per material:
@@ -638,6 +638,7 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
     // the eclipse below is the brightest thing in the void: cool daylight from the sky hole
     sky: { pos: v3(CX, SKY.y, CZ), color: new THREE.Color(0.7, 0.92, 1.5), falloff: 0.004 },
   };
+  setSharedVoidLight(light); // escalator materials (world/metro/escalators.ts) pick the same ring light up at first compile
   // the kit's void-set materials are shared with the oculus and Phase 3: the shell works on clones only
   const terrazzoMat = kit.terrazzo.clone(); terrazzoMat.color.setScalar(0.62); terrazzoMat.envMapIntensity = 0.45;
   const stainlessMat = kit.stainless.clone(); stainlessMat.color.set(0xdfe6ec); stainlessMat.envMapIntensity = 0.65;
