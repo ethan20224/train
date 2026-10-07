@@ -56,7 +56,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -199,6 +199,7 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   oculusdown: { position: [-10.7, EYE + 0.2, OCULUS.cz + 1.5], target: [3, -15, OCULUS.cz], fov: 70, intent: 'Leaning over the rail: the void, crisscross flights, the disc, the eclipse far below.' },
   rim: { position: [-8.0, EYE, 66.4], target: [3, -2.5, 77], fov: 72, intent: 'Standing at the south-west balustrade: the ring, the gangway gates and the void seen through the openwork.' },
   void: { position: [-14, LANDINGS.L1.y + EYE, 81.8], target: [6, -24, 66], fov: 68, intent: 'On L1: era bands, light rings, flights crossing the void.' },
+  strata: { position: [5.0, -15 + EYE, 71.2], target: [-19, -17.5, 70], fov: 70, intent: 'On F2 mid-flight looking across the void at the raw strata band: beds, overhangs, machined ring cuts.' },
   threshold: { position: [-9.5, THRESHOLD.y + EYE, 82.6], target: [5, -42, 58], fov: 66, intent: 'Threshold: speed gates, F4 dropping through the sky hole.' },
   skyhole: { position: [12, VESPER.topY + EYE, 66], target: [0, SKY.y, OCULUS.cz], fov: 70, intent: 'From the Crossing floor looking up at the eclipse, flights and disc descending out of the sky.' },
   crossing: { position: [-40, VESPER.topY + EYE, 70], target: [20, -52, 78], fov: 66, intent: 'Along the transept: Meridian bridge crossing overhead, sky, funicular beyond.' },

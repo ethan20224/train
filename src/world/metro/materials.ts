@@ -200,7 +200,7 @@ function makeBrushedRoughness(renderer: THREE.WebGLRenderer): THREE.CanvasTextur
 // --- light colour ------------------------------------------------------------------------------------------------
 
 /** Linear-sRGB-ish colour of a blackbody (Tanner Helland fit), normalised so the brightest channel is `peak`. */
-function hdrFromKelvin(kelvin: number, peak: number): THREE.Color {
+export function hdrFromKelvin(kelvin: number, peak: number): THREE.Color {
   const t = kelvin / 100;
   const r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592);
   const gg = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * Math.pow(t - 60, -0.0755148492);

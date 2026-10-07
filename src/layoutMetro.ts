@@ -184,6 +184,41 @@ export const OCULUS_DETAIL = {
   ribRingYs: [-2.4, -3.5, -4.7, -6.0] as readonly number[],
 } as const;
 
+/** y of the first light ring (one pitch under the hall slab). Rings run every VOID.lightRingPitch down to the Threshold. */
+export const VOID_RING_FIRST_Y = OCULUS.slabUnderY - VOID.lightRingPitch;
+/** The backlit onyx band takes the place of the light ring at this y (polished era). */
+export const ONYX_BAND = { y: -24, height: 0.6 } as const;
+/** y of every recessed light channel on the void wall (the onyx band is the ring at ONYX_BAND.y). */
+export function lightRingYs(): number[] {
+  const out: number[] = [];
+  for (let y = VOID_RING_FIRST_Y; y > VOID.yBottom + 0.5; y -= VOID.lightRingPitch) if (Math.abs(y - ONYX_BAND.y) > 0.01) out.push(y);
+  return out;
+}
+
+/** Dressing of the void shell (src/world/metro/void.ts): the three eras, the rings, the landings and the Threshold rim. */
+export const VOID_DETAIL = {
+  /** Stone era: rusticated ashlar with V-joints; every `bandEvery`-th course projects as a band. Pilasters stop at pilasterTopY. */
+  ashlar: { blockW: 1.2, courseH: 0.6, chamfer: 0.04, jointDepth: 0.035, bandEvery: 4, bandProject: 0.1 },
+  pilasters: { count: 8, width: 1.5, project: 0.22, topY: -6.0 },
+  /** Moulded string course between the stone and strata eras. */
+  stringCourseY: -10,
+  /** Strata era: height-field grid. Machined (flat) bands, `cutHalf` either side of every ring, landing and era joint. */
+  strata: { thetaSegs: 448, ySegs: 208, seed: 19, cutHalf: 0.2, cutBlend: 0.34, maxProtrude: 0.62 },
+  /** Polished era: honed limestone panels with shadow gaps, stainless trims. */
+  polished: { panelW: 1.5, panelH: 3.0, gap: 0.012, panelThickness: 0.04 },
+  /** Light-channel section (stainless bezel, emissive slot). */
+  ring: { halfWidth: 0.075, proud: 0.045, slotHalf: 0.032, stripHalf: 0.026, segments: 192 },
+  /** Era light colours (kelvin) and the emissive peak of the strips. */
+  lightK: { stone: 2700, strata: 4300, polished: 5800, cove: 3200 },
+  stripPeak: 2.8,
+  /** Landings: slender deck with a pale steel soffit; the warm cove strip sits `coveInset` in from each long edge. */
+  deck: { topT: 0.06, depth: 0.5, girderT: 0.1, ribPitch: 2.0, ribDepth: 0.2, coveInset: 0.26, coveWidth: 0.12, wallOverlap: 0.15 },
+  /** Glass balustrade (total height 1.1 m, glass 0.9 m). */
+  balustrade: { height: 1.1, glassTop: 1.0, glassBottom: 0.1, postPitch: 2.4 },
+  /** Threshold rim: stainless lip hangs this far below the deck top; the fascia reaches the underside of the deck. */
+  rim: { lipDepth: 0.3, coveY: -31.58, fasciaBottom: THRESHOLD.y - (THRESHOLD.deckThickness - 0.1) },
+} as const;
+
 export const LIFTS = {
   cabinR: 1.2, tubeR: 1.4,
   positions: [[-17, 74], [-17, 80]] as ReadonlyArray<readonly [number, number]>,

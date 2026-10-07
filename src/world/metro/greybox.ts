@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
-  CAVERN, CROSS_OUTLINE, DISC, FLIGHTS, FUNICULAR, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
-  THRESHOLD, TRENCH, VESPER, VOID, WATER_WALL, voidRadiusAt, DEEP_SUN,
+  CAVERN, CROSS_OUTLINE, DISC, FLIGHTS, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
+  TRENCH, VESPER, WATER_WALL, DEEP_SUN,
 } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
 
@@ -49,43 +49,30 @@ function flightSlab(m: THREE.Material, axis: 'x' | 'z', a: number, b: number, fr
 
 export function buildGreybox(): Greybox {
   const { cx, cz } = OCULUS;
-  const stone = std(0xd8d2c6, 0.6);       // honed limestone stand-in
   const darkFloor = std(0x26292d, 0.35);  // terrazzo stand-in
   const steel = std(0xb9c0c6, 0.35, 0.7);
   const trench = std(0x15171a, 0.9);
   const glass = new THREE.MeshStandardMaterial({ color: 0xcfe3ee, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false });
-  const eras = [std(0xbfae93, 0.8), std(0x6f655b, 0.95), std(0xe2ddd3, 0.4)]; // carved stone, strata, polished
-  const voidMats = [stone, steel, ...eras];
-  for (const m of voidMats) excludeDirectionalLight(m);
+  excludeDirectionalLight(steel);
   // independent materials (not clones): the void ones are sun-excluded, deep surfaces must receive the deep sun.
   const deepStone = std(0xd8d2c6, 0.6); const deepSteel = std(0xb9c0c6, 0.35, 0.7);
   const deepMaterials = [deepStone, darkFloor, deepSteel, trench];
 
   // --- void (always drawn) ---------------------------------------------------------------------------
   const V = new THREE.Group(); V.name = 'metroVoid';
-  VOID.eras.forEach((e, i) => {
-    const pts: THREE.Vector2[] = [];
-    for (let y = e.yTop; y >= e.yBottom - 1e-6; y -= 0.5) pts.push(new THREE.Vector2(voidRadiusAt(y), y));
-    const m = eras[i]!;
-    m.side = THREE.BackSide; // seen from inside the void
-    const wall = new THREE.Mesh(new THREE.LatheGeometry(pts, 96), m);
-    wall.position.set(cx, 0, cz);
-    V.add(wall);
-  });
-  const rings: THREE.BufferGeometry[] = [];
-  for (let y = OCULUS.slabUnderY - VOID.lightRingPitch; y > VOID.yBottom; y -= VOID.lightRingPitch) {
-    const g = new THREE.TorusGeometry(voidRadiusAt(y) - 0.08, 0.04, 6, 128); g.rotateX(Math.PI / 2); g.translate(cx, y, cz); rings.push(g);
-  }
-  const ringMesh = new THREE.Mesh(mergeGeometries(rings), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 3.1, 2.9) }));
-  ringMesh.userData.noShadow = true;
-  V.add(ringMesh);
-  for (const L of [LANDINGS.L1, LANDINGS.L2, LANDINGS.thresholdBridge]) V.add(box(stone, -L.halfX, L.y - 0.6, L.zMin, L.halfX, L.y, L.zMax));
-  // 0.1 m short of the sky plane: the deck underside must not be coplanar with the sky (z-fighting from below).
-  V.add(new THREE.Mesh(slab(circle(cx, cz, THRESHOLD.rOuter), [circle(cx, cz, THRESHOLD.rInner)], THRESHOLD.y, THRESHOLD.deckThickness - 0.1), stone));
   // F1–F4 live in the void group (F4 crosses the sky and is seen from both worlds); F5/F6 are deep-only.
+  // One merged mesh (the void shell is built by void.ts: eras, rings, landings, Threshold).
+  const flightGeos: THREE.BufferGeometry[] = [];
   for (const f of FLIGHTS.filter((q) => q.id === 'F1' || q.id === 'F2' || q.id === 'F3' || q.id === 'F4')) {
-    for (const [a, b] of f.bands) V.add(flightSlab(steel, f.axis, a, b, f.from, f.to, f.yFrom, f.yTo));
+    for (const [a, b] of f.bands) {
+      const m = flightSlab(steel, f.axis, a, b, f.from, f.to, f.yFrom, f.yTo);
+      m.updateMatrix();
+      flightGeos.push(m.geometry.applyMatrix4(m.matrix));
+    }
   }
+  const flights = new THREE.Mesh(mergeGeometries(flightGeos, false)!, steel);
+  flights.name = 'metroVoidFlights';
+  V.add(flights);
   const discMesh = new THREE.Mesh(new THREE.CylinderGeometry(DISC.r, DISC.r, 0.4, 96), std(0xe8e2d6, 0.3));
   discMesh.geometry.translate(0, -0.2, 0); discMesh.position.set(cx, DISC.topY, cz); discMesh.name = 'metroDisc';
   discMesh.userData.noShadow = true; V.add(discMesh);
