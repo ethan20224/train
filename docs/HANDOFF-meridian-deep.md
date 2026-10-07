@@ -59,3 +59,6 @@ Measured:
 4. Phase 4 (metro trains, map wall, droplets).
 5. Phase 5 (sound, look-dev, performance pass including the hall, full acceptance).
 6. Final whole-branch review on the most capable model, then `superpowers:finishing-a-development-branch`. Merging to `main` needs the user's OK.
+
+## User requirement (2026-10-06): performance floor
+The finished station — **hall included** — must hold **≥ 45 fps** on the M2 MacBook Air (normal-window Chrome, auto quality). Metro views keep the stricter ≥ 50 fps spec target. The hall is already below 45 in the Phase 0 baseline (pre-existing), so **Phase 5 includes a hall optimization pass** and the final gate measures every preset in headed real-GPU Chrome.
