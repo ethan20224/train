@@ -18,6 +18,27 @@ import { installSharedVoidLight } from './voidLight';
  * The step path is flat beyond each end (hidden under the landing, sunk below it) so it can never poke through the decks.
  */
 
+/** Micro-detail of the escalator builder (metres unless noted). Dimensions other modules depend on live in ESCALATOR_VIS. */
+const ESC_DETAIL = {
+  /** Combplate lip ramp: distance the lip fade starts inside the end plane. */
+  lipRampInset: 0.03,
+  /** Combplate grooves: lateral pitch, half width, start/stop insets from the end plane / outer edge, raise above the plate top, plate top height. */
+  grooveCount: 4, groovePitch: 0.11, grooveHalfW: 0.004, grooveStartInset: 0.06, grooveEndInset: 0.04, grooveRaise: 0.0006, plateTop: 0.008,
+  /** Glass runs this far past each incline end; newel pier gap to the glass; handrail runs this far past each end before the loop. */
+  glassOverrun: 0.04, newelGap: 0.04, railOverrun: 0.3,
+  /** Handrail loop tube: radius (m), path samples, radial segments, arc samples. */
+  loopTubeR: 0.03, loopTubeSegs: 10, loopTubeRadial: 8, loopArcSteps: 8, rubberSides: 12,
+  /** Skirt strip: offset in front of the skirt face and half thickness. */
+  stripOffset: 0.002, stripHalfT: 0.0015,
+  /** Step body: front riser thickness, side inset of the underbody; tread tint (linear multiplier over the stainless), riser and underbody colours. */
+  riserThick: 0.03, underInset: 0.03, treadTint: 1.3,
+  /** Step tread grooves (shader): pitch across the tread (m), groove band edges in the triangle wave, fade by screen derivative, riser rib strength, darkening and roughness. */
+  stepGroovePitch: 0.03, grooveBand0: 0.55, grooveBand1: 0.78, grooveAA0: 0.25, grooveAA1: 0.7, riserRib: 0.5, grooveDark: 0.5, grooveRough: 0.9,
+} as const;
+const D = ESC_DETAIL;
+const RISER_COL: readonly [number, number, number] = [0.1, 0.1, 0.11];
+const UNDER_COL: readonly [number, number, number] = [0.05, 0.05, 0.055];
+
 const TH = (ESCALATOR.angleDeg * Math.PI) / 180;
 const C = Math.cos(TH), S = Math.sin(TH);
 const R = V.transitionR;
@@ -157,7 +178,7 @@ const CHAMPAGNE: RGB = [1.0, 0.78, 0.47];
 const RUBBER: RGB = [0.035, 0.035, 0.04];
 
 /** Lip height of the bottom-end combplate at distance d beyond the end (0 at the outer edge). */
-const lipAt = (d: number): number => V.combLip * (1 - (d + 0.03) / (V.combBody + 0.03));
+const lipAt = (d: number): number => V.combLip * (1 - (d + D.lipRampInset) / (V.combBody + D.lipRampInset));
 
 /** Champagne combplate: body outside the end, teeth reaching into the steps. `end`: 0 top, 1 bottom (lipped, sloping to the landing). */
 function combplate(linc: number, end: 0 | 1): THREE.BufferGeometry {
@@ -180,7 +201,7 @@ function combplate(linc: number, end: 0 | 1): THREE.BufferGeometry {
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), d = p.getY(i), t = p.getZ(i);
     const u = end === 0 ? -d : L + d;
-    p.setXYZ(i, x, t - V.combThickness + 0.008 + (end === 1 ? lipAt(d) : 0), u);
+    p.setXYZ(i, x, t - V.combThickness + D.plateTop + (end === 1 ? lipAt(d) : 0), u);
     uv[i * 2] = x; uv[i * 2 + 1] = u;
   }
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
@@ -192,12 +213,12 @@ function combplate(linc: number, end: 0 | 1): THREE.BufferGeometry {
 
 function combGrooves(linc: number, end: 0 | 1): THREE.BufferGeometry[] {
   const L = breaks(linc).run, out: THREE.BufferGeometry[] = [];
-  for (let i = -4; i <= 4; i++) {
-    const x = i * 0.11;
-    const d0 = 0.06, d1 = V.combBody - 0.04;
-    const at = (d: number): { u: number; v: number } => ({ u: end === 0 ? -d : L + d, v: 0.0086 + (end === 1 ? lipAt(d) : 0) });
+  for (let i = -D.grooveCount; i <= D.grooveCount; i++) {
+    const x = i * D.groovePitch;
+    const d0 = D.grooveStartInset, d1 = V.combBody - D.grooveEndInset;
+    const at = (d: number): { u: number; v: number } => ({ u: end === 0 ? -d : L + d, v: D.plateTop + D.grooveRaise + (end === 1 ? lipAt(d) : 0) });
     const pts = end === 0 ? [at(d1), at(d0)] : [at(d0), at(d1)];
-    out.push(sweep(pts, rect(x - 0.004, x + 0.004, 0, 0.0006)));
+    out.push(sweep(pts, rect(x - D.grooveHalfW, x + D.grooveHalfW, 0, D.grooveRaise)));
   }
   return out;
 }
@@ -217,24 +238,24 @@ function buildUnit(u: EscalatorUnit): UnitGeo {
     // base / skirt deck, running out to the newels at both ends
     metal.add(sweep(samples(-V.newelLength, run + V.newelLength, linc), rect(bx0, bx1, V.baseBottom, V.baseTop)), STAINLESS);
     // newel piers
-    for (const [a, b] of [[-V.newelLength, -0.04], [run + 0.04, run + V.newelLength]] as const) {
+    for (const [a, b] of [[-V.newelLength, -D.newelGap], [run + D.newelGap, run + V.newelLength]] as const) {
       metal.add(sweep(flat(a, b), rect(bx0, bx1, V.baseBottom, V.railProfileBottom + 0.005)), STAINLESS);
     }
     // glass
     const gx = V.glassX * sg;
-    glass.add(sweep(samples(-0.04, run + 0.04, linc), rect(gx - V.glassThickness / 2, gx + V.glassThickness / 2, V.baseTop, V.glassTop)), [1, 1, 1]);
+    glass.add(sweep(samples(-D.glassOverrun, run + D.glassOverrun, linc), rect(gx - V.glassThickness / 2, gx + V.glassThickness / 2, V.baseTop, V.glassTop)), [1, 1, 1]);
     // handrail: stainless profile + black rubber, ending over the newel pier where the rubber loops down into it
-    metal.add(sweep(samples(-0.3, run + 0.3, linc), rect(gx - V.railProfileHalf, gx + V.railProfileHalf, V.railProfileBottom, V.railProfileTop)), STAINLESS);
-    metal.add(sweep(samples(-0.3, run + 0.3, linc), ellipse(gx, V.rubberCentreV, V.rubberHalfW, V.rubberHalfH), true), RUBBER);
-    for (const [uEnd, dir, vEnd] of [[-0.3, -1, 0], [run + 0.3, 1, -H]] as const) {
+    metal.add(sweep(samples(-D.railOverrun, run + D.railOverrun, linc), rect(gx - V.railProfileHalf, gx + V.railProfileHalf, V.railProfileBottom, V.railProfileTop)), STAINLESS);
+    metal.add(sweep(samples(-D.railOverrun, run + D.railOverrun, linc), ellipse(gx, V.rubberCentreV, V.rubberHalfW, V.rubberHalfH, D.rubberSides), true), RUBBER);
+    for (const [uEnd, dir, vEnd] of [[-D.railOverrun, -1, 0], [run + D.railOverrun, 1, -H]] as const) {
       const pts: THREE.Vector3[] = [];
       const r = V.handrailLoopR;
-      for (let i = 0; i <= 8; i++) { const a = (i / 8) * (Math.PI / 2); pts.push(new THREE.Vector3(gx, vEnd + V.rubberCentreV - r + r * Math.cos(a), uEnd + dir * r * Math.sin(a))); }
-      metal.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.03, 8, false), RUBBER);
+      for (let i = 0; i <= D.loopArcSteps; i++) { const a = (i / D.loopArcSteps) * (Math.PI / 2); pts.push(new THREE.Vector3(gx, vEnd + V.rubberCentreV - r + r * Math.cos(a), uEnd + dir * r * Math.sin(a))); }
+      metal.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), D.loopTubeSegs, D.loopTubeR, D.loopTubeRadial, false), RUBBER);
     }
     // warm skirt line on the inner face of the skirt, at step level
     const sx = V.skirtX * sg;
-    strip.add(sweep(samples(0, run, linc), rect(sx - 0.002 * sg - 0.0015, sx - 0.002 * sg + 0.0015, V.stripV0, V.stripV1)), [1, 1, 1]);
+    strip.add(sweep(samples(0, run, linc), rect(sx - D.stripOffset * sg - D.stripHalfT, sx - D.stripOffset * sg + D.stripHalfT, V.stripV0, V.stripV1)), [1, 1, 1]);
   }
   for (const end of [0, 1] as const) {
     metal.add(combplate(linc, end), CHAMPAGNE);
@@ -266,9 +287,9 @@ function stepGeometry(): THREE.BufferGeometry {
     ng.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     bag.add(ng, col);
   };
-  box(-hw, hw, -th, 0, -d, d, [1.3, 1.3, 1.3]);
-  box(-hw, hw, -rh, -th, d - 0.03, d, [0.1, 0.1, 0.11]);
-  box(-hw + 0.03, hw - 0.03, -rh, -th, -d, d - 0.03, [0.05, 0.05, 0.055]);
+  box(-hw, hw, -th, 0, -d, d, [D.treadTint, D.treadTint, D.treadTint]);
+  box(-hw, hw, -rh, -th, d - D.riserThick, d, RISER_COL);
+  box(-hw + D.underInset, hw - D.underInset, -rh, -th, -d, d - D.riserThick, UNDER_COL);
   return bag.geometry()!;
 }
 
@@ -327,13 +348,13 @@ function stepMaterial(base: THREE.MeshStandardMaterial, name: string, uniforms: 
 varying float vStepKind;
 float escGroove() {
   if (vStepKind < 0.5) return 0.0;
-  float gq = vStepL.x / 0.03;
+  float gq = vStepL.x / ${D.stepGroovePitch.toFixed(4)};
   float gx = abs(fract(gq) - 0.5) * 2.0;
-  return smoothstep(0.55, 0.78, gx) * (1.0 - smoothstep(0.25, 0.7, fwidth(gq))) * (vStepKind > 1.5 ? 0.5 : 1.0);
+  return smoothstep(${D.grooveBand0.toFixed(3)}, ${D.grooveBand1.toFixed(3)}, gx) * (1.0 - smoothstep(${D.grooveAA0.toFixed(3)}, ${D.grooveAA1.toFixed(3)}, fwidth(gq))) * (vStepKind > 1.5 ? ${D.riserRib.toFixed(3)} : 1.0);
 }
 void main() {`)
-      .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= 1.0 - 0.5 * escGroove();')
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.9, escGroove());');
+      .replace('#include <color_fragment>', `#include <color_fragment>\n  diffuseColor.rgb *= 1.0 - ${D.grooveDark.toFixed(3)} * escGroove();`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, ${D.grooveRough.toFixed(3)}, escGroove());`);
   };
   const prev = m.onBeforeCompile.bind(m);
   m.onBeforeCompile = (shader, renderer) => { prev(shader, renderer); compile(shader as never); };
@@ -353,6 +374,11 @@ export interface EscalatorVisuals {
   stats: { voidCalls: number; deepCalls: number; triangles: number };
 }
 
+/**
+ * Ordering: the void ring light (`setSharedVoidLight`, called by buildVoidShell) is read lazily at each material's FIRST COMPILE
+ * (first render), not at build time, so buildEscalators may run before or after buildVoidShell. It must simply be set before the first
+ * render; `installSharedVoidLight` throws a clear error if it never was.
+ */
 export function buildEscalators(kit: MetroMaterialSet & { deep: MetroMaterialSet }): EscalatorVisuals {
   const units = escalatorUnits();
   const uniforms = {
@@ -385,7 +411,7 @@ export function buildEscalators(kit: MetroMaterialSet & { deep: MetroMaterialSet
     const meshes: THREE.Mesh[] = [];
     const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, name: string, order = 0): void => {
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.name = name; mesh.renderOrder = order; mesh.userData.noShadow = true; mesh.frustumCulled = true;
+      mesh.name = name; mesh.renderOrder = order; mesh.userData.noShadow = true; 
       meshes.push(mesh); group.add(mesh);
     };
     mk(metalGeo, metalMat, `${tag}EscalatorMetal`);
@@ -405,9 +431,18 @@ export function buildEscalators(kit: MetroMaterialSet & { deep: MetroMaterialSet
     ig.setAttribute('aUnit', new THREE.InstancedBufferAttribute(new Float32Array(aUnit), 1));
     ig.setAttribute('aIndex', new THREE.InstancedBufferAttribute(new Float32Array(aIndex), 1));
     ig.instanceCount = aUnit.length;
+    // bounds: every unit's step volume (start and end corners padded by the unit width, the flat run and the step height), so culling is exact enough at the view edges
+    const box = new THREE.Box3();
+    for (const u of sel) {
+      const m = unitMatrix(u);
+      const linc = Math.abs(u.yFrom - u.yTo) / S, run = breaks(linc).run, pad = V.flatEnd + 1;
+      for (const [x, y, z] of [[-pad, 0, -pad], [pad, -linc * S - 1, run + pad], [-pad, 1.5, run + pad], [pad, 1.5, -pad]] as const) box.expandByPoint(new THREE.Vector3(x, y, z).applyMatrix4(m));
+    }
+    ig.boundingBox = box;
+    ig.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
     const stepMat = stepMaterial(set.stainless, `${tag}EscalatorSteps`, uniforms, voidLit);
     const steps = new THREE.Mesh(ig, stepMat);
-    steps.name = `${tag}EscalatorSteps`; steps.frustumCulled = false; steps.userData.noShadow = true;
+    steps.name = `${tag}EscalatorSteps`; steps.userData.noShadow = true;
     group.add(steps);
     let tris = 0;
     for (const g of [metalGeo, glassGeo, stripGeo]) tris += g.getAttribute('position').count / 3;
@@ -419,7 +454,7 @@ export function buildEscalators(kit: MetroMaterialSet & { deep: MetroMaterialSet
   const d = make(['F5', 'F6'], kit.deep, false, 'metroDeep');
   return {
     voidGroup: v.group, deepGroup: d.group,
-    deepMaterials: [...d.mats, kit.deep.glass, kit.deep.stainless, kit.deep.champagne],
+    deepMaterials: [...new Set<THREE.MeshStandardMaterial>([...d.mats, kit.deep.glass, kit.deep.stainless, kit.deep.champagne])],
     stats: { voidCalls: v.calls, deepCalls: d.calls, triangles: v.tris + d.tris },
   };
 }
