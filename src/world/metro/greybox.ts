@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import {
   CAVERN, CROSS_OUTLINE, DISC, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
-  TRENCH, VESPER, WATER_WALL, DEEP_SUN,
+  THRESHOLD, TRENCH, VESPER, WATER_WALL, DEEP_SUN,
 } from '../../layoutMetro';
 
 export interface Greybox {
   voidGroup: THREE.Group; deepGroup: THREE.Group; deepImpostor: THREE.Mesh; surfaceImpostor: THREE.Mesh;
-  disc: THREE.Mesh; deepMaterials: THREE.MeshStandardMaterial[];
+  deepMaterials: THREE.MeshStandardMaterial[];
 }
 
 const std = (color: number, roughness = 0.75, metalness = 0): THREE.MeshStandardMaterial =>
@@ -57,9 +57,6 @@ export function buildGreybox(): Greybox {
   // --- void (always drawn) ---------------------------------------------------------------------------
   const V = new THREE.Group(); V.name = 'metroVoid';
   // F1–F4 are built by escalators.ts (real units); the void shell by void.ts.
-  const discMesh = new THREE.Mesh(new THREE.CylinderGeometry(DISC.r, DISC.r, 0.4, 96), std(0xe8e2d6, 0.3));
-  discMesh.geometry.translate(0, -0.2, 0); discMesh.position.set(cx, DISC.topY, cz); discMesh.name = 'metroDisc';
-  discMesh.userData.noShadow = true; V.add(discMesh);
   const surfaceImpostor = new THREE.Mesh(new THREE.CircleGeometry(OCULUS.r, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 2.0, 1.0), fog: false }));
   surfaceImpostor.rotation.x = Math.PI / 2; surfaceImpostor.position.set(cx, OCULUS.slabUnderY - 0.05, cz); surfaceImpostor.name = 'metroSurfaceImpostor';
   surfaceImpostor.userData.noShadow = true;
@@ -113,9 +110,10 @@ export function buildGreybox(): Greybox {
     wall.position.set(HALCYON.centre[0] - uz * side * HALCYON.hallHalfWidth, (CAVERN.yBottom + VESPER.topY - VESPER.slabThickness) / 2, HALCYON.centre[1] + ux * side * HALCYON.hallHalfWidth);
     D.add(wall);
   }
+  // the tubes end at the Threshold deck; their heads and the glass above it are built by gates.ts (void group, always drawn)
   for (const [x, z] of LIFTS.positions) {
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(LIFTS.tubeR, LIFTS.tubeR, LIFTS.headY - CAVERN.yBottom, 48, 1, true), glass);
-    tube.position.set(x, (LIFTS.headY + CAVERN.yBottom) / 2, z); D.add(tube);
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(LIFTS.tubeR, LIFTS.tubeR, THRESHOLD.y - CAVERN.yBottom, 48, 1, true), glass);
+    tube.position.set(x, (THRESHOLD.y + CAVERN.yBottom) / 2, z); D.add(tube);
   }
   const [tx, ty] = FUNICULAR.top; const [bx, by] = FUNICULAR.bottom;
   const track = flightSlab(deepSteel, 'x', FUNICULAR.z - FUNICULAR.trackHalfWidth, FUNICULAR.z + FUNICULAR.trackHalfWidth, tx, bx, ty, by);
@@ -128,5 +126,5 @@ export function buildGreybox(): Greybox {
   deepImpostor.rotation.x = -Math.PI / 2; deepImpostor.position.set(cx, SKY.y + 0.1, cz); deepImpostor.name = 'metroDeepImpostor';
   deepImpostor.userData.noShadow = true;
   for (const m of [deepImpostor, surfaceImpostor]) m.userData.noCapture = true;
-  return { voidGroup: V, deepGroup: D, deepImpostor, surfaceImpostor, disc: discMesh, deepMaterials };
+  return { voidGroup: V, deepGroup: D, deepImpostor, surfaceImpostor, deepMaterials };
 }

@@ -1,11 +1,15 @@
 import * as THREE from 'three';
 import type { BuildContext, FrameInfo, WorldModule } from '../core/types';
+import { VESPER } from '../layoutMetro';
 import { disc } from '../metro/disc';
+import { onMetroFrame } from '../metro/runtime';
 import { buildGreybox } from './metro/greybox';
 import { createMetroMaterials } from './metro/materials';
 import { buildEscalators } from './metro/escalators';
 import { buildOculus } from './metro/oculus';
 import { buildVoidShell } from './metro/void';
+import { buildDisc } from './metro/disc';
+import { buildThresholdFixtures } from './metro/gates';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Phase 2: greybox escalators and deep, the finished oculus and the void shell. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -18,14 +22,25 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const esc = buildEscalators(kit);
   gb.voidGroup.add(esc.voidGroup);
   gb.deepGroup.add(esc.deepGroup);
+  const sinking = buildDisc(ctx.materials, kit, VESPER.topY);
+  sinking.group.position.y = disc.y;
+  gb.voidGroup.add(sinking.group);
+  gb.deepGroup.add(sinking.wellGate);
+  const fixtures = buildThresholdFixtures(ctx.materials, kit);
+  gb.voidGroup.add(fixtures.group);
+  // Real-time visuals: they follow the runtime every displayed frame, also at ?timescale=0 (the module update below only runs with simulation time).
+  onMetroFrame((dt, feet) => {
+    sinking.update(disc.y, disc.gateOpen('bottom'));
+    oculus.update(disc.gateOpen('top'));
+    fixtures.update(dt, feet);
+  });
   root.add(gb.voidGroup, gb.deepGroup, gb.deepImpostor, gb.surfaceImpostor);
   root.userData.deepMaterials = [...gb.deepMaterials, ...esc.deepMaterials];
   return {
     name: 'metro',
     object: root,
     update(_f: FrameInfo): void {
-      gb.disc.position.y = disc.y;
-      oculus.update(disc.gateOpen('top'));
+      // nothing: every metro visual is driven in real time by onMetroFrame
     },
   };
 }

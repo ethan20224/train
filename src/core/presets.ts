@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   PLATFORM_END,
+  DISC,
   SHOPS,
   ARCHES,
   BOOKING_OFFICE,
@@ -56,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -210,6 +211,9 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   waterwall: { position: [-40, VESPER.topY + EYE, 74], target: [WATER_WALL.x, -55, 74], intent: 'Crossing floor west end facing the water wall and the Vesper portals.' },
   funicular: { position: [40, VESPER.topY + EYE, 80], target: [FUNICULAR.top[0], -40, FUNICULAR.z], fov: 66, intent: 'From the east floor looking up the funicular track into the sky.' },
   escalator: { position: [5.0, LANDINGS.L1.y + EYE, 80.7], target: [5.6, -17.5, 66], fov: 62, intent: 'At the top of F2 looking down the flight: steps flowing away, glass balustrades, handrails, warm skirt lines.' },
+  speedgates: { position: [10.6, THRESHOLD.y + EYE, 80.6], target: [7.2, THRESHOLD.y + 0.9, 82.4], fov: 60, intent: 'Threshold: the east speed-gate bank seen from the F3 side, champagne cabinets, glass panels, light lines.' },
+  disc: { position: [OCULUS.cx, DISC.topY + EYE, OCULUS.cz + 2.9], target: [OCULUS.cx, DISC.topY - 0.4, OCULUS.cz - 2.4], fov: 72, intent: 'Standing on the Sinking Floor at the top: the inlaid medallion, the brass rail, the open gangway behind.' },
+  lifts: { position: [-11.2, THRESHOLD.y + EYE, 71.5], target: [-17, -25.6, 77], fov: 62, intent: 'Threshold: the two glass lift tubes rising to their stainless-and-glass machinery lanterns, sheaves visible.' },
   deep: { position: [-35, HALCYON.topY + EYE, 59], target: [0, HALCYON.topY + 1, 94], intent: 'Along the Halcyon platform diagonal.' },
 };
 

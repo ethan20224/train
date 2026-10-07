@@ -180,10 +180,84 @@ export const GANGWAY = {
   girderDepth: 0.55, discClearance: 0.05,
   /** Glass parapet: total height to the top of the bronze cap; stanchion pitch. */
   parapetHeight: 1.08, stanchionPitch: 1.2,
-  /** Gate piers either side of the gate leaves: they house the leaves when open. Inner face at halfWidth, outer face here. */
-  pierOuterX: 2.5, pierDepth: 0.22, pierHeight: 1.34,
+  /** Gate pilasters either side of the gate leaves; the open leaves tuck behind them. Inner face at halfWidth, outer face of the outer pilaster here. */
+  pierOuterX: 2.7, pierDepth: 0.22, pierHeight: 1.34,
+  /** Slim bronze pilasters (not blocks): width across the gate line; they stand this far on the hall side of the leaf line. */
+  pilasterW: 0.25, pilasterSetback: 0.17,
   /** Gate leaves slide open/closed over this many REAL seconds (ease in-out). */
   gateSeconds: 0.35,
+} as const;
+
+/** The Sinking Floor dressing (src/world/metro/disc.ts). Heights are relative to the disc top (the walking surface). */
+export const DISC_DETAIL = {
+  segments: 96,
+  /** Marble slab edge band, and the bronze bowl under it (depth below the slab underside at the centre). */
+  slabT: 0.14, bowlDepth: 0.36,
+  /** Top inlay (echo of the kiosk floor medallion): brass ring, 16-point dark star, dark band with brass lines. */
+  ringR: [1.44, 1.5] as readonly [number, number],
+  star: { points: 16, outer: 1.3, inner: 0.56 },
+  bandR: [2.7, 3.0] as readonly [number, number], bandLine: 0.035,
+  /** Rim: handrail on `stanchions` fine stanchions on circle `rimR`; the gap between the first and last faces the gangway (south). */
+  rimR: 3.38, stanchions: 8, railHeight: 1.0, railTubeR: 0.022, stanchionR: 0.016, kneeRailY: 0.5,
+  /** Warm downlight ring on the underside (emissive): radii. */
+  downlightR: [2.42, 2.5] as readonly [number, number],
+} as const;
+
+/**
+ * Speed gates on the Threshold bridge (spec §2.7): two banks of `lanes` lanes on the line x = +-THRESHOLD.gateX, side by side along z.
+ * Lane width is clear walking width; the cabinets between lanes take whatever remains of the bridge depth.
+ */
+export const SPEED_GATES = {
+  lanes: THRESHOLD.lanesPerSide, laneWidth: 0.9,
+  zMin: LANDINGS.thresholdBridge.zMin, zMax: LANDINGS.thresholdBridge.zMax,
+  /** Cabinet length along the walking direction (x), height, glass lid thickness. */
+  cabinetLength: 1.4, cabinetHeight: 1.0, lidT: 0.03,
+  panelHeight: 1.6, panelLength: 0.5, panelThickness: 0.012,
+  /** Panels slide apart over this many REAL seconds when the player is within `approachR` of a lane; the light line brightens inside `glowR`. */
+  panelSeconds: 0.35, approachR: 2.2, glowR: 4.5,
+  /** Collision: each cabinet is a row of circles of this radius (nav adds the player radius; lanes always pass). */
+  collideR: 0.17, collideStep: 0.275,
+} as const;
+/** Cabinet thickness across the lanes (z). */
+export const SPEED_GATE_CABINET_W = (SPEED_GATES.zMax - SPEED_GATES.zMin - SPEED_GATES.lanes * SPEED_GATES.laneWidth) / (SPEED_GATES.lanes + 1);
+export interface SpeedGateLane { readonly x: number; readonly z: number; readonly side: 1 | -1; readonly index: number }
+export function speedGateLanes(): SpeedGateLane[] {
+  const out: SpeedGateLane[] = [];
+  for (const side of [-1, 1] as const) {
+    for (let i = 0; i < SPEED_GATES.lanes; i++) {
+      out.push({ x: side * THRESHOLD.gateX, z: SPEED_GATES.zMin + SPEED_GATE_CABINET_W * (i + 1) + SPEED_GATES.laneWidth * (i + 0.5), side, index: i });
+    }
+  }
+  return out;
+}
+/** Cabinet centres: lanes + 1 per side (the outer two stand at the bridge-depth ends). */
+export function speedGateCabinets(): Array<{ x: number; z: number; side: 1 | -1; index: number }> {
+  const out: Array<{ x: number; z: number; side: 1 | -1; index: number }> = [];
+  for (const side of [-1, 1] as const) {
+    for (let i = 0; i <= SPEED_GATES.lanes; i++) {
+      out.push({ x: side * THRESHOLD.gateX, z: SPEED_GATES.zMin + SPEED_GATE_CABINET_W / 2 + i * (SPEED_GATE_CABINET_W + SPEED_GATES.laneWidth), side, index: i });
+    }
+  }
+  return out;
+}
+/** Collision circles of every cabinet (level THRESHOLD.y), for src/obstacles.ts. */
+export function speedGateObstacleCircles(): Array<{ x: number; z: number; r: number }> {
+  const out: Array<{ x: number; z: number; r: number }> = [];
+  const n = Math.ceil(SPEED_GATES.cabinetLength / SPEED_GATES.collideStep);
+  for (const c of speedGateCabinets()) {
+    for (let k = 0; k < n; k++) out.push({ x: c.x + (k - (n - 1) / 2) * SPEED_GATES.collideStep, z: c.z, r: SPEED_GATES.collideR });
+  }
+  return out;
+}
+
+/** Lift tube heads above the Threshold (src/world/metro/lifts.ts): glass tube to `tubeTopY`, then a stainless-and-glass lantern up to LIFTS.headY. */
+export const LIFT_HEAD = {
+  tubeTopY: -26.0, collarH: 0.14, collarR: 1.54,
+  /** Stainless guide posts on the tube and the bands that bind them. */
+  posts: 3, postR: 0.03, bandEvery: 2.2,
+  lanternSides: 8, lanternR: 1.25, deckT: 0.1, roofT: 0.16,
+  /** Sheave: grooved stainless wheel on a horizontal axle (along x). */
+  sheaveR: 0.52, sheaveW: 0.16,
 } as const;
 
 /** Beaux-Arts dressing of the hall-side oculus and throats (src/world/metro/oculus.ts). Heights are above the hall floor (y = 0). */

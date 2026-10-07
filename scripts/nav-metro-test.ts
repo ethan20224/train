@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { heightAt, resolve } from '../src/player/navigation';
 import { FLIGHTS, HALCYON, LANDINGS, MERIDIAN, OCULUS, PLAYER, THRESHOLD, VESPER, escalatorUnits } from '../src/layout';
+import { SPEED_GATES, speedGateCabinets, speedGateLanes } from '../src/layoutMetro';
 
 let passed = 0;
 const test = (n: string, fn: () => void): void => { fn(); passed++; console.log(`ok   ${n}`); };
@@ -44,6 +45,8 @@ test('hall: cannot step into the oculus or a throat; floor around them is walkab
   assert.ok(p.x <= -(OCULUS.curbOuterR + PLAYER.wallClearance) + 1e-6, `blocked at the curb, x=${p.x}`);
 });
 
+const laneZ = speedGateLanes().find((l) => l.side === 1 && l.index === SPEED_GATES.lanes - 1)!.z;
+
 test('escalator route down: hall -> F1 -> L1 -> F2 -> L2 -> F3 -> Threshold -> F4 -> Meridian -> F5 -> Crossing floor', () => {
   const dn = (id: string) => unit(id, 'down', 1).across; // F1/F3 outer down unit x 9.2, F2/F4/F5 inner down unit x 5.0
   // [x, z, expected y on arrival (optional)]. On the Meridian island the route skirts the F4 footprint, the disc well and
@@ -51,8 +54,9 @@ test('escalator route down: hall -> F1 -> L1 -> F2 -> L2 -> F3 -> Threshold -> F
   const route: Array<[number, number, number?]> = [
     [dn('F1'), 61.5, 0], [dn('F1'), LANDINGS.L1.zMax - 0.6, -10],
     [dn('F2'), LANDINGS.L1.zMax - 0.6], [dn('F2'), LANDINGS.L2.zMin + 0.6, -20],
+    // off F3 onto the Threshold bridge, west through the third speed-gate lane (the cabinets are obstacles, the lanes pass), onto F4
     [dn('F3'), LANDINGS.L2.zMin + 0.6], [dn('F3'), LANDINGS.thresholdBridge.zMax - 0.6, -30],
-    [dn('F4'), LANDINGS.thresholdBridge.zMax - 0.6], [dn('F4'), 50.5, MERIDIAN.topY],
+    [dn('F3'), laneZ], [dn('F4'), laneZ], [dn('F4'), 50.5, MERIDIAN.topY],
     [2.0, 50.5], [2.0, 60], [6.5, 66], [6.5, 100], [1.0, 106], [1.0, 115], [dn('F5'), 115, MERIDIAN.topY],
     [dn('F5'), 70.6, VESPER.topY],
   ];
@@ -61,6 +65,19 @@ test('escalator route down: hall -> F1 -> L1 -> F2 -> L2 -> F3 -> Threshold -> F
     p = walk(p, new Vector3(x, 0, z));
     near(p.x, x, 0.05, `x at (${x}, ${z})`); near(p.z, z, 0.05, `z at (${x}, ${z})`);
     if (y !== undefined) near(p.y, y, 1e-6, `y at (${x}, ${z})`);
+  }
+});
+
+test('speed gates: every lane centre is walkable at -30, every cabinet centre is not, and each lane can be walked through', () => {
+  for (const l of speedGateLanes()) {
+    assert.notEqual(heightAt(l.x, l.z, THRESHOLD.y), null, `lane ${l.side}/${l.index} centre`);
+    const p = walk(at(l.x + l.side * 2.5, l.z, THRESHOLD.y), new Vector3(l.x - l.side * 2.5, 0, l.z));
+    near(p.x, l.x - l.side * 2.5, 0.05, `lane ${l.side}/${l.index} walked through (stopped at x=${p.x.toFixed(2)})`);
+  }
+  for (const c of speedGateCabinets()) {
+    assert.equal(heightAt(c.x, c.z, THRESHOLD.y), null, `cabinet ${c.side}/${c.index} centre`);
+    const p = walk(at(c.x + c.side * 2.5, c.z, THRESHOLD.y), new Vector3(c.x - c.side * 2.5, 0, c.z));
+    assert.ok(Math.abs(p.x - c.x) > 0.5, `cabinet ${c.side}/${c.index} is solid (reached x=${p.x.toFixed(2)})`);
   }
 });
 

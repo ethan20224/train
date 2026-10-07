@@ -153,23 +153,24 @@ const LEAF_SLIDE = GANGWAY.halfWidth + 0.02; // an open leaf sits fully inside i
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
 
-interface Gate { bronze: THREE.Mesh; glass: THREE.Mesh; setOpen(f: number): void }
+export interface Gate { bronze: THREE.Mesh; glass: THREE.Mesh; setOpen(f: number): void }
 
-function buildGate(lib: MaterialLibrary, bronzeMat: THREE.Material, glassMat: THREE.Material): Gate {
+/** Gate leaves on the line z = gz (the hall gangway rim by default; the Crossing-floor well rim for the bottom gate). Each call owns its geometry. */
+export function buildGate(lib: MaterialLibrary, bronzeMat: THREE.Material, glassMat: THREE.Material, gz: number = GATE_Z): Gate {
   const makeLeaf = (sg: 1 | -1): { bronze: THREE.BufferGeometry; glass: THREE.BufferGeometry } => {
     const bb = new GeoBag(lib, 'castIron', 1), gb = new GeoBag(lib, 'glass', 1);
     const x0 = sg > 0 ? 0.006 : -(LEAF_HALF - 0.006), x1 = sg > 0 ? LEAF_HALF - 0.006 : -0.006;
     const zt = 0.025;
     const stile = 0.07;
     const midY = 0.62;
-    const box = (xa: number, ya: number, xb: number, yb: number, t = zt): void => { bb.add(boxMM(xa, ya, GATE_Z - t, xb, yb, GATE_Z + t)); };
+    const box = (xa: number, ya: number, xb: number, yb: number, t = zt): void => { bb.add(boxMM(xa, ya, gz - t, xb, yb, gz + t)); };
     box(x0, LEAF_Y0, x0 + stile, LEAF_Y1);
     box(x1 - stile, LEAF_Y0, x1, LEAF_Y1);
     box(x0, LEAF_Y0, x1, LEAF_Y0 + 0.14);
     box(x0, LEAF_Y1 - 0.09, x1, LEAF_Y1);
     box(x0 + stile, midY - 0.02, x1 - stile, midY + 0.02, 0.02);
     box((x0 + x1) / 2 - 0.015, LEAF_Y0 + 0.14, (x0 + x1) / 2 + 0.015, LEAF_Y1 - 0.09, 0.02);
-    const pane = (ya: number, yb: number): void => { gb.add(boxMM(x0 + stile * 0.9, ya, GATE_Z - 0.006, x1 - stile * 0.9, yb, GATE_Z + 0.006)); };
+    const pane = (ya: number, yb: number): void => { gb.add(boxMM(x0 + stile * 0.9, ya, gz - 0.006, x1 - stile * 0.9, yb, gz + 0.006)); };
     pane(LEAF_Y0 + 0.12, midY - 0.015);
     pane(midY + 0.015, LEAF_Y1 - 0.07);
     return { bronze: bb.merge()!, glass: gb.merge()! };
@@ -198,6 +199,58 @@ function buildGate(lib: MaterialLibrary, bronzeMat: THREE.Material, glassMat: TH
     pos.needsUpdate = true;
   };
   return { bronze, glass, setOpen(f: number): void { const d = LEAF_SLIDE * ease(f); slide(cb, d); slide(cg, d); } };
+}
+
+// ---------------------------------------------------------------------------------------------
+// gate pilasters
+// ---------------------------------------------------------------------------------------------
+/** Fluted shaft cross-section (a = x, b = z): three shallow flutes on each broad face. */
+function flutedSection(w: number, d: number): P2[] {
+  const hx = w / 2, hz = d / 2, fw = 0.024, depth = 0.011;
+  const centres = [-0.062, 0, 0.062];
+  const face = (sgz: 1 | -1): P2[] => {
+    const out: P2[] = [];
+    const xs = sgz < 0 ? centres : [...centres].reverse(); // travel direction keeps the section CCW
+    for (const c of xs) {
+      for (let i = 0; i <= 6; i++) {
+        const t = (i / 6) * 2 - 1; // -1..1 across the flute
+        const x = sgz < 0 ? c + t * fw : c - t * fw;
+        out.push([x, sgz * (hz - depth * (1 - t * t))]);
+      }
+    }
+    return out;
+  };
+  return [[-hx, -hz], ...face(-1), [hx, -hz], [hx, hz], ...face(1), [-hx, hz]];
+}
+const PILASTER_SECTION = flutedSection(GANGWAY.pilasterW, GANGWAY.pierDepth);
+
+/**
+ * The two slim bronze pilasters per side of a gangway gate (inner at the opening, outer where the parked leaf stops) joined by a
+ * light bronze head and foot rail. They stand on the hall side of the leaf line so the open leaves tuck behind them.
+ */
+export function addGatePilasters(bronze: GeoBag, brass: GeoBag, gz: number, y0: number): void {
+  const hw = GANGWAY.halfWidth, W = GANGWAY.pilasterW, ph = GANGWAY.pierHeight;
+  const zc = gz - GANGWAY.pilasterSetback;
+  const finial = latheMeters(FINIAL, 10, 1, 1);
+  const bx = (x0: number, ya: number, x1: number, yb: number, hz: number): void => {
+    bronze.add(boxMM(Math.min(x0, x1), y0 + ya, zc - hz, Math.max(x0, x1), y0 + yb, zc + hz));
+  };
+  for (const sg of [1, -1] as const) {
+    const xs = [hw + W / 2, GANGWAY.pierOuterX - W / 2];
+    for (const px of xs.map((x) => sg * x)) {
+      bx(px - 0.155, 0, px + 0.155, 0.12, 0.14);                       // plinth
+      bx(px - 0.14, 0.12, px + 0.14, 0.17, 0.125);                     // step
+      const fr: Frame[] = [0.17, ph - 0.17].map((y) => ({ o: v3(px, y0 + y, zc), a: v3(1, 0, 0), b: v3(0, 0, 1) }));
+      bronze.add(sweep(PILASTER_SECTION, fr, { closed: true }));      // fluted shaft
+      bx(px - 0.14, ph - 0.17, px + 0.14, ph - 0.12, 0.125);           // necking
+      brass.add(boxMM(px - 0.165, y0 + ph - 0.12, zc - 0.14, px + 0.165, y0 + ph - 0.05, zc + 0.14)); // capital
+      brass.add(boxMM(px - 0.18, y0 + ph - 0.05, zc - 0.155, px + 0.18, y0 + ph, zc + 0.155));        // abacus
+      brass.add(finial, new THREE.Matrix4().makeTranslation(px, y0 + ph, zc));
+    }
+    const xa = sg * (hw + W), xb = sg * (GANGWAY.pierOuterX - W);
+    bx(xa, ph - 0.33, xb, ph - 0.27, 0.03);                            // head rail
+    bx(xa, 0.28, xb, 0.34, 0.03);                                      // foot rail
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -355,30 +408,8 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   // brass sill across the gate line (covers the curb gap, sits on the hall floor)
   brass.add(boxMM(-hw - 0.1, 0, GATE_Z - 0.3, hw + 0.1, 0.02, GATE_Z + 0.3));
 
-  // gate piers: bronze, house the leaves when open
-  {
-    const po = GANGWAY.pierOuterX, ph = GANGWAY.pierHeight, d = GANGWAY.pierDepth / 2;
-    for (const sg of [1, -1] as const) {
-      const bx = (xa: number, ya: number, xb: number, yb: number, dz: number): void => {
-        bronze.add(boxMM(Math.min(sg * xa, sg * xb), ya, GATE_Z - dz, Math.max(sg * xa, sg * xb), yb, GATE_Z + dz));
-      };
-      bx(hw - 0.03, 0, po + 0.03, 0.2, d + 0.03);            // plinth
-      bx(hw - 0.01, 0.2, po + 0.01, 0.26, d + 0.012);
-      bx(hw, 0.26, po, ph - 0.12, d);                          // slim shaft
-      bx(hw - 0.03, ph - 0.12, po + 0.03, ph - 0.07, d + 0.03); // bronze necking
-      brass.add(boxMM(Math.min(sg * (hw - 0.05), sg * (po + 0.05)), ph - 0.07, GATE_Z - d - 0.05, Math.max(sg * (hw - 0.05), sg * (po + 0.05)), ph, GATE_Z + d + 0.05)); // brass cap
-      // brass fillet frames on the two broad faces
-      for (const fz of [-1, 1]) {
-        const zf = GATE_Z + fz * (d + 0.004);
-        const t = 0.014;
-        const xa = hw + 0.14, xb = po - 0.14, ya = 0.4, yb = ph - 0.3;
-        for (const [x0, y0, x1, y1] of [[xa, ya, xb, ya + t], [xa, yb - t, xb, yb], [xa, ya, xa + t, yb], [xb - t, ya, xb, yb]] as const) {
-          brass.add(boxMM(Math.min(sg * x0, sg * x1), y0, zf - 0.004, Math.max(sg * x0, sg * x1), y1, zf + 0.004));
-        }
-      }
-      brass.add(finialGeo, new THREE.Matrix4().makeTranslation(sg * (hw + po) / 2, ph, GATE_Z));
-    }
-  }
+  // gate pilasters: slim bronze, fluted, brass capital and finial; the leaves slide behind them
+  addGatePilasters(bronze, brass, GATE_Z, 0);
 
   // ---- carved dome underside ------------------------------------------------------------------------
   {
