@@ -350,6 +350,26 @@ export const CAVERN = {
   baseFloorY: -72.5,
 } as const;
 
+/** Monolith shell (src/world/metro/shell.ts): honed limestone panels on a running grid, hewn from one block. Metres. */
+export const SHELL = {
+  panelW: 3.0, panelH: 1.5, gap: 0.012, proud: 0.05,
+  /** The plinth steps back this far behind the panel face (a shadow line under the wall). */
+  plinthRecess: 0.3,
+  /** Open band between the wall top and the sky plane, lit by a cool emissive strip so the sky floats. */
+  reveal: 0.4, revealSetback: 0.3,
+  /** Vertical emissive slots on the long walls: width and centre pitch. */
+  slotW: 0.12, slotPitch: 12,
+  /** Re-entrant corners are cut at 45 degrees; each leg is this long. */
+  chamfer: 0.6,
+  /** Tunnel mouth depth shown behind each portal opening (dark liner until P3-6). */
+  portalLiner: 4.0,
+  /** Base floor field: brass division strip pitch, width and height above the terrazzo. */
+  floorGrid: 3.0, brassW: 0.06, brassH: 0.02,
+} as const;
+
+/** Portal openings in the end walls (clear size). Meridian: nave end walls at x = MERIDIAN.trackX; Vesper: transept end walls at z = VESPER.trackZ. */
+export const PORTAL = { w: 5.0, h: 5.5 } as const;
+
 /** Cross plan outline (x, z), counter-clockwise seen from above. */
 export const CROSS_OUTLINE: ReadonlyArray<readonly [number, number]> = [
   [-20, 20], [20, 20], [20, 54], [60, 54], [60, 94], [20, 94], [20, 128], [-20, 128], [-20, 94], [-60, 94], [-60, 54], [-20, 54],

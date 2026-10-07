@@ -165,8 +165,22 @@ export class DepthLook {
    */
   async captureMetro(): Promise<void> {
     const { metroRoot } = this.d;
-    const deepMats = (metroRoot.userData.deepMaterials ?? []) as THREE.MeshStandardMaterial[];
-    const voidMats = (metroRoot.userData.voidMaterials ?? []) as THREE.MeshStandardMaterial[];
+    // Materials shared with the hall (library instances such as floorMarble) must never take a metro env map.
+    const hallMats = new Set<THREE.Material>();
+    this.d.scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p === metroRoot) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) hallMats.add(m);
+    });
+    const pick = (key: string): THREE.MeshStandardMaterial[] => {
+      const all = (metroRoot.userData[key] ?? []) as THREE.MeshStandardMaterial[];
+      const kept = all.filter((m) => !hallMats.has(m));
+      if (kept.length === 0) console.warn(`DepthLook: ${key} is empty after excluding hall-shared materials (${all.length} listed)`);
+      return kept;
+    };
+    const deepMats = pick('deepMaterials');
+    const voidMats = pick('voidMaterials');
     const deepSH = await this.captureEnv('deep', DEEP_LOOK.capture, deepMats, true);
     if (deepSH) this.deepSH = deepSH;
     await this.captureEnv('surface', VOID_LOOK.capture, voidMats, false);
@@ -229,16 +243,18 @@ export class DepthLook {
     return sh;
   }
 
-  /** Compiles the programs of both zones (every metro group visible at once), then restores visibility. */
+  /** Compiles the programs of both zones (surface state, then deep state, so deep-only variants exist), then restores. */
   private async precompile(): Promise<void> {
     const { renderer, scene, camera } = this.d;
-    const objs = [this.deepGroup, this.deepImpostor, this.surfaceImpostor, ...this.toggles];
-    const was = objs.map((o) => o.visible);
+    const saved = this.airlock.zone;
     try {
-      for (const o of objs) o.visible = true;
-      await renderer.compileAsync(scene, camera);
+      for (const z of ['surface', 'deep'] as const) {
+        this.applyZone(z);
+        await renderer.compileAsync(scene, camera);
+      }
     } finally {
-      objs.forEach((o, i) => { o.visible = was[i]!; });
+      this.applyZone(saved);
+      this.update(camera.position.y);
     }
   }
 }
