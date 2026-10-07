@@ -425,6 +425,11 @@ export const DEEP_LOOK = {
   capture: [0, -60, 74] as readonly [number, number, number],
 } as const;
 
+/** Void environment capture point (inside the shaft, below the surface hall; captured in the surface state). */
+export const VOID_LOOK = {
+  capture: [0, -15, 74] as readonly [number, number, number],
+} as const;
+
 export const MAP_WALL = { z: 20, xMin: -20, xMax: 20, yMin: -41, yMax: -34 } as const;
 export const WATER_WALL = { x: -60, zMin: 54, zMax: 94, yMin: -70, yMax: -34 } as const;
 export const DROPLETS = { count: 2400, rInner: 12, rOuter: 38, yTop: -33, yBottomMin: -42, bridgeExclusionHalfX: 12.5 } as const;

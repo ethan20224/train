@@ -191,7 +191,7 @@ async function boot(): Promise<void> {
     renderer, scene, camera, postfx, metroRoot,
     surfaceRoots: modules.filter((m) => m.name !== 'lighting' && m.name !== 'metro').map((m) => m.object),
   });
-  await depthLook.captureDeep();
+  await depthLook.captureMetro();
   window.__meridian.metro = () => ({ zone: depthLook.airlock.zone, look: depthLook.factor, disc: { y: disc.y, docked: disc.docked }, feet: controls.feet.toArray() });
   // Guarantee: the static sun shadow map is rendered once, then never again (autoUpdate = false).
   renderer.shadowMap.needsUpdate = true;

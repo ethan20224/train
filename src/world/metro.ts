@@ -36,6 +36,13 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   });
   root.add(gb.voidGroup, gb.deepGroup, gb.deepImpostor, gb.surfaceImpostor);
   root.userData.deepMaterials = [...gb.deepMaterials, ...esc.deepMaterials];
+  const voidMats = new Set<THREE.MeshStandardMaterial>();
+  gb.voidGroup.traverse((o) => {
+    const mat = (o as THREE.Mesh).material;
+    for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) if ((m as THREE.MeshStandardMaterial).isMeshStandardMaterial) voidMats.add(m as THREE.MeshStandardMaterial);
+  });
+  for (const m of root.userData.deepMaterials as THREE.Material[]) voidMats.delete(m as THREE.MeshStandardMaterial);
+  root.userData.voidMaterials = [...voidMats];
   return {
     name: 'metro',
     object: root,

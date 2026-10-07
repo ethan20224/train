@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import type { PostFX } from '../core/postfx';
 import { Airlock, lookFactor, sunWeights, type Zone } from '../core/zones';
-import { DEEP_LOOK, DEEP_SUN } from '../layoutMetro';
+import { DEEP_LOOK, DEEP_SUN, VOID_LOOK } from '../layoutMetro';
 import { setSunMode } from './lighting';
 
 interface Look {
@@ -158,27 +158,49 @@ export class DepthLook {
     }
   }
 
-  /** One-time deep environment: deep state, deep sun shadow, two-bounce cube capture -> metro materials + SH. */
-  async captureDeep(): Promise<void> {
-    const { renderer, scene, camera, metroRoot } = this.d;
-    const mats = (metroRoot.userData.deepMaterials ?? []) as THREE.MeshStandardMaterial[];
+  /**
+   * One-time metro environments, each a 256 cube captured with a full try/finally (no leaked state):
+   * deep (deep state + deep sun, two bounces) -> deep materials + SH; void (surface state, from the void) -> void materials.
+   * Then compiles every metro program up front so no first-use shader compile hitches mid-descent.
+   */
+  async captureMetro(): Promise<void> {
+    const { metroRoot } = this.d;
+    const deepMats = (metroRoot.userData.deepMaterials ?? []) as THREE.MeshStandardMaterial[];
+    const voidMats = (metroRoot.userData.voidMaterials ?? []) as THREE.MeshStandardMaterial[];
+    const deepSH = await this.captureEnv('deep', DEEP_LOOK.capture, deepMats, true);
+    if (deepSH) this.deepSH = deepSH;
+    await this.captureEnv('surface', VOID_LOOK.capture, voidMats, false);
+    await this.precompile();
+  }
+
+  private async captureEnv(
+    zone: Zone, at: readonly [number, number, number], mats: THREE.MeshStandardMaterial[], wantSH: boolean,
+  ): Promise<THREE.SphericalHarmonics3 | null> {
+    const { renderer, scene, camera } = this.d;
     const saved = this.airlock.zone;
     const hidden: THREE.Object3D[] = [];
     let rt: THREE.WebGLCubeRenderTarget | null = null;
     let cube: THREE.CubeCamera | null = null;
     let pmrem: THREE.PMREMGenerator | null = null;
+    let sh: THREE.SphericalHarmonics3 | null = null;
     try {
-      this.applyZone('deep');
-      this.blend(1);
-      this.sun.intensity = DEEP_SUN.intensity;
-      // Surface practicals must not bleed into the deep env / SH.
-      for (const { light } of this.dimmable) light.intensity = 0;
+      this.applyZone(zone);
+      if (zone === 'deep') {
+        this.blend(1);
+        this.sun.intensity = DEEP_SUN.intensity;
+        // Surface practicals must not bleed into the deep env / SH.
+        for (const { light } of this.dimmable) light.intensity = 0;
+      } else {
+        this.blend(0);
+        this.sun.intensity = this.sunSurface;
+        for (const { light, base } of this.dimmable) light.intensity = base;
+      }
       renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, camera);
       scene.traverse((o) => { if (o.userData.noCapture && o.visible) { o.visible = false; hidden.push(o); } });
       rt = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, generateMipmaps: false, minFilter: THREE.LinearFilter });
       cube = new THREE.CubeCamera(0.2, 800, rt);
-      cube.position.set(...DEEP_LOOK.capture);
+      cube.position.set(...at);
       scene.add(cube);
       cube.updateMatrixWorld(true);
       pmrem = new THREE.PMREMGenerator(renderer);
@@ -189,10 +211,12 @@ export class DepthLook {
         env = pmrem.fromCubemap(rt.texture);
         for (const m of mats) { m.envMap = env.texture; m.needsUpdate = true; }
       }
-      try {
-        this.deepSH = (await LightProbeGenerator.fromCubeRenderTarget(renderer, rt)).sh.clone();
-      } catch (e) {
-        console.warn('deep light probe generation failed', e);
+      if (wantSH) {
+        try {
+          sh = (await LightProbeGenerator.fromCubeRenderTarget(renderer, rt)).sh.clone();
+        } catch (e) {
+          console.warn(`${zone} light probe generation failed`, e);
+        }
       }
     } finally {
       if (cube) scene.remove(cube);
@@ -201,6 +225,20 @@ export class DepthLook {
       for (const o of hidden) o.visible = true;
       this.applyZone(saved);
       this.update(camera.position.y);
+    }
+    return sh;
+  }
+
+  /** Compiles the programs of both zones (every metro group visible at once), then restores visibility. */
+  private async precompile(): Promise<void> {
+    const { renderer, scene, camera } = this.d;
+    const objs = [this.deepGroup, this.deepImpostor, this.surfaceImpostor, ...this.toggles];
+    const was = objs.map((o) => o.visible);
+    try {
+      for (const o of objs) o.visible = true;
+      await renderer.compileAsync(scene, camera);
+    } finally {
+      objs.forEach((o, i) => { o.visible = was[i]!; });
     }
   }
 }
