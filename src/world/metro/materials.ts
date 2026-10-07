@@ -147,13 +147,17 @@ function makeTerrazzo(renderer: THREE.WebGLRenderer): THREE.CanvasTexture {
   const S = 1024;
   const [c, g] = makeCanvas(S, S);
   const r = mulberry32(5);
-  g.fillStyle = '#101113';
+  g.fillStyle = '#1f2024';
   g.fillRect(0, 0, S, S);
-  const palette = ['#e8e6e0', '#d6d4ce', '#9a9a98', '#6c6e70', '#b8955a', '#e8e6e0', '#c9c7c0'];
-  for (let i = 0; i < 2600; i++) {
+  // refined: mostly graphite and charcoal chips, sparse white, very sparse brass
+  const palette = ['#3a3d42', '#43464c', '#4d5057', '#34373c', '#5a5d65', '#3e4147', '#50535a', '#666971', '#383b40', '#484b52', '#8c8e90', '#d9d7d1', '#b8955a'];
+  const weights = [14, 14, 12, 12, 8, 12, 10, 6, 10, 8, 3, 2.2, 0.35];
+  const wsum = weights.reduce((a, b) => a + b, 0);
+  const pick = (): string => { let t = r() * wsum; for (let k = 0; k < palette.length; k++) { t -= weights[k]!; if (t <= 0) return palette[k]!; } return palette[0]!; };
+  for (let i = 0; i < 11000; i++) {
     const cx = r() * S, cy = r() * S;
-    const size = 5 + Math.pow(r(), 2.2) * 18;
-    const col = palette[Math.floor(r() * palette.length)]!;
+    const size = 2.2 + Math.pow(r(), 1.8) * 8;
+    const col = pick();
     const sides = 5 + Math.floor(r() * 3);
     const rot = r() * Math.PI * 2;
     const pts: Array<[number, number]> = [];
