@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
 import {
-  ESCALATOR_BANDS, LANDINGS, OCULUS, ONYX_BAND, SKY, THRESHOLD, VOID, VOID_DETAIL as D, lightRingYs, voidRadiusAt,
+  ESCALATOR_BANDS, LANDINGS, OCULUS, ONYX_BAND, SKY, THRESHOLD, VOID, VOID_DETAIL as D, VOID_RING_FIRST_Y, lightRingYs, voidRadiusAt,
   type Landing,
 } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
@@ -25,6 +25,10 @@ const { cx: CX, cz: CZ } = OCULUS;
 const R0 = VOID.rWide;
 const TAU = Math.PI * 2;
 const HALF_PI = Math.PI / 2;
+/** Strata height-field resolution (azimuth x height): keeps the whole metroVoid group (oculus included) under 400k triangles. */
+const STRATA_GRID = { thetaSegs: 320, ySegs: 150 } as const;
+/** Linear albedo multiplier for the strata clone: the source rock texture is near-black, so it is lifted above 1 to read under ring light only. */
+const STRATA_ALBEDO = 5.6;
 
 export interface VoidBuild {
   group: THREE.Group;
@@ -164,6 +168,7 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
   const stoneBag = new GeoBag(lib, 'wallStone', kit.metersPerTile.carvedStone);
   const lights = new LightBag();
   const ringSrc: RingSource[] = [];
+  const rimSrc: RingSource[] = [];
   const stripSrc: StripSource[] = [];
 
   // era light colours (HDR). The strips themselves are bright; the wash sources are scaled down.
@@ -284,10 +289,10 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
 
   // continuous backing a hair behind the joints: the running bond leaves hairline gaps between courses (different tick sets)
   {
-    const nTh = 192;
+    const nTh = 128;
     const dark: [number, number, number] = [0.22, 0.2, 0.18];
     const rowsY: number[] = [];
-    for (let y = stoneTop; y > stoneBottom + 1e-6; y -= 0.15) rowsY.push(y);
+    for (let y = stoneTop; y > stoneBottom + 1e-6; y -= 0.5) rowsY.push(y);
     rowsY.push(stoneBottom);
     for (let j = 0; j + 1 < rowsY.length; j++) {
       const yA = rowsY[j]!, yB = rowsY[j + 1]!;
@@ -356,7 +361,7 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
     pockets: [...pocketsFor(LANDINGS.L1), ...pocketsFor(LANDINGS.L2)],
   });
   const strataGeo = (() => {
-    const nT = D.strata.thetaSegs, nY = D.strata.ySegs;
+    const nT = STRATA_GRID.thetaSegs, nY = STRATA_GRID.ySegs;
     const P: THREE.Vector3[] = [];
     const C: number[] = [];
     const U: number[] = [];
@@ -610,7 +615,7 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
     }
     // rim cove: a warm slot around the hole, glowing against the sky seen from below
     channel(D.rim.coveY, rH, -1, 0, 'cove', false);
-    ringSrc.push({ y: D.rim.coveY, r: rH - 0.03, color: washCol(stripCol.cove, WASH.cove * 1.2) });
+    rimSrc.push({ y: D.rim.coveY, r: rH - 0.03, color: washCol(stripCol.cove, WASH.cove * 1.2) });
 
     // balustrades on the walkable edges: the arc south of the chord (the east/west arcs north of z = cz lie under F3's
     // footprint, which navigation holes out), and the chord with openings at the F4 mouths
@@ -626,18 +631,22 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
   // ---------------------------------------------------------------------------------------------
   // materials and meshes
   // ---------------------------------------------------------------------------------------------
+  ringSrc.sort((p, q) => q.y - p.y); // wall rings, descending at VOID.lightRingPitch from VOID_RING_FIRST_Y
   const light = {
-    cx: CX, cz: CZ, rings: ringSrc, strips: stripSrc, wrap: 0.35, softness: 0.2, gain: 1, bounce: 0.1,
+    cx: CX, cz: CZ, rings: ringSrc, y0: VOID_RING_FIRST_Y, pitch: VOID.lightRingPitch, extraRings: rimSrc, strips: stripSrc,
+    wrap: 0.35, softness: 0.2, gain: 1, bounce: 0.1,
     // the eclipse below is the brightest thing in the void: cool daylight from the sky hole
     sky: { pos: v3(CX, SKY.y, CZ), color: new THREE.Color(0.7, 0.92, 1.5), falloff: 0.004 },
   };
-  kit.terrazzo.color.setScalar(0.62); kit.terrazzo.envMapIntensity = 0.45;
-  kit.stainless.color.set(0xdfe6ec); kit.stainless.envMapIntensity = 0.65;
-  kit.onyx.emissiveIntensity = 0.85; kit.onyx.roughness = 0.38;
+  // the kit's void-set materials are shared with the oculus and Phase 3: the shell works on clones only
+  const terrazzoMat = kit.terrazzo.clone(); terrazzoMat.color.setScalar(0.62); terrazzoMat.envMapIntensity = 0.45;
+  const stainlessMat = kit.stainless.clone(); stainlessMat.color.set(0xdfe6ec); stainlessMat.envMapIntensity = 0.65;
+  const brassMat = kit.brass.clone();
+  const onyxMat = kit.onyx.clone(); onyxMat.emissiveIntensity = 0.85; onyxMat.roughness = 0.38;
   const wallStone = kit.carvedStone.clone();
   wallStone.name = 'metroVoidAshlar'; wallStone.vertexColors = true;
   const strataMat = kit.strata.clone();
-  strataMat.name = 'metroVoidStrata'; strataMat.vertexColors = true; strataMat.color.setRGB(5.6, 5.6, 5.6); strataMat.normalScale.set(0.7, 0.7);
+  strataMat.name = 'metroVoidStrata'; strataMat.vertexColors = true; strataMat.color.setScalar(STRATA_ALBEDO); strataMat.normalScale.set(0.7, 0.7);
   // a height field has no ledge tops where a bed overhangs: draw both sides so a steep step is never a hole
   strataMat.side = THREE.DoubleSide;
   const limeMat = kit.honedLimestone.clone();
@@ -651,7 +660,7 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
   const strataKey = strataMat.customProgramCacheKey.bind(strataMat);
   strataMat.customProgramCacheKey = () => `${strataKey()}|desat`;
   for (const m of [wallStone, strataMat, limeMat]) { installVoidLight(m, light, 'shell'); excludeDirectionalLight(m); }
-  for (const m of [kit.carvedStone, kit.terrazzo, kit.stainless, kit.brass]) installVoidLight(m, light, 'shell');
+  for (const m of [terrazzoMat, stainlessMat, brassMat, onyxMat]) { if (m !== onyxMat) installVoidLight(m, light, 'shell'); excludeDirectionalLight(m); }
   const stripMat = new THREE.MeshBasicMaterial({ name: 'metroVoidLight', vertexColors: true });
 
   let meshCount = 0;
@@ -673,10 +682,10 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
   mk(colored(soup.build(), stoneBag), wallStone, 'metroVoidStone');
   mk(strataGeo, strataMat, 'metroVoidStrata');
   mk(colored(limeSoup.build(), limestone), limeMat, 'metroVoidLimestone');
-  mk(plain(onyx), kit.onyx, 'metroVoidOnyx');
-  mk(plain(terrazzo), kit.terrazzo, 'metroVoidDecks');
-  mk(plain(stainless), kit.stainless, 'metroVoidStainless');
-  mk(plain(brass), kit.brass, 'metroVoidBrass');
+  mk(plain(onyx), onyxMat, 'metroVoidOnyx');
+  mk(plain(terrazzo), terrazzoMat, 'metroVoidDecks');
+  mk(plain(stainless), stainlessMat, 'metroVoidStainless');
+  mk(plain(brass), brassMat, 'metroVoidBrass');
   mk(lights.merge(), stripMat, 'metroVoidLights');
   mk(plain(glass), kit.glass, 'metroVoidGlass', 2);
   return { group, meshCount };
