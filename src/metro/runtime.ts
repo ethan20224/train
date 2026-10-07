@@ -15,8 +15,9 @@ const visualHooks: VisualHook[] = [];
  * Visuals that must follow the real-time runtime every displayed frame, independent of ?timescale (the disc mesh, the gate leaves,
  * the speed-gate panels). World modules register here instead of using their (simulation-time) `update`.
  */
-export function onMetroFrame(fn: VisualHook): void {
+export function onMetroFrame(fn: VisualHook): () => void {
   visualHooks.push(fn);
+  return () => { const i = visualHooks.indexOf(fn); if (i >= 0) visualHooks.splice(i, 1); };
 }
 
 export function metroDynamicRegions(): readonly Region[] {

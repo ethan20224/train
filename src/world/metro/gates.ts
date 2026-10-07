@@ -202,7 +202,7 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
 
   return {
     group,
-    stats: { calls: 2, triangles: 0 },
+    stats: { calls: 2, triangles: (metalGeo.getAttribute('position').count + glassGeo.getAttribute('position').count) / 3 },
     update(dt: number, feet: { x: number; y: number; z: number }): void {
       const onLevel = Math.abs(feet.y - Y0) < 1.6;
       let panelsMoved = false, lightsMoved = false;
@@ -238,9 +238,12 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
       }
       if (lightsMoved) {
         for (let ci = 0; ci < cabinets.length; ci++) {
-          const g = Math.max(...cabAdj[ci]!.map((li) => glow[li]!));
+          let g = 0;
+          for (const li of cabAdj[ci]!) if (glow[li]! > g) g = glow[li]!;
           setStrip(ci, IDLE + (PEAK - IDLE) * g);
         }
+        colAttr.clearUpdateRanges();
+        colAttr.addUpdateRange(stripOff * 3, cabinets.length * perStrip * 3);
         colAttr.needsUpdate = true;
       }
     },

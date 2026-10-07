@@ -57,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'wellgate',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -214,6 +214,7 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   speedgates: { position: [10.6, THRESHOLD.y + EYE, 80.6], target: [7.2, THRESHOLD.y + 0.9, 82.4], fov: 60, intent: 'Threshold: the east speed-gate bank seen from the F3 side, champagne cabinets, glass panels, light lines.' },
   disc: { position: [OCULUS.cx, DISC.topY + EYE, OCULUS.cz + 2.9], target: [OCULUS.cx, DISC.topY - 0.4, OCULUS.cz - 2.4], fov: 72, intent: 'Standing on the Sinking Floor at the top: the inlaid medallion, the brass rail, the open gangway behind.' },
   lifts: { position: [-11.2, THRESHOLD.y + EYE, 71.5], target: [-17, -25.6, 77], fov: 62, intent: 'Threshold: the two glass lift tubes rising to their stainless-and-glass machinery lanterns, sheaves visible.' },
+  wellgate: { position: [0, VESPER.topY + EYE, OCULUS.cz - 12], target: [0, VESPER.topY + 0.8, OCULUS.cz - 4], fov: 62, intent: 'Crossing floor: the well gate at the rim, slim bronze pilasters with brass capitals, leaves closed while the disc is docked above.' },
   deep: { position: [-35, HALCYON.topY + EYE, 59], target: [0, HALCYON.topY + 1, 94], intent: 'Along the Halcyon platform diagonal.' },
 };
 

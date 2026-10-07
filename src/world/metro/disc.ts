@@ -179,9 +179,8 @@ export function buildDisc(lib: MaterialLibrary, _kit: MetroMaterials, wellY: num
   const gb = new GeoBag(lib, 'castIron', 1), gbr = new GeoBag(lib, 'brass');
   addGatePilasters(gb, gbr, gz, wellY);
   gb.add(boxMM(-GANGWAY.halfWidth - 0.1, wellY - 0.02, gz - 0.3, GANGWAY.halfWidth + 0.1, wellY, gz + 0.3));
-  const wb = add(gb.merge(), hallBronze, 'wellGateBronze', wellGate);
-  const wbr = add(gbr.merge(), hallBrass, 'wellGateBrass', wellGate);
-  void wb; void wbr;
+  add(gb.merge(), hallBronze, 'wellGateBronze', wellGate);
+  add(tinted(gbr.merge(), [1, 1, 1]), hallBrass, 'wellGateBrass', wellGate); // hallBrass uses vertex colours: needs a colour attribute
   gate.bronze.name = 'wellGateLeaves'; gate.glass.name = 'wellGateGlass'; gate.glass.renderOrder = 2;
   wellGate.add(gate.bronze, gate.glass);
 
