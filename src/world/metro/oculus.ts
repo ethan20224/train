@@ -156,7 +156,7 @@ const ease = (t: number): number => t * t * (3 - 2 * t);
 export interface Gate { bronze: THREE.Mesh; glass: THREE.Mesh; setOpen(f: number): void }
 
 /** Gate leaves on the line z = gz (the hall gangway rim by default; the Crossing-floor well rim for the bottom gate). Each call owns its geometry. */
-export function buildGate(lib: MaterialLibrary, bronzeMat: THREE.Material, glassMat: THREE.Material, gz: number = GATE_Z): Gate {
+export function buildGate(lib: MaterialLibrary, bronzeMat: THREE.Material, glassMat: THREE.Material, gz: number = GATE_Z, statics?: { bronze?: THREE.BufferGeometry | null; glass?: THREE.BufferGeometry | null }): Gate {
   const makeLeaf = (sg: 1 | -1): { bronze: THREE.BufferGeometry; glass: THREE.BufferGeometry } => {
     const bb = new GeoBag(lib, 'castIron', 1), gb = new GeoBag(lib, 'glass', 1);
     const x0 = sg > 0 ? 0.006 : -(LEAF_HALF - 0.006), x1 = sg > 0 ? LEAF_HALF - 0.006 : -0.006;
@@ -176,18 +176,21 @@ export function buildGate(lib: MaterialLibrary, bronzeMat: THREE.Material, glass
     return { bronze: bb.merge()!, glass: gb.merge()! };
   };
   const R = makeLeaf(1), L = makeLeaf(-1);
-  const combine = (a: THREE.BufferGeometry, b: THREE.BufferGeometry): { geo: THREE.BufferGeometry; base: Float32Array; sign: Float32Array } => {
-    const geo = mergeGeometries([a, b], false);
+  // `st`: static geometry of the same material folded into the same mesh (sign 0: it never slides), so it costs no extra draw call
+  const combine = (a: THREE.BufferGeometry, b: THREE.BufferGeometry, st?: THREE.BufferGeometry | null): { geo: THREE.BufferGeometry; base: Float32Array; sign: Float32Array } => {
+    const geo = mergeGeometries(st ? [st, a, b] : [a, b], false);
     const base = Float32Array.from((geo.getAttribute('position') as THREE.BufferAttribute).array);
     const sign = new Float32Array(geo.getAttribute('position').count);
-    sign.fill(1, 0, a.getAttribute('position').count);
-    sign.fill(-1, a.getAttribute('position').count);
+    const n0 = st ? st.getAttribute('position').count : 0;
+    sign.fill(1, n0, n0 + a.getAttribute('position').count);
+    sign.fill(-1, n0 + a.getAttribute('position').count);
     return { geo, base, sign };
   };
-  const cb = combine(R.bronze, L.bronze), cg = combine(R.glass, L.glass);
+  const cb = combine(R.bronze, L.bronze, statics?.bronze), cg = combine(R.glass, L.glass, statics?.glass);
   const mk = (c: { geo: THREE.BufferGeometry }, m: THREE.Material): THREE.Mesh => {
     const mesh = new THREE.Mesh(c.geo, m);
-    mesh.frustumCulled = false; // vertices move on the CPU
+    c.geo.computeBoundingSphere();
+    c.geo.boundingSphere!.radius += 2.6; // vertices move on the CPU: the bound covers the open leaves
     mesh.userData.noShadow = true; // the static shadow map would freeze one gate state
     return mesh;
   };
@@ -463,10 +466,14 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   };
   addMesh(stone, stoneMat, 'oculusStone');
   addMesh(dark, darkMat, 'oculusDeck');
-  addMesh(bronze, hallBronze, 'oculusBronze');
+  addMesh(bronze, hallBronze, 'oculusBronze'); // static bronze casts shadows, so it stays its own mesh; the gate frames are a second call
+  // parapet glass shares the gate-glass mesh (no shadows either way): one draw call fewer
+  const gate = buildGate(lib, hallBronze, hallGlass, GATE_Z, { glass: glass.merge() });
+  gate.bronze.name = 'oculusGateFrames';
+  gate.glass.name = 'oculusGlass';
+  group.add(gate.bronze, gate.glass);
   addMesh(brass, hallBrass, 'oculusBrass');
   addMesh(inlayBag, inlayBrass, 'oculusInlay');
-  addMesh(glass, hallGlass, 'oculusParapetGlass', 2);
   addMesh(voidStone, kit.carvedStone, 'oculusDome');
 
   const balGeo = latheMeters(BALUSTER.map(([r, f]): P2 => [r, f * BAL_H]), 8, 1, 1);
@@ -476,10 +483,6 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
   bal.name = 'oculusBalusters';
   group.add(bal);
 
-  const gate = buildGate(lib, hallBronze, hallGlass);
-  gate.bronze.name = 'oculusGateFrames';
-  gate.glass.name = 'oculusGateGlass';
-  group.add(gate.bronze, gate.glass);
 
   let phase = startOpen ? 1 : 0;
   let lastS = performance.now() / 1000;

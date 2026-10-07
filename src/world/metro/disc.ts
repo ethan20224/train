@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { MaterialLibrary } from '../../core/types';
 import { DISC, DISC_DETAIL as DD, GANGWAY, OCULUS } from '../../layoutMetro';
 import { GeoBag, boxMM, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
+import { vertexGlow } from './glow';
 import { buildGate, addGatePilasters, type Gate } from './oculus';
 import type { MetroMaterials } from './materials';
 
@@ -84,14 +85,14 @@ export interface DiscVisuals {
   update(y: number, wellGateOpen: boolean): void;
 }
 
-export function buildDisc(lib: MaterialLibrary, kit: MetroMaterials, wellY: number): DiscVisuals {
+export function buildDisc(lib: MaterialLibrary, _kit: MetroMaterials, wellY: number): DiscVisuals {
   const group = new THREE.Group();
   group.name = 'metroDisc';
 
   // hall-lit materials (the disc is lit by whichever sun is active at its height)
   const hallBrass = (lib.get('brass') as THREE.MeshStandardMaterial).clone();
   hallBrass.name = 'discBrass';
-  hallBrass.vertexColors = true; // polished brass for the rail, a darker bronze tint for the bowl: one draw call
+  vertexGlow(hallBrass); // polished brass rail, darker bronze bowl and the emissive downlight ring: one draw call
   hallBrass.side = THREE.DoubleSide;
   const hallBronze = new THREE.MeshStandardMaterial({ name: 'gateBronze', color: 0x5b4126, metalness: 0.88, roughness: 0.4 });
   const gateGlass = new THREE.MeshPhysicalMaterial({
@@ -165,9 +166,9 @@ export function buildDisc(lib: MaterialLibrary, kit: MetroMaterials, wellY: numb
     g.setAttribute('color', new THREE.BufferAttribute(c, 3));
     return g;
   };
-  add(mergeGeometries([tinted(brass.merge(), [1, 1, 1])!, tinted(bronze.merge(), [0.5, 0.36, 0.24])!], false), hallBrass, 'discBrass');
-  const light = add(lightGeo, kit.emissive.warmStrip, 'discDownlight');
-  if (light) (light.material as THREE.Material).side = THREE.DoubleSide;
+  const lightG = tinted(lightGeo.index ? lightGeo.toNonIndexed() : lightGeo, [3.0, 2.15, 1.35])!;
+  const parts = [tinted(brass.merge(), [1, 1, 1])!, tinted(bronze.merge(), [0.5, 0.36, 0.24])!];
+  add(mergeGeometries([...parts, lightG], false), hallBrass, 'discBrass');
 
   // ---- Crossing-floor well gate: the hall gangway's leaves and pilasters at the well rim ------------------------
   const wellGate = new THREE.Group();

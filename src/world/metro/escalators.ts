@@ -169,12 +169,22 @@ function orient(g: THREE.BufferGeometry): THREE.BufferGeometry {
 const rect = (x0: number, x1: number, y0: number, y1: number): Array<[number, number]> => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 const ellipse = (cx: number, cy: number, rx: number, ry: number, n = 12): Array<[number, number]> =>
   Array.from({ length: n }, (_, i) => [cx + rx * Math.cos((i / n) * Math.PI * 2), cy + ry * Math.sin((i / n) * Math.PI * 2)]);
+/** Rounded rectangle section (corner radius r), same orientation family as `rect`. */
+const roundRect = (x0: number, x1: number, y0: number, y1: number, r: number, n = 4): Array<[number, number]> => {
+  const out: Array<[number, number]> = [];
+  for (const [cx, cy, a0] of [[x1 - r, y0 + r, -90], [x1 - r, y1 - r, 0], [x0 + r, y1 - r, 90], [x0 + r, y0 + r, 180]] as const) {
+    for (let i = 0; i <= n; i++) { const a = ((a0 + (90 * i) / n) * Math.PI) / 180; out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+  }
+  return out;
+};
 const flat = (u0: number, u1: number, v = 0): Array<{ u: number; v: number }> => [{ u: u0, v }, { u: u1, v }];
 
 const STAINLESS: RGB = [1, 1, 1];
 const TRUSS: RGB = [0.72, 0.74, 0.76];
 /** Champagne over the stainless base colour (0xcdbb98 / 0xcdd2d5 in linear). */
 const CHAMPAGNE: RGB = [1.0, 0.78, 0.47];
+/** Newel cladding: brushed stainless like the truss (not the bright base colour). */
+const NEWEL: RGB = [0.66, 0.69, 0.72];
 const RUBBER: RGB = [0.035, 0.035, 0.04];
 
 /** Lip height of the bottom-end combplate at distance d beyond the end (0 at the outer edge). */
@@ -237,9 +247,18 @@ function buildUnit(u: EscalatorUnit): UnitGeo {
     const [bx0, bx1] = x(V.skirtX, V.baseOuterX);
     // base / skirt deck, running out to the newels at both ends
     metal.add(sweep(samples(-V.newelLength, run + V.newelLength, linc), rect(bx0, bx1, V.baseBottom, V.baseTop)), STAINLESS);
-    // newel piers
-    for (const [a, b] of [[-V.newelLength, -D.newelGap], [run + D.newelGap, run + V.newelLength]] as const) {
-      metal.add(sweep(flat(a, b), rect(bx0, bx1, V.baseBottom, V.railProfileBottom + 0.005)), STAINLESS);
+    // newel piers: brushed stainless, rounded section, the outer end stepped into a rounded nose
+    for (const [a, b, nose] of [[-V.newelLength, -D.newelGap, -1], [run + D.newelGap, run + V.newelLength, 1]] as const) {
+      const top = V.railProfileBottom + 0.005;
+      const body = nose < 0 ? flat(a + 0.06, b) : flat(a, b - 0.06);
+      metal.add(sweep(body, roundRect(bx0, bx1, V.baseBottom, top, 0.045), true), NEWEL);
+      const steps = [[0.0, 0.012], [0.03, 0.026], [0.05, 0.048]] as const; // [distance toward the end, inset]
+      for (let k = 0; k < steps.length; k++) {
+        const [d0, inset] = steps[k]!;
+        const dn = k + 1 < steps.length ? steps[k + 1]![0] : 0.06;
+        const u0 = nose < 0 ? a + 0.06 - dn : b - 0.06 + d0, u1 = nose < 0 ? a + 0.06 - d0 : b - 0.06 + dn;
+        metal.add(sweep(flat(Math.min(u0, u1), Math.max(u0, u1)), roundRect(bx0 + inset, bx1 - inset, V.baseBottom + inset, top - inset, Math.max(0.02, 0.045 - inset * 0.5)), true), NEWEL);
+      }
     }
     // glass
     const gx = V.glassX * sg;

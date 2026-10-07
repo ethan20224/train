@@ -211,14 +211,14 @@ export const SPEED_GATES = {
   lanes: THRESHOLD.lanesPerSide, laneWidth: 0.9,
   zMin: LANDINGS.thresholdBridge.zMin, zMax: LANDINGS.thresholdBridge.zMax,
   /** Cabinet length along the walking direction (x), height, glass lid thickness. */
-  cabinetLength: 1.4, cabinetHeight: 1.0, lidT: 0.03,
-  panelHeight: 1.6, panelLength: 0.5, panelThickness: 0.012,
+  cabinetLength: 1.4, cabinetHeight: 1.0, cabinetWidth: 0.18, plinthGap: 0.02, plinthH: 0.06,
+  panelHeight: 1.2, panelThickness: 0.01,
   /** Panels slide apart over this many REAL seconds when the player is within `approachR` of a lane; the light line brightens inside `glowR`. */
   panelSeconds: 0.35, approachR: 2.2, glowR: 4.5,
   /** Collision: each cabinet is a row of circles of this radius (nav adds the player radius; lanes always pass). */
   collideR: 0.17, collideStep: 0.275,
 } as const;
-/** Cabinet thickness across the lanes (z). */
+/** Cabinet pitch slot across the lanes (z): the room left between lanes; the slim blade (`cabinetWidth`) is centred in it. */
 export const SPEED_GATE_CABINET_W = (SPEED_GATES.zMax - SPEED_GATES.zMin - SPEED_GATES.lanes * SPEED_GATES.laneWidth) / (SPEED_GATES.lanes + 1);
 export interface SpeedGateLane { readonly x: number; readonly z: number; readonly side: 1 | -1; readonly index: number }
 export function speedGateLanes(): SpeedGateLane[] {

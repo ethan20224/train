@@ -7,6 +7,7 @@ import {
 import { excludeDirectionalLight } from '../../lighting/sunMask';
 import { GeoBag, boxMM, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import type { MetroMaterials } from './materials';
+import { vertexGlow } from './glow';
 import { installSharedVoidLight } from './voidLight';
 
 /**
@@ -14,7 +15,7 @@ import { installSharedVoidLight } from './voidLight';
  * Speed gates: slim champagne-aluminium cabinets with a glass lid and a white light line; ultra-clear glass panels slide into the
  * cabinets (REAL seconds, ease) as the player comes within SPEED_GATES.approachR of a lane, and the light line brightens.
  * Lift heads: stainless-and-glass lanterns showing the sheave. Everything is built with the void material set (sun-excluded,
- * lit by the void ring light, shared with the escalators) and merged per material: 3 draw calls in all.
+ * lit by the void ring light, shared with the escalators) and merged per material: 2 draw calls in all.
  */
 
 const Y0 = THRESHOLD.y;
@@ -33,13 +34,14 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
   const group = new THREE.Group();
   group.name = 'metroThresholdFixtures';
 
-  // One satin-metal material: the cabinets are champagne aluminium and the lift heads steel by vertex colour (the kit's brushed
-  // stainless streaks read as wood grain on large flat faces). One draw call.
+  // One satin-metal material (plain champagne anodised aluminium, metalness 1 / roughness 0.3: no brushed map, which reads as wood grain on
+  // flat faces). Cabinets are white vertex colour (uniform); the lift heads get a cool tint to read as steel; light lines are vertex glow.
   const metalMat = kit.champagne.clone();
-  metalMat.name = 'thresholdMetal'; metalMat.color.set(0xffffff); metalMat.metalness = 0.88; metalMat.roughness = 0.36; metalMat.envMapIntensity = 0.85; metalMat.vertexColors = true;
+  metalMat.name = 'thresholdMetal'; metalMat.metalness = 1; metalMat.roughness = 0.3;
+  vertexGlow(metalMat);
   installSharedVoidLight(metalMat, 'thresholdMetal'); excludeDirectionalLight(metalMat);
-  const CHAMPAGNE: [number, number, number] = [0.56, 0.47, 0.31]; // linear (vertex colours are not sRGB)
-  const STEEL: [number, number, number] = [0.4, 0.43, 0.47];
+  const WHITE: [number, number, number] = [1, 1, 1];
+  const STEEL: [number, number, number] = [0.5, 0.58, 0.8];
 
   const champagne = new GeoBag(lib, 'castIron', kit.metersPerTile.champagne);
   const stainless = new GeoBag(lib, 'castIron', kit.metersPerTile.stainless);
@@ -48,43 +50,41 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
 
   const cabinets = speedGateCabinets();
   const lanes = speedGateLanes();
-  const L = SG.cabinetLength, hw = CAB_W / 2;
-  const lidY0 = Y0 + SG.cabinetHeight - SG.lidT;
+  const L = SG.cabinetLength, hw = SG.cabinetWidth / 2, H = SG.cabinetHeight;
+  const gap = SG.plinthGap, plH = SG.plinthH;
 
-  // ---- cabinets -----------------------------------------------------------------------------------------------
+  // ---- cabinets: slim blades, a 20 mm shadow-gap plinth, a flush ultra-clear glass strip in the top with the light line under it ------
   const body: P2[] = [
-    [-hw + 0.022, 0.07], [hw - 0.022, 0.07], [hw, 0.092],
-    [hw, 0.5], [hw - 0.012, 0.5], [hw - 0.012, 0.512], [hw, 0.512], // a shadow-gap reveal round the cabinet
-    [hw, SG.cabinetHeight - SG.lidT - 0.02], [hw - 0.02, SG.cabinetHeight - SG.lidT],
-    [-hw + 0.02, SG.cabinetHeight - SG.lidT], [-hw, SG.cabinetHeight - SG.lidT - 0.02],
-    [-hw, 0.512], [-hw + 0.012, 0.512], [-hw + 0.012, 0.5], [-hw, 0.5], [-hw, 0.092],
+    [-hw, plH], [hw, plH], [hw, H - 0.006], [hw - 0.01, H], [0.055, H], [0.055, H - 0.016], [-0.055, H - 0.016], [-0.055, H], [-hw + 0.01, H], [-hw, H - 0.006],
   ];
   const stripGeos: THREE.BufferGeometry[] = [];
+  const plinthGeos: THREE.BufferGeometry[] = [];
   for (const c of cabinets) {
     const fr = (x: number): Frame => ({ o: v3(x, Y0, c.z), a: v3(0, 0, 1), b: UP.clone() });
     champagne.add(sweep(body, [fr(c.x - L / 2), fr(c.x + L / 2)], { closed: true, caps: true }));
-    champagne.add(boxMM(c.x - L / 2 + 0.07, Y0 + 0.012, c.z - hw + 0.045, c.x + L / 2 - 0.07, Y0 + 0.07, c.z + hw - 0.045)); // recessed plinth
-    stainless.add(boxMM(c.x - L / 2 - 0.004, lidY0 - 0.016, c.z - hw - 0.004, c.x + L / 2 + 0.004, lidY0, c.z + hw + 0.004));   // stainless bezel under the lid
-    glassStatic.add(boxMM(c.x - L / 2 + 0.01, lidY0, c.z - hw + 0.01, c.x + L / 2 - 0.01, Y0 + SG.cabinetHeight, c.z + hw - 0.01));
-    const s = boxMM(c.x - L / 2 + 0.2, Y0 + SG.cabinetHeight + 0.0015, c.z - 0.006, c.x + L / 2 - 0.2, Y0 + SG.cabinetHeight + 0.004, c.z + 0.006);
+    plinthGeos.push(boxMM(c.x - L / 2 + gap, Y0, c.z - hw + gap, c.x + L / 2 - gap, Y0 + plH + 0.002, c.z + hw - gap)); // recessed 20 mm: the shadow gap
+    glassStatic.add(boxMM(c.x - L / 2 + 0.1, Y0 + H - 0.016, c.z - 0.055, c.x + L / 2 - 0.1, Y0 + H, c.z + 0.055));
+    const s = boxMM(c.x - L / 2 + 0.22, Y0 + H - 0.0145, c.z - 0.005, c.x + L / 2 - 0.22, Y0 + H - 0.0125, c.z + 0.005);
     stripGeos.push(s.index ? s.toNonIndexed() : s);
   }
 
-  // ---- panels: full-height ultra-clear glass; two per lane, staggered in x so both can park in the shared cabinet ----
-  interface Panel { lane: number; sign: 1 | -1; start: number }
+  // ---- panels: 10 mm ultra-clear glass, 1.2 m; two per lane, staggered in x so both can park in the shared cabinet. Opening slides them
+  // sideways and sinks them into the blade (top ends flush with the cabinet top), narrowing as they go in ----
+  interface Panel { lane: number; sign: 1 | -1; start: number; z0: number; cabZ: number }
   const panels: Panel[] = [];
   const panelW = SG.laneWidth / 2 + 0.01;
+  const pY0 = Y0 + 0.03;
+  const sink = pY0 + SG.panelHeight - (Y0 + H) + 0.004;
   let nPanel = 0;
   for (const [li, lane] of lanes.entries()) {
     for (const sign of [-1, 1] as const) {
-      const x = lane.x + sign * 0.03; // the left panel (z-) sits on the near side, the right panel on the far side
+      const x = lane.x + sign * 0.03;
       const z0 = sign < 0 ? lane.z - SG.laneWidth / 2 : lane.z - 0.01;
-      glassPanels.add(boxMM(x - SG.panelThickness / 2, Y0 + 0.03, z0, x + SG.panelThickness / 2, Y0 + 0.03 + SG.panelHeight, z0 + panelW));
-      panels.push({ lane: li, sign, start: nPanel * 36 });
+      glassPanels.add(boxMM(x - SG.panelThickness / 2, pY0, z0, x + SG.panelThickness / 2, pY0 + SG.panelHeight, z0 + panelW));
+      panels.push({ lane: li, sign, start: nPanel * 36, z0, cabZ: lane.z + sign * (SG.laneWidth / 2 + CAB_W / 2) });
       nPanel++;
     }
   }
-  const slideMax = CAB_W + 0.015;
 
   // ---- lift heads ------------------------------------------------------------------------------------------------
   const lights: THREE.BufferGeometry[] = [];
@@ -165,7 +165,23 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
     g.setAttribute('color', new THREE.BufferAttribute(c, 3));
     return g;
   };
-  mk(mergeGeometries([tint(champagne.merge()!, CHAMPAGNE), tint(stainless.merge()!, STEEL)], false)!, metalMat, 'thresholdMetal');
+  const plinthG = tint(mergeGeometries(plinthGeos.map((g) => (g.index ? g.toNonIndexed() : g)), false)!, [0.22, 0.22, 0.22]);
+  const champG = tint(champagne.merge()!, WHITE), steelG = tint(stainless.merge()!, STEEL);
+  const stripG = mergeGeometries(stripGeos, false)!;
+  const ringG = mergeGeometries(lights, false)!;
+  const IDLE = 1.3, PEAK = 3.4;
+  const setStrip = (i: number, v: number): void => {
+    for (let k = 0; k < perStrip; k++) { const o = (stripOff + i * perStrip + k) * 3; col[o] = v; col[o + 1] = v * 0.98; col[o + 2] = v * 0.94; }
+  };
+  const perStrip = stripGeos[0]!.getAttribute('position').count;
+  const stripOff = champG.getAttribute('position').count + steelG.getAttribute('position').count + plinthG.getAttribute('position').count;
+  tint(stripG, [IDLE, IDLE, IDLE]); tint(ringG, [2.6, 2.0, 1.3]);
+  const metalGeo = mergeGeometries([champG, steelG, plinthG, stripG, ringG], false)!;
+  const colAttr = metalGeo.getAttribute('color') as THREE.BufferAttribute;
+  const col = colAttr.array as Float32Array;
+  const metalMesh = mk(metalGeo, metalMat, 'thresholdMetal');
+  void metalMesh;
+  for (let i = 0; i < cabinets.length; i++) setStrip(i, IDLE);
 
   const statG = glassStatic.merge()!;
   const panelG = glassPanels.merge()!;
@@ -177,23 +193,6 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
   glassGeo.computeBoundingSphere();
   glassGeo.boundingSphere!.radius += SG.cabinetLength; // panels slide on the CPU: the bound stays valid
 
-  // light lines (vertex colours, brightened on approach) + the lantern rings (fixed warm)
-  const stripCount = stripGeos.length;
-  const lightGeo = mergeGeometries([...stripGeos, ...lights], false)!;
-  const lpos = lightGeo.getAttribute('position') as THREE.BufferAttribute;
-  const col = new Float32Array(lpos.count * 3);
-  lightGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  const perStrip = stripGeos[0]!.getAttribute('position').count;
-  const IDLE = 0.5, PEAK = 3.2;
-  const setStrip = (i: number, v: number): void => {
-    for (let k = 0; k < perStrip; k++) { const o = (i * perStrip + k) * 3; col[o] = v; col[o + 1] = v * 0.98; col[o + 2] = v * 0.94; }
-  };
-  for (let i = 0; i < stripCount; i++) setStrip(i, IDLE);
-  const ringStart = stripCount * perStrip;
-  for (let k = ringStart; k < lpos.count; k++) { col[k * 3] = 2.6; col[k * 3 + 1] = 2.0; col[k * 3 + 2] = 1.3; }
-  const lightMat = new THREE.MeshBasicMaterial({ name: 'gateLightLine', vertexColors: true, side: THREE.DoubleSide });
-  mk(lightGeo, lightMat, 'gateLightLines');
-
   // ---- runtime ------------------------------------------------------------------------------------------------------
   const phase = new Float32Array(lanes.length);   // 0 closed .. 1 open
   const glow = new Float32Array(lanes.length);    // 0 idle .. 1 brightest
@@ -203,7 +202,7 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
 
   return {
     group,
-    stats: { calls: 3, triangles: 0 },
+    stats: { calls: 2, triangles: 0 },
     update(dt: number, feet: { x: number; y: number; z: number }): void {
       const onLevel = Math.abs(feet.y - Y0) < 1.6;
       let panelsMoved = false, lightsMoved = false;
@@ -226,9 +225,14 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
       if (panelsMoved) {
         for (let pi = 0; pi < panels.length; pi++) {
           const p = panels[pi]!;
-          const slide = (p.sign < 0 ? -1 : 1) * smooth(phase[p.lane]!) * slideMax;
+          const s = smooth(phase[p.lane]!);
           const v0 = panelBase + p.start;
-          for (let k = 0; k < 36; k++) pos.setZ(v0 + k, base[(v0 + k) * 3 + 2]! + slide);
+          for (let k = 0; k < 36; k++) {
+            const z = base[(v0 + k) * 3 + 2]!, t = (z - p.z0) / panelW;
+            const zOpen = p.cabZ + (t - 0.5) * 0.09; // narrows to fit inside the 0.18 blade
+            pos.setZ(v0 + k, z + (zOpen - z) * s);
+            pos.setY(v0 + k, base[(v0 + k) * 3 + 1]! - sink * s);
+          }
         }
         posDirty();
       }
@@ -237,7 +241,7 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
           const g = Math.max(...cabAdj[ci]!.map((li) => glow[li]!));
           setStrip(ci, IDLE + (PEAK - IDLE) * g);
         }
-        (lightGeo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+        colAttr.needsUpdate = true;
       }
     },
   };
