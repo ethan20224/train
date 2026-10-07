@@ -180,6 +180,8 @@ export interface TrainGeometry {
   upholstery: THREE.BufferGeometry; champagne: THREE.BufferGeometry; card: THREE.BufferGeometry;
   /** Door centre x offsets (train centre = 0), measured from the door-leaf geometry itself (one per door). */
   doorCentres: number[];
+  /** The door offsets the geometry was built from (doorOffsets() at build time). */
+  doorOffsets: number[];
 }
 
 const WARM_STRIP: RGB = [1.0, 0.56, 0.27];      // ~3500 K
@@ -414,7 +416,7 @@ export function getTrainGeometry(): TrainGeometry {
   cached = {
     body: body.build(), glass: glass.build(), doorFrame: doorFrame.build(), doorGlass: dg, lights: lights.build(),
     stripe: stripe.build(), underframe: under.build(), upholstery: uph.build(), champagne: champ.build(), card: card.build(),
-    doorCentres,
+    doorCentres, doorOffsets: doors.slice(),
   };
   return cached;
 }
