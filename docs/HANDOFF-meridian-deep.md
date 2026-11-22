@@ -1,5 +1,8 @@
 # Meridian Deep — Handoff
 
+> **Superseded (2026-11-22): start with the builder handoff package in [`docs/meridian-deep-handoff/`](meridian-deep-handoff/00-START-HERE.md).**
+> It holds the current state, the design bible, engineering standards, the task-by-task plans for Phases 3–5, every ruling, and a ready-to-paste kickoff prompt (`KICKOFF-PROMPT.md`). The text below is the historical director's note from Phases 1–2.
+
 Read this first if you are picking up the metro work cold (new session, new agent, or a human).
 
 ## What it is

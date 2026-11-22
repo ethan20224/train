@@ -350,7 +350,7 @@ export const CAVERN = {
   baseFloorY: -72.5,
 } as const;
 
-/** Monolith shell (src/world/metro/shell.ts): honed limestone panels on a running grid, hewn from one block. Metres. */
+/** Monolith shell (src/world/metro/shell.ts): honed limestone panels on a STACK-BOND grid (aligned joints), hewn from one block. Metres. */
 export const SHELL = {
   panelW: 3.0, panelH: 1.5, gap: 0.012, proud: 0.05,
   /** The plinth steps back this far behind the panel face (a shadow line under the wall). */
