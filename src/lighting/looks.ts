@@ -106,6 +106,7 @@ export class DepthLook {
     this.godRayBase = postfx.godRays.intensity;
     this.airlock = new Airlock(d.camera.position.y);
     this.applyZone(this.airlock.zone);
+    this.update(d.camera.position.y);
   }
 
   /** Per displayed frame, after the camera moved. */
@@ -116,6 +117,7 @@ export class DepthLook {
     const w = sunWeights(camY);
     this.sun.intensity = this.airlock.zone === 'surface' ? this.sunSurface * w.surface : DEEP_SUN.intensity * w.deep;
     this.d.postfx.godRays.intensity = this.godRayBase * w.surface;
+    this.d.postfx.setGodRaysEnabled(this.godRaysAllowed && this.airlock.zone === 'surface' && w.surface > 0);
     for (const { light, base } of this.dimmable) light.intensity = base * (1 - this.factor);
   }
 
@@ -161,48 +163,76 @@ export class DepthLook {
   /**
    * One-time metro environments, each a 256 cube captured with a full try/finally (no leaked state):
    * deep (deep state + deep sun, two bounces) -> deep materials + SH; void (surface state, from the void) -> void materials.
-   * Then compiles every metro program up front so no first-use shader compile hitches mid-descent.
+   * Then compiles every metro program up front for PostFX's linear HDR input buffer so no first-use shader compile hitches mid-descent.
    */
   async captureMetro(): Promise<void> {
-    const { metroRoot } = this.d;
+    const { renderer, scene, camera, metroRoot } = this.d;
     // Materials shared with the hall (library instances such as floorMarble) must never take a metro env map.
     const hallMats = new Set<THREE.Material>();
-    this.d.scene.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p === metroRoot) return;
-      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) hallMats.add(m);
-    });
+    const collectHallMats = (o: THREE.Object3D): void => {
+      if (o === metroRoot) return;
+      const mat = (o as { material?: THREE.Material | THREE.Material[] }).material;
+      if (mat) {
+        for (const m of Array.isArray(mat) ? mat : [mat]) if (m) hallMats.add(m);
+      }
+      for (const c of o.children) collectHallMats(c);
+    };
+    collectHallMats(scene);
     const pick = (key: string): THREE.MeshStandardMaterial[] => {
-      const all = (metroRoot.userData[key] ?? []) as THREE.MeshStandardMaterial[];
-      const kept = all.filter((m) => !hallMats.has(m));
+      const all = (metroRoot.userData[key] ?? []) as THREE.Material[];
+      const seen = new Set<THREE.MeshStandardMaterial>();
+      for (const m of all) {
+        if ((m as THREE.MeshStandardMaterial | null | undefined)?.isMeshStandardMaterial === true && !hallMats.has(m)) {
+          seen.add(m as THREE.MeshStandardMaterial);
+        }
+      }
+      const kept = [...seen];
       if (kept.length === 0) console.warn(`DepthLook: ${key} is empty after excluding hall-shared materials (${all.length} listed)`);
       return kept;
     };
     const deepMats = pick('deepMaterials');
     const voidMats = pick('voidMaterials');
-    const deepSH = await this.captureEnv('deep', DEEP_LOOK.capture, deepMats, true);
-    if (deepSH) this.deepSH = deepSH;
-    await this.captureEnv('surface', VOID_LOOK.capture, voidMats, false);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    try {
+      const deepSH = await this.captureEnv('deep', DEEP_LOOK.capture, deepMats, true, pmrem);
+      if (deepSH) {
+        this.deepSH = deepSH;
+        this.update(camera.position.y);
+      }
+      await this.captureEnv('surface', VOID_LOOK.capture, voidMats, false, pmrem);
+    } finally {
+      pmrem.dispose();
+    }
     await this.precompile();
   }
 
   private async captureEnv(
-    zone: Zone, at: readonly [number, number, number], mats: THREE.MeshStandardMaterial[], wantSH: boolean,
+    zone: Zone, at: readonly [number, number, number], mats: THREE.MeshStandardMaterial[], wantSH: boolean, pmrem: THREE.PMREMGenerator,
   ): Promise<THREE.SphericalHarmonics3 | null> {
+    if (mats.length === 0 && !wantSH) return null;
     const { renderer, scene, camera } = this.d;
     const saved = this.airlock.zone;
+    const savedEnv = scene.environment;
+    const savedRT = renderer.getRenderTarget();
+    const savedFace = renderer.getActiveCubeFace();
+    const savedMip = renderer.getActiveMipmapLevel();
+    const savedAutoClear = renderer.autoClear;
+    const savedXr = renderer.xr.enabled;
+    const prevEnv = mats.map((m) => m.envMap);
     const hidden: THREE.Object3D[] = [];
     let rt: THREE.WebGLCubeRenderTarget | null = null;
     let cube: THREE.CubeCamera | null = null;
-    let pmrem: THREE.PMREMGenerator | null = null;
+    let env: THREE.WebGLRenderTarget | null = null;
     let sh: THREE.SphericalHarmonics3 | null = null;
+    let committed = false;
     try {
       this.applyZone(zone);
       if (zone === 'deep') {
         this.blend(1);
         this.sun.intensity = DEEP_SUN.intensity;
-        // Surface practicals must not bleed into the deep env / SH.
+        // Surface indirects and practicals must not bleed into the deep env / SH.
+        scene.environment = null;
+        this.probe.intensity = 0;
         for (const { light } of this.dimmable) light.intensity = 0;
       } else {
         this.blend(0);
@@ -217,13 +247,15 @@ export class DepthLook {
       cube.position.set(...at);
       scene.add(cube);
       cube.updateMatrixWorld(true);
-      pmrem = new THREE.PMREMGenerator(renderer);
-      let env: THREE.WebGLRenderTarget | null = null;
-      for (let pass = 0; pass < 2; pass++) {
+      const passes = mats.length > 0 ? 2 : 1;
+      for (let pass = 0; pass < passes; pass++) {
         cube.update(renderer, scene);
-        env?.dispose();
-        env = pmrem.fromCubemap(rt.texture);
-        for (const m of mats) { m.envMap = env.texture; m.needsUpdate = true; }
+        if (mats.length > 0) {
+          const next = pmrem.fromCubemap(rt.texture);
+          for (const m of mats) { m.envMap = next.texture; m.needsUpdate = true; }
+          env?.dispose();
+          env = next;
+        }
       }
       if (wantSH) {
         try {
@@ -232,10 +264,21 @@ export class DepthLook {
           console.warn(`${zone} light probe generation failed`, e);
         }
       }
+      committed = true;
     } finally {
+      if (!committed) {
+        for (let i = 0; i < mats.length; i++) {
+          mats[i]!.envMap = prevEnv[i] ?? null;
+          mats[i]!.needsUpdate = true;
+        }
+        env?.dispose();
+      }
       if (cube) scene.remove(cube);
-      pmrem?.dispose();
       rt?.dispose();
+      scene.environment = savedEnv;
+      renderer.setRenderTarget(savedRT, savedFace, savedMip);
+      renderer.autoClear = savedAutoClear;
+      renderer.xr.enabled = savedXr;
       for (const o of hidden) o.visible = true;
       this.applyZone(saved);
       this.update(camera.position.y);
@@ -243,18 +286,17 @@ export class DepthLook {
     return sh;
   }
 
-  /** Compiles the programs of both zones (surface state, then deep state, so deep-only variants exist), then restores. */
+  /** Compiles every program in the scene for PostFX's linear HDR input buffer, then restores the render target. */
   private async precompile(): Promise<void> {
-    const { renderer, scene, camera } = this.d;
-    const saved = this.airlock.zone;
+    const { renderer, scene, camera, postfx } = this.d;
+    const savedRT = renderer.getRenderTarget();
+    const savedFace = renderer.getActiveCubeFace();
+    const savedMip = renderer.getActiveMipmapLevel();
     try {
-      for (const z of ['surface', 'deep'] as const) {
-        this.applyZone(z);
-        await renderer.compileAsync(scene, camera);
-      }
+      renderer.setRenderTarget(postfx.composer.inputBuffer);
+      await renderer.compileAsync(scene, camera);
     } finally {
-      this.applyZone(saved);
-      this.update(camera.position.y);
+      renderer.setRenderTarget(savedRT, savedFace, savedMip);
     }
   }
 }
