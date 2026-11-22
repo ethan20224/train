@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   CAVERN, CROSS_OUTLINE, DISC, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
-  THRESHOLD, TRENCH, VESPER, WATER_WALL, DEEP_SUN,
+  THRESHOLD, TRENCH, VESPER, DEEP_SUN,
 } from '../../layoutMetro';
 
 export interface Greybox {
@@ -80,14 +80,7 @@ export function buildGreybox(): Greybox {
   const holeCaster = new THREE.Mesh(new THREE.CircleGeometry(SKY.holeR, 64), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
   holeCaster.rotation.x = -Math.PI / 2; holeCaster.position.set(cx, SKY.y - 0.2, cz); holeCaster.castShadow = true; holeCaster.userData.noCapture = true;
   D.add(sky, holeCaster);
-  for (let i = 0; i < cross.length; i++) {
-    const [x0, z0] = cross[i]!; const [x1, z1] = cross[(i + 1) % cross.length]!;
-    D.add(box(deepStone, Math.min(x0, x1) - 0.5, CAVERN.yBottom, Math.min(z0, z1) - 0.5, Math.max(x0, x1) + 0.5, SKY.y, Math.max(z0, z1) + 0.5));
-  }
-  D.add(new THREE.Mesh(slab(rectPts(CAVERN.transept.xMin, CAVERN.transept.zMin, CAVERN.transept.xMax, VESPER.floor.zMin - 1.6), [], CAVERN.baseFloorY, 0.3), darkFloor));
-  D.add(new THREE.Mesh(slab(rectPts(CAVERN.transept.xMin, VESPER.floor.zMax + 1.6, CAVERN.transept.xMax, CAVERN.transept.zMax), [], CAVERN.baseFloorY, 0.3), darkFloor));
-  D.add(new THREE.Mesh(slab(rectPts(CAVERN.nave.xMin, CAVERN.nave.zMin, CAVERN.nave.xMax, CAVERN.transept.zMin), [], CAVERN.baseFloorY, 0.3), darkFloor));
-  D.add(new THREE.Mesh(slab(rectPts(CAVERN.nave.xMin, CAVERN.transept.zMax, CAVERN.nave.xMax, CAVERN.nave.zMax), [], CAVERN.baseFloorY, 0.3), darkFloor));
+  // Cavern walls, base floor field, and west black-granite wall are built by shell.ts (P3-1).
   for (const tz of VESPER.trackZ) D.add(box(trench, CAVERN.transept.xMin, CAVERN.baseFloorY, tz - TRENCH.halfWidth, CAVERN.transept.xMax, VESPER.railY, tz + TRENCH.halfWidth));
   const fl = VESPER.floor;
   D.add(new THREE.Mesh(slab(rectPts(fl.xMin, fl.zMin, fl.xMax, fl.zMax), [
@@ -119,7 +112,6 @@ export function buildGreybox(): Greybox {
   const track = flightSlab(deepSteel, 'x', FUNICULAR.z - FUNICULAR.trackHalfWidth, FUNICULAR.z + FUNICULAR.trackHalfWidth, tx, bx, ty, by);
   const cabin = box(glass, tx, ty, FUNICULAR.z - FUNICULAR.cabinWidth / 2, tx + FUNICULAR.cabinLength, ty + FUNICULAR.cabinHeight, FUNICULAR.z + FUNICULAR.cabinWidth / 2);
   D.add(track, cabin);
-  D.add(box(std(0x0c0d0f, 0.25), WATER_WALL.x - 0.6, WATER_WALL.yMin, WATER_WALL.zMin, WATER_WALL.x, WATER_WALL.yMax, WATER_WALL.zMax));
   const map = box(new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.7, 1.8) }), MAP_WALL.xMin, MAP_WALL.yMin, MAP_WALL.z, MAP_WALL.xMax, MAP_WALL.yMax, MAP_WALL.z + 0.1);
   map.userData.noShadow = true; D.add(map);
   const deepImpostor = new THREE.Mesh(new THREE.CircleGeometry(SKY.holeR, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.7, 3.2), fog: false }));

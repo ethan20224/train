@@ -1,7 +1,7 @@
 // Geometry invariants of the Meridian Deep layout (spec §2). Run: npm run metro-layout-test
 import assert from 'node:assert/strict';
 import {
-  CAVERN, DISC, ESCALATOR, FLIGHTS, FUNICULAR, HALCYON, LANDINGS, LIFTS, MERIDIAN, METRO_TRAIN, OCULUS, PSD, SKY,
+  CAVERN, DISC, ESCALATOR, FLIGHTS, FUNICULAR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, METRO_TRAIN, OCULUS, PORTAL, PSD, SHELL, SKY,
   THRESHOLD, THROAT, VESPER, escalatorUnits, voidRadiusAt,
 } from '../src/layoutMetro';
 import { GATES, KIOSK } from '../src/layout';
@@ -128,6 +128,20 @@ test('levels stack without collisions', () => {
   assert.ok(HALCYON.railY + METRO_TRAIN.height + 1.5 <= VESPER.railY - 1.4, 'Halcyon trains under the Vesper trench');
   assert.ok(MERIDIAN.island.xMax - PSD.inset + METRO_TRAIN.width / 2 <= MERIDIAN.trackX[1] + 0.1, 'Meridian track offset');
   assert.ok(CAVERN.nave.xMax >= MERIDIAN.trackX[1] + METRO_TRAIN.width / 2 + 2, 'nave wide enough');
+});
+
+test('monolith shell courses and portal bores fit cleanly', () => {
+  const plinthTop = CAVERN.baseFloorY + SHELL.plinthH;
+  const revealBot = SKY.y - SHELL.reveal;
+  assert.equal(SHELL.courses, 26);
+  assert.ok(Math.abs(SHELL.courses * SHELL.courseH - (revealBot - plinthTop)) < 1e-9, 'courses span plinth to reveal');
+  assert.equal(SHELL.stripH, 0, 'base-floor stainless strips are flush');
+  const meridianTop = MERIDIAN.railY - PORTAL.bedBelowRail + PORTAL.h;
+  assert.ok(MAP_WALL.yMin - meridianTop >= 1.0, 'Meridian south bores clear map wall');
+  const vesperBot = VESPER.railY - PORTAL.bedBelowRail;
+  assert.ok(vesperBot >= plinthTop + 0.2, 'Vesper bores sit above plinth top');
+  assert.ok(VESPER.trackZ[0] - PORTAL.w / 2 >= CAVERN.transept.zMin + 4, 'Vesper south bore inside transept');
+  assert.ok(VESPER.trackZ[1] + PORTAL.w / 2 <= CAVERN.transept.zMax - 4, 'Vesper north bore inside transept');
 });
 
 console.log(`\n${passed} metro layout checks passed`);

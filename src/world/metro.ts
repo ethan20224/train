@@ -10,8 +10,9 @@ import { buildOculus } from './metro/oculus';
 import { buildVoidShell } from './metro/void';
 import { buildDisc } from './metro/disc';
 import { buildThresholdFixtures } from './metro/gates';
+import { buildCavernShell } from './metro/shell';
 
-/** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Phase 2: greybox escalators and deep, the finished oculus and the void shell. */
+/** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Phase 3: replacing deep greybox with Monolith & Machine. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const root = new THREE.Group();
   root.name = 'metro';
@@ -22,6 +23,8 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const esc = buildEscalators(kit);
   gb.voidGroup.add(esc.voidGroup);
   gb.deepGroup.add(esc.deepGroup);
+  const shell = buildCavernShell(ctx.materials, kit);
+  gb.deepGroup.add(shell.group);
   const sinking = buildDisc(ctx.materials, kit, VESPER.topY);
   sinking.group.position.y = disc.y;
   gb.voidGroup.add(sinking.group);
@@ -35,7 +38,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     fixtures.update(dt, feet);
   });
   root.add(gb.voidGroup, gb.deepGroup, gb.deepImpostor, gb.surfaceImpostor);
-  root.userData.deepMaterials = [...gb.deepMaterials, ...esc.deepMaterials];
+  root.userData.deepMaterials = [...kit.deepList, ...shell.deepMaterials, ...gb.deepMaterials, ...esc.deepMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
   gb.voidGroup.traverse((o) => {
     const mat = (o as THREE.Mesh).material;

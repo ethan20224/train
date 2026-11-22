@@ -201,6 +201,81 @@ function makeBrushedRoughness(renderer: THREE.WebGLRenderer): THREE.CanvasTextur
   return finish(c, renderer, false);
 }
 
+/**
+ * Honed pale architectural limestone for the 2035 cavern (zero painted ashlar/brick lines — all joints come from
+ * geometry). Subtle warm-neutral mineral clouding, faint sedimentary strata, and fine calcareous pore grain so it
+ * reads as cut stone up close and monumental calm planes at range.
+ */
+function makeHonedLimestone(renderer: THREE.WebGLRenderer): {
+  map: THREE.CanvasTexture; roughnessMap: THREE.CanvasTexture; normalMap: THREE.CanvasTexture;
+} {
+  const S = 512;
+  const [cA, gA] = makeCanvas(S, S);
+  const [cR, gR] = makeCanvas(S, S);
+  const [cN, gN] = makeCanvas(S, S);
+  const imgA = gA.createImageData(S, S);
+  const imgR = gR.createImageData(S, S);
+  const imgN = gN.createImageData(S, S);
+  const n1 = periodicNoise(61), n2 = periodicNoise(73), n3 = periodicNoise(89);
+  const height = new Float32Array(S * S);
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const u = x / S, v = y / S;
+      // Broad soft mineral clouding + very faint horizontal sedimentary bedding
+      const broad = 0.55 * n1(u * 4, v * 4, 4, 4) + 0.30 * n2(u * 8, v * 12, 8, 12) + 0.15 * n1(u * 16, v * 24, 16, 24);
+      const bed = n2(u * 3, v * 18, 3, 18);
+      // Fine calcareous mineral grain + sparse micro-pores
+      const grain = n3(u * 64, v * 64, 64, 64) * 0.65 + n1(u * 128, v * 128, 128, 128) * 0.35;
+      const poreRaw = n2(u * 96, v * 96, 96, 96);
+      const pore = poreRaw > 0.86 ? (poreRaw - 0.86) / 0.14 : 0;
+
+      const h = broad * 0.45 + bed * 0.2 + grain * 0.35 - pore * 0.55;
+      height[y * S + x] = h;
+
+      // Pale honed limestone albedo (warm-neutral off-white, tight low contrast so walls read calm)
+      const lum = 0.89 + (broad - 0.5) * 0.065 + (bed - 0.5) * 0.03 + (grain - 0.5) * 0.035 - pore * 0.05;
+      const r = Math.min(1, Math.max(0, lum * 1.005));
+      const g = Math.min(1, Math.max(0, lum * 0.992));
+      const b = Math.min(1, Math.max(0, lum * 0.968));
+      const idx = (y * S + x) * 4;
+      imgA.data[idx] = Math.round(r * 255);
+      imgA.data[idx + 1] = Math.round(g * 255);
+      imgA.data[idx + 2] = Math.round(b * 255);
+      imgA.data[idx + 3] = 255;
+
+      // Matte mineral roughness (0.50 .. 0.66)
+      const rough = Math.min(1, Math.max(0, 0.54 + (0.5 - broad) * 0.08 + (grain - 0.5) * 0.08 + pore * 0.12));
+      const rb = Math.round(rough * 255);
+      imgR.data[idx] = rb; imgR.data[idx + 1] = rb; imgR.data[idx + 2] = rb; imgR.data[idx + 3] = 255;
+    }
+  }
+  // Subtle micro-grain normal map from finite differences on `height`
+  const strength = 1.6;
+  for (let y = 0; y < S; y++) {
+    const ym = (y - 1 + S) % S, yp = (y + 1) % S;
+    for (let x = 0; x < S; x++) {
+      const xm = (x - 1 + S) % S, xp = (x + 1) % S;
+      const dx = (height[y * S + xp]! - height[y * S + xm]!) * strength;
+      const dy = (height[yp * S + x]! - height[ym * S + x]!) * strength;
+      const inv = 1 / Math.hypot(dx, dy, 1);
+      const idx = (y * S + x) * 4;
+      imgN.data[idx] = Math.round((-dx * inv * 0.5 + 0.5) * 255);
+      imgN.data[idx + 1] = Math.round((-dy * inv * 0.5 + 0.5) * 255);
+      imgN.data[idx + 2] = Math.round((inv * 0.5 + 0.5) * 255);
+      imgN.data[idx + 3] = 255;
+    }
+  }
+  gA.putImageData(imgA, 0, 0);
+  gR.putImageData(imgR, 0, 0);
+  gN.putImageData(imgN, 0, 0);
+  return {
+    map: finish(cA, renderer, true),
+    roughnessMap: finish(cR, renderer, false),
+    normalMap: finish(cN, renderer, false),
+  };
+}
+
 // --- light colour ------------------------------------------------------------------------------------------------
 
 /** Linear-sRGB-ish colour of a blackbody (Tanner Helland fit), normalised so the brightest channel is `peak`. */
@@ -238,8 +313,9 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
   const veins = makeOnyxVeins(renderer);
   const terrazzoMap = makeTerrazzo(renderer);
   const brushed = makeBrushedRoughness(renderer);
+  const honedMaps = makeHonedLimestone(renderer);
   const mip = 4 / 3 / (1024 * 1024);
-  const proceduralTextureMB = (512 * 512 * 4 + 1024 * 1024 * 4 + 512 * 512 * 4) * mip;
+  const proceduralTextureMB = (512 * 512 * 4 * 5 + 1024 * 1024 * 4) * mip;
 
   const emissive = {
     warmStrip: new THREE.MeshBasicMaterial({ name: 'metroWarmStrip', color: hdrFromKelvin(3500, 3.0) }),
@@ -298,7 +374,19 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
   const voidSet = build();
   for (const m of lit(voidSet)) excludeDirectionalLight(m);
   const deepSet = build();
+  // Deep cavern honed limestone uses the clean procedural mineral maps (no 1910 running-bond ashlar mortar lines).
+  deepSet.honedLimestone = new THREE.MeshStandardMaterial({
+    name: 'metroDeepHonedLimestone',
+    color: 0xfdfaf4,
+    map: honedMaps.map,
+    roughnessMap: honedMaps.roughnessMap,
+    normalMap: honedMaps.normalMap,
+    normalScale: new THREE.Vector2(0.35, 0.35),
+    roughness: 1.0,
+    metalness: 0,
+  });
   for (const m of lit(deepSet)) m.name = m.name.replace('metro', 'metroDeep');
+  deepSet.honedLimestone.name = 'metroDeepHonedLimestone';
   voidSet.emissive = emissive;
   // separate instances: deep materials are mutated per depth look, the void ones must not be touched
   deepSet.emissive = { warmStrip: emissive.warmStrip.clone(), coolRing: emissive.coolRing.clone() };

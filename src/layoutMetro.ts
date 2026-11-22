@@ -350,25 +350,34 @@ export const CAVERN = {
   baseFloorY: -72.5,
 } as const;
 
+const SHELL_PLINTH_H = 0.45;
+const SHELL_REVEAL = 0.4;
+const SHELL_PANEL_H_NOMINAL = 1.5;
+const SHELL_WALL_H = (SKY.y - SHELL_REVEAL) - (CAVERN.baseFloorY + SHELL_PLINTH_H); // 39.65 m
+const SHELL_COURSES = Math.round(SHELL_WALL_H / SHELL_PANEL_H_NOMINAL); // 26
+
 /** Monolith shell (src/world/metro/shell.ts): honed limestone panels on a STACK-BOND grid (aligned joints), hewn from one block. Metres. */
 export const SHELL = {
-  panelW: 3.0, panelH: 1.5, gap: 0.012, proud: 0.05,
-  /** The plinth steps back this far behind the panel face (a shadow line under the wall). */
-  plinthRecess: 0.3,
-  /** Open band between the wall top and the sky plane, lit by a cool emissive strip so the sky floats. */
-  reveal: 0.4, revealSetback: 0.3,
-  /** Vertical emissive slots on the long walls: width and centre pitch. */
-  slotW: 0.12, slotPitch: 12,
+  panelW: 3.0, panelH: SHELL_PANEL_H_NOMINAL, courses: SHELL_COURSES, courseH: SHELL_WALL_H / SHELL_COURSES,
+  gap: 0.012, proud: 0.05,
+  /** Recessed plinth at the foot of every cavern wall (top at baseFloorY + plinthH = -72.05). */
+  plinthH: SHELL_PLINTH_H, plinthRecess: 0.3,
+  /** Open band between the wall top (-32.4) and the sky plane (-32.0), lit by a cool emissive strip so the sky floats. */
+  reveal: SHELL_REVEAL, revealSetback: 0.3,
+  /** 30 mm shadow-gap reveal around wall openings; no vertical joint may fall within minOpeningJointClear of an opening edge. */
+  openingRevealGap: 0.03, minOpeningJointClear: 0.3,
+  /** Vertical emissive slots on walls >= slotMinWallLen: width, every 4th joint (12 m pitch), min clearance from openings/corners. */
+  slotW: 0.12, slotPitch: 12, slotJointStride: 4, slotMinWallLen: 30, minSlotOpeningClear: 1.5,
   /** Re-entrant corners are cut at 45 degrees; each leg is this long. */
   chamfer: 0.6,
   /** Tunnel mouth depth shown behind each portal opening (dark liner until P3-6). */
   portalLiner: 4.0,
-  /** Base floor field: brass division strip pitch, width and height above the terrazzo. */
-  floorGrid: 3.0, brassW: 0.06, brassH: 0.02,
+  /** Base floor field: flush brushed-stainless division strip pitch, width and height (0 = flush inlay; no brass in cavern). */
+  floorGrid: 3.0, stripW: 0.06, stripH: 0,
 } as const;
 
-/** Portal openings in the end walls (clear size). Meridian: nave end walls at x = MERIDIAN.trackX; Vesper: transept end walls at z = VESPER.trackZ. */
-export const PORTAL = { w: 5.0, h: 5.5 } as const;
+/** Portal openings in the end walls (clear size). Bottom at track bed (railY - bedBelowRail). */
+export const PORTAL = { w: 5.0, h: 5.5, bedBelowRail: 0.6 } as const;
 
 /** Cross plan outline (x, z), counter-clockwise seen from above. */
 export const CROSS_OUTLINE: ReadonlyArray<readonly [number, number]> = [
