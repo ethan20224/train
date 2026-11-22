@@ -19,10 +19,10 @@ This project pins **three 0.186.1**, **postprocessing 6.39.5** and **n8ao 2.0.1*
 - **Before using any three.js / postprocessing API or shader chunk you haven't seen in this repo, open it in `node_modules`** and confirm the name, signature and behaviour:
   - shader chunks: `node_modules/three/src/renderers/shaders/ShaderChunk/*.glsl.js`
   - lights: `node_modules/three/src/renderers/webgl/WebGLLights.js`
-  - postprocessing typings: `node_modules/postprocessing/types/index.d.ts`
+  - postprocessing typings: `node_modules/postprocessing/build/types/index.d.ts`
 - **Copy the patterns already in this codebase** instead of patterns from memory. They are proven against these exact versions.
 - **Version facts already verified here:**
-  - `THREE.PCFSoftShadowMap` is deprecated in r186; the code uses `PCFShadowMap` (`src/main.ts`).
+  - `THREE.PCFSoftShadowMap` has been **removed** in r186 (three warns and falls back to `PCFShadowMap`, `WebGLShadowMap.js`); the code uses `PCFShadowMap` (`src/main.ts:108`).
   - `lights_fragment_begin` has separate `NUM_DIR_LIGHTS` and `NUM_SUN_LIGHTS` blocks. A `DirectionalLight` uses the **DIR** block (`src/lighting/sunMask.ts` strips exactly that block and throws if the chunk changes).
   - postprocessing: `BloomEffect.luminanceMaterial.threshold` exists. A custom `Effect` with the default `BlendFunction.NORMAL` does **not** remove NaN (it mixes); use `BlendFunction.SRC` for pass-through replacement (`NanGuardEffect` in `src/lighting/grade.ts`).
   - The renderer uses `NoToneMapping`; tone mapping and the colour grade happen in post (`src/core/postfx.ts`). Emissive HDR values > 1 are expected and bloom.

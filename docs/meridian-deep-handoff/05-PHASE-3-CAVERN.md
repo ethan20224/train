@@ -56,9 +56,9 @@
 - **Plinth:** 0.45 m high, recessed 0.3 m (`SHELL.plinthRecess`), same stone, at the base of every wall.
 - **Sky reveal:** a 0.4 m open band (`SHELL.reveal`, y −32.4…−32.0) between the wall top and the sky plane, set back 0.3 m (`SHELL.revealSetback`). It holds a continuous cool emissive strip (`kit.deep.emissive.coolRing`) so **the sky floats off the walls**.
 - **Light slots:** vertical 0.12 m slots (`SHELL.slotW`), recessed channels with a cool emissive strip, flush, from the plinth top to the reveal.
-  - Every wall face **≥ 30 m long** gets them, on every 4th vertical joint counted from that wall's centre line (12 m pitch).
-  - Skip any slot that would fall within 1.5 m of an opening, the map-wall zone or a corner.
-  - (The 40 m end walls carry the portals, water wall, onyx wall and map wall, so in practice the slots land on the long arm walls.)
+  - Every **long arm wall** (the walls parallel to each arm's axis, 33–40 m) gets them, on every 4th vertical joint counted from that wall's centre line (12 m pitch).
+  - **No slots on the four 40 m end walls** (z 20, z 128, x −60, x +60): those belong to the bores, the map wall, the water wall and the onyx wall.
+  - Skip any slot that would fall within 1.5 m of an opening or a corner.
 - **Re-entrant corners** of the cross: 45° chamfers with 0.6 m legs (`SHELL.chamfer`). Panels return cleanly onto the chamfer.
 - **Portal bores** (frames and tunnels come in P3-6): there are **12 single-track bores**, because two tracks 13–23 m apart can't share one mouth. Cut them now, each clear 5.0 × 5.5 m (`PORTAL`), bottom at the track bed (rail − 0.6), centred on its track:
   - Meridian: north end wall z 128 and south end wall z 20, each at x −10.55 and x +10.55, rail −47.1 (4 bores).
@@ -121,7 +121,7 @@ Compare against `now-01` (before) and the Design Bible.
 - **Presets:**
   - new `sun`: from the Crossing floor looking toward the sun, disc in frame.
   - new `skyride`: riding F4 at about y −33, looking forward and down as you emerge through the hole.
-  - **re-frame `skyhole`:** from the floor east of the bridge, about (16, −68.3, 70), target (0, −32, 74), so the eclipse with flights descending out of it is the subject; see `now-02` for what's wrong now.
+  - **re-frame `skyhole`:** from the Crossing floor far enough east that the bridge girder (x ≤ 12.3, underside −47.5) can't hide the hole: about (32, −68.3, 74), target (0, −32, 74). Check the arithmetic: the ray from camera to hole centre must pass outside x 12.3 at y −47.5. The eclipse with flights descending out of it is the subject; see `now-02` for what's wrong now (the bridge underside fills the frame). Verify with a shot, with and without a Meridian train stopped.
 
 **Acceptance (`p3-2`: `sun skyride skyhole crossing glassup`):**
 - indistinguishable from real sky seen through a ceiling
@@ -220,7 +220,8 @@ New preset `floor`: standing near the disc landing looking along the transept wi
 - **Diagonal hall** (centre (−20, 74), axis (√½, √½), hall half-width 10, island half-length 45, half-width 5, top −82, rail −83.1, tracks ±6.55 perpendicular). It is an **enclosed volume below the base floor**. Its ends reach beyond the cavern outline, under solid rock, so nothing of it is visible from the cavern except through the glass panel and the F6 and lift openings.
   - **Hall length:** ±(45 + `HALCYON.portalExtra`) = ±55 m along the axis. The end walls carry the two bores per end (P3-6).
   - Honed limestone walls on the same stack grid, with two continuous horizontal cool light slots at 2.4 m and 6.0 m above the platform.
-  - **Ceiling:** one level at **y −73.5** along the whole hall (8.5 m above the platform; 1 m of structure under the base floor at −72.5 and under the Crossing floor slab). Build it as a smooth pale soffit with shallow 3 × 3 m coffers aligned to the hall axis, cut for the F6 opening and the two lift tubes.
+  - **Ceiling:** one level at **y −73.5** along the whole hall (8.5 m above the platform; 1 m of structure under the base floor at −72.5, 2 m under the Crossing floor slab, whose underside is −71.5). Build it as a smooth pale soffit with shallow 3 × 3 m coffers aligned to the hall axis. (The lift tubes fall inside the light well, so they need no separate cut.)
+  - **F6 enters through the hall's north-west long wall, not the ceiling.** Most of F6's run lies outside the 20 m hall. Build a lined escalator cutting: a honed-limestone inclined passage on the stack grid, with a cool cove along each side, from the Crossing floor opening down to a clean framed opening in the hall wall (30 mm shadow-gap reveal, stainless frame). Compute where F6 pierces the wall (about y −72.8 to −74.9) and size the opening with ≥ 2.3 m rider headroom.
   - **Light well:** under the glass panel (the `GLASS_FLOOR` rectangle), the ceiling opens into a rectangular well rising from −73.5 to the glass underside, lined in honed limestone on the stack grid. Daylight falls through it onto the platform.
   - **Corner shelves:** the panel rectangle overhangs the 20 m-wide diagonal hall at two corners. There the well's floor forms two **light shelves** at −73.5: honed limestone, each with a concealed cool linear light along its edge that grazes down the hall wall below. Looking down through the glass, they read as deliberate lit ledges.
   - Floor: terrazzo with oxblood inlays.
@@ -248,7 +249,7 @@ New preset `floor`: standing near the disc landing looking along the transept wi
 - **Frame:** a precise brushed stainless reveal 0.3 m deep around the 5.0 × 5.5 m opening, with a 30 mm shadow gap to the wall.
 - **Tunnel:**
   - **Lining:** a horseshoe-section dark charcoal lining, darkening with distance in the shader (deep fog is too light to hide it), ending in a black cap. **No visible end, ever.**
-    - **Length:** longer than the farthest point any train occupies inside the tunnel, plus 10 m: `portalIn + spawnClearance + METRO_TRAIN.length + 10`. Compute it from the constants (today that is about 342 m). Never use a literal 300 m: trains spawn about 250 m in and extend to about 331 m.
+    - **Length, measured from the bore mouth:** the farthest point any train occupies inside the tunnel, plus 10 m: `TIMING.spawnClearance + METRO_TRAIN.length + 10` = 341.5 m today, for all 12 bores. Compute it from the constants, never a literal. A spawning train's nose is 250 m in and its tail 331.5 m; a departing train despawns at the same distance beyond `portalOut`.
   - **Ring segments:** every 6 m along the lining, one instanced emissive mesh for all 12 bores. Each instance carries (bore index, segment index) as an instance attribute.
     - Intensities live in **one `DataTexture`** (segments × 12 bores, `RedFormat`, `HalfFloatType`, `NearestFilter`). Update its data in place and set `needsUpdate` only when it changed.
     - Phase 4 drives it: arrival waves in each track's `portalIn` bore, departure wakes in its `portalOut` bore.
@@ -338,22 +339,22 @@ New preset `floor`: standing near the disc landing looking along the transept wi
 **Files:** new `src/metro/funicular.ts` (logic + tests), new `src/world/metro/funicularView.ts`, runtime, presets.
 
 **Logic:**
-- **Track and stops:** `FUNICULAR.top`/`bottom` ((18, −30) → (58, −70), z 74) are the **rail ends**.
-  - The cabin's level floor is a rect, 2.4 m (z) × the cabin's horizontal footprint (x).
-  - It stops so its floor is flush with the landing: on the Threshold deck at the top; at −70 with its east end 0.6 m short of x 58 at the bottom.
-  - Add `FUNICULAR.stopInset` (horizontal distance from each rail end to the cabin-floor centre at the stop) to `layoutMetro.ts`, computed so both stops are flush.
-  - The cabin body is stepped so its floor stays level along the whole 45° run.
-- **Doors:** both long sides (±z) open at each station. Each station has a landing on both sides of the track, with a connector, guarded by fixed glass screens with sliding gates (the screen-door system, `psd.ts`) that open only when the cabin is docked.
-- **Bottom station on the Crossing floor** (x about 50–58, around z 74):
-  - The rail lands in a 3 m-wide pit in the floor (z 74 ± 1.5) so the cabin floor arrives flush at −70.
-  - The pit is a navigation hole, closed by the station screens.
-  - Under the inclined track wherever its underside is less than 2.3 m above the floor, add a glass guard plus a navigation obstacle, so nobody walks into the slab. The escalator-foot trap (`03` §2.6) has a cousin here: test it.
-  - The floor-edge balustrade at x 58 (P3-4) is open only behind the station.
+- **Geometry (re-derived; the greybox `FUNICULAR.top`/`bottom` don't work, ruling 37):**
+  - A level 4 m cabin floor on an inclined rail always needs about 4–5 m of clear depth under its downhill end. At the top, the sky slot gives that. At the bottom, (58, −70) is 2 m from the onyx wall, so there is no room.
+  - **Top stop:** the cabin floor flush at −30, its west end 0.3 m outside the Threshold deck's outer edge (r 20 → x ≈ 20.3 at z 74). The rider steps across onto the deck. **The approved deck is not cut or changed.**
+  - **Bottom stop:** the cabin floor flush at −70, its east end at x ≤ 57.4, so the whole cabin is over the Crossing floor.
+  - **Slope:** the rail runs under the cabin floor's west end at both stops, so its run is (bottom west end − top west end) for a 40 m drop. That's about 50°, not 45°. Compute it, and put the new rail ends, slope and `stopInset` in `FUNICULAR` (layout).
+  - **Bottom pit:** under the cabin at the bottom stop, the rail continues down to a buffer in a pit about 5 m deep (as deep as the slope × cabin length + chassis). The pit is the cabin's footprint plus 0.3 m. It's a navigation hole, closed by the station screens.
+  - **Sky slot:** recompute `FUNICULAR.skySlot` from the cabin's **swept volume** crossing y −32: the cabin length plus height ÷ tan(slope), plus 0.3 m clearance at each end (≈ 6.5 m long, not today's 3.5 m).
+  - Write a Node test for this geometry: the rail is never above the cabin floor; the cabin never intersects the deck, the sky plane or the floor outside the slot and pit; both stops are flush.
+- **Cabin:** level floor (a rect carried like the disc), body a level glass box on a wedge-shaped chassis. Doors on both long sides (±z).
+- **Stations:** a landing on both sides of the cabin at each stop, with connectors, guarded by fixed glass screens with sliding gates (`psd.ts`) that open only when the cabin is docked.
+- **Under the incline on the Crossing floor:** wherever the rail or chassis underside is less than 2.3 m above the floor, add a glass guard plus a navigation obstacle so nobody walks into it. This is a cousin of the escalator-foot trap (`03` §2.6): test it. The floor-edge balustrade (P3-4) stays continuous; the station sits inside it.
 - **Cycle:** approach → the cabin comes. Occupied 2 s with doors closed → it departs.
 - **Arrival:** disarm after arrival like the disc (the rider steps off and on to return).
 - **Tests:** mirror the disc tests. Also: the pit and the under-track zone are never walkable, and the gates never open with no cabin docked.
 
-**View:** the cabin is a both-zone mover (`03` §2.4: `metroVoid`, sun-masked, env swapped, ≤ 4 calls). The track is split at the sky plane: the part above −32 goes in the void group, the part below in the deep group.
+**View:** the cabin is a both-zone mover (`03` §2.4: `metroVoid`, sun-masked, env swapped). Budget: cabin + upper track + top station ≤ 4 calls in the void group; the lower track and bottom station are deep-group geometry inside the deep budget. The track is split at the sky plane: the part above −32 goes in the void group, the part below in the deep group.
 - **Cabin:** glass with a slim champagne frame and a stepped level floor, on a brushed stainless rail with a rack beneath.
 - **Top station:** on the Threshold (y −30), a glass canopy.
 - **Bottom station:** at the Crossing floor's east end, in front of the onyx wall.

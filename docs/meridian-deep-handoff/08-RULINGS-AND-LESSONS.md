@@ -41,11 +41,13 @@ The original progress ledgers live in git-ignored `.superpowers/sdd/`, so they m
 29. **Lift cabins and the funicular cabin are "both-zone" movers**: in `metroVoid`, sun-masked, env map swapped at the airlock. Static tubes and track are split at the deck or sky plane — void materials alone would reflect the void in the cavern; deep materials alone would vanish from above — one small `looks.ts` addition.
 30. **Screen doors lag and lead the train doors by remapping `doors01`, with no timetable change** — the timetable is tested and stays untouched — none.
 31. **`DOOR_HALF` moves into the layout as `METRO_TRAIN.doorHalf`** (P3-3) — the screen doors depend on it — none.
-32. **Tunnel lining length is computed from the spawn distance plus the train length plus 10 m (≈ 342 m)**, and trains get a tunnel-darkness factor — otherwise trains pop pale out of a too-short tunnel — 4 sets of cloned train materials (same program, so no extra compile).
+32. **Tunnel lining length, measured from the bore mouth, is `spawnClearance + METRO_TRAIN.length + 10` = 341.5 m for all 12 bores**, and trains get a tunnel-darkness factor — otherwise trains pop pale out of a too-short tunnel — 4 sets of cloned train materials (same program, so no extra compile).
 33. **Metro perf passes count only at a final pixel ratio ≥ 1.0**; hall regression tolerance is 3 fps at the same or higher pixel ratio — auto quality can otherwise "pass" by blurring the image — stricter gates.
 34. **The deep shadow fit covers the walls as well as the floor (target ≤ 6 cm per texel)**; joints come from geometry and colour, not the shadow map — a 4 cm floor-only fit can't satisfy the wall-shadow acceptance — slightly softer floor shadows.
 35. **Droplets start at r 21 (beyond the Threshold deck) and are clipped to the cross outline**; the `droplets` preset is shot from the Meridian island — under-deck droplets would hang from the wrong surface; the Threshold view hides the field — fewer droplets at the same density.
 36. **The `metroVoid` breach is acknowledged at 31 calls**; new void additions are capped (lifts ≤ 6, funicular ≤ 4, others ≤ 2); P5-3 adds portal culling for when the oculus is in view (balcony) — whole-group culling can't help the worst preset — a few extra sub-mesh calls when visible.
+37. **Funicular geometry is re-derived** (P3-8b): top station just outside the Threshold deck edge, so the approved deck is untouched; bottom station on the Crossing floor with a pit; slope from those two stops (about 50°, not 45°); sky slot sized from the cabin's swept volume — a level 4 m cabin on a 45° rail cannot stop flush at (58, −70) in front of a wall at x 60 — a slightly steeper incline.
+38. **No light slots on the four 40 m end walls** (portals, water, onyx and map wall own them) — keeps each pair of bores composed — none.
 
 ## C. Lessons (each cost a fix round; do it right first time)
 

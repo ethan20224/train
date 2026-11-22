@@ -94,8 +94,8 @@ A shot passes only when **every** section passes. If you are unsure, it doesn't 
 
 | Gate | Evidence required |
 |---|---|
-| **Phase 3 (cavern)** | No greybox left in the cavern; every Phase 3 preset passes the §4 checklist; route test extended (lifts, funicular) passes with no frame over 50 ms; deep worst view ≤ 220 calls / ≤ 2.0 M tris; perf-presets on all deep presets ≥ 50 fps at both sizes; hall presets not worse than §5 of `01`; `docs/TASKS.md` updated; pushed |
-| **Phase 4 (metro)** | Trains run on all six tracks; doors align on every stop; light-wave, droplets and map in sync after `?timescale=20`; deep views with 4 trains ≥ 50 fps; route test dwell passes; pushed |
+| **Phase 3 (cavern)** | No greybox left in the cavern; every Phase 3 preset passes the §4 checklist; route test extended (lifts, funicular) passes with no frame over 50 ms; deep worst view ≤ 220 calls / ≤ 2.0 M tris; perf-presets on all deep presets ≥ 50 fps at both sizes **at a final pixel ratio ≥ 1.0**; hall presets within the §3 tolerance of `01` §5; `docs/TASKS.md` updated; pushed |
+| **Phase 4 (metro)** | Trains run on all six tracks; doors align on every stop; light-wave, droplets and map in sync after `?timescale=20`; deep views with 4 trains ≥ 50 fps **at a final pixel ratio ≥ 1.0**; route test dwell passes; pushed |
 | **Phase 5 (acceptance)** | Everything in `00` §4 (definition of done) |
 
 ## 8. Reporting to Ethan

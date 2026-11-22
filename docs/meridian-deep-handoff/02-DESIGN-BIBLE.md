@@ -78,7 +78,7 @@ All in `src/world/metro/materials.ts`. Use `kit.deep.*` in the cavern (receives 
 | glass | `0xe4f2ee`, opacity 0.1, roughness 0.03, faint green edge | Ultra-clear, visible only by its edges and reflections |
 | bronze / brass | `0x4d3722` / library brass | **Hall side and void stone band only.** Never as strips, trim, hardware or fittings in the cavern. The tiny brass chips inside the terrazzo aggregate are allowed: they read as warm speckle, not as brass. |
 | strata | Poly Haven `dark_rock_02`, albedo lifted ×5.6 | Geological sedimentary rock (void only) |
-| warm strip | 3500 K, HDR 3.0 | Cove / skirt / interior light |
+| warm strip | 3500 K, HDR 3.0 | Skirt / interior light. **Coves use 3200 K** (`VOID_DETAIL.lightK.cove`), not this strip colour |
 | cool ring | 4000 K, HDR 3.2 | Wall slots, rings, reveals |
 
 **Line accents** (linear RGB, `LINE_COLORS` in `src/metro/trainModel.ts`): Meridian ink blue `[0.012, 0.075, 0.62]`, Vesper jade `[0.0, 0.62, 0.27]`, Halcyon oxblood `[0.42, 0.006, 0.02]`. Use them only on:

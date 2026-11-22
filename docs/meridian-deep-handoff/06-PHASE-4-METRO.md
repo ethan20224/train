@@ -42,7 +42,7 @@
 
 - [ ] **Screen doors:**
   - Each screen-door row listens to the stopped train on its track. The pairs alongside the train's doors open **0.3 s after** the car doors start opening and finish closing **0.3 s before** them.
-  - **No timetable change needed.** `doors01` is `smooth(u)` of a linear 1.5 s ramp `u` (`timetable.ts:134`). Invert the smoothstep to recover `u`, then drive the screen doors with `smooth(clamp((u − 0.2) / 0.8, 0, 1))`, where 0.2 = 0.3 s ÷ 1.5 s. The same mapping gives the opening lag and the closing lead. Add a Node test for the mapping.
+  - **No timetable change needed.** `doors01` is `smooth(u)` of a linear 1.5 s ramp `u` (`timetable.ts:134`). Invert the smoothstep to recover `u` (inverse: `u = 0.5 − sin(asin(1 − 2·doors01) / 3)`, with the `asin` argument clamped to [−1, 1]). While opening, `u` rises 0 → 1; while closing, the timetable uses `1 − smooth(u')`, which equals `smooth(1 − u')`, so the recovered `u` falls 1 → 0. Then drive the screen doors with `smooth(clamp((u − 0.2) / 0.8, 0, 1))`, where 0.2 = 0.3 s ÷ 1.5 s. The same mapping gives the opening lag and the closing lead. Add a Node test for the mapping.
   - Door centres come from `doorOffsets()`; the train's door aperture is `METRO_TRAIN.doorHalf` 0.72 → 1.44 m (moved into the layout in P3-3).
   - Pairs with no train door alongside stay shut.
 - [ ] **Light-wave (the bores' wave `DataTexture`):**

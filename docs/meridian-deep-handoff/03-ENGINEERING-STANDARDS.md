@@ -137,7 +137,7 @@ New materials must be compiled at boot, not on first view. A first-view compile 
 | Trains | ≤ 10 draw calls and ≤ 60 k triangles per train near; ≤ 4 present; LOD beyond 120 m |
 | Droplets | ≤ 2 draw calls total |
 | Map wall | ≤ 4 draw calls |
-| `metroVoid` group (seen from the hall) | ≤ 22 draw calls, ≤ 400 k triangles **including the oculus**. **Currently breached at 31 calls** (accepted until P5-3 culling). New additions to `metroVoid` are capped: lift cabins ≤ 6 calls in total, funicular cabin and upper track ≤ 4, anything else ≤ 2 |
+| `metroVoid` group (seen from the hall) | ≤ 22 draw calls, ≤ 400 k triangles **including the oculus**. **Currently breached at 31 calls** (accepted until P5-3 culling). New additions to `metroVoid` are capped: lift cabins ≤ 6 calls in total, funicular cabin + upper track + top station ≤ 4, anything else ≤ 2 |
 | GPU texture estimate (`?debug=1`) | ≤ 450 MB total (now about 224 MB) |
 | Per-frame JS allocations in metro code | zero |
 
