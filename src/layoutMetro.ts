@@ -424,9 +424,19 @@ export const CROSS_OUTLINE: ReadonlyArray<readonly [number, number]> = [
   [-20, 20], [20, 20], [20, 54], [60, 54], [60, 94], [20, 94], [20, 128], [-20, 128], [-20, 94], [-60, 94], [-60, 54], [-20, 54],
 ];
 
-export const METRO_TRAIN = { cars: 4, carLength: 20, gap: 0.5, length: 81.5, width: 2.9, height: 4.0, doorsPerSidePerCar: 3 } as const;
-/** Full-height platform screen doors. */
-export const PSD = { inset: 0.35, height: 2.6 } as const;
+export const METRO_TRAIN = {
+  cars: 4, carLength: 20, gap: 0.5, length: 81.5, width: 2.9, height: 4.0, doorsPerSidePerCar: 3,
+  /** Half-aperture (single leaf width) of each car doorway; shared by trainModel.ts and psd.ts (Ruling 31). */
+  doorHalf: 0.72,
+} as const;
+/** Full-height platform screen doors (src/world/metro/psd.ts). */
+export const PSD = {
+  inset: 0.35, height: 2.6, transomH: 0.25, mullionW: 0.05,
+  /** Extra clearance each side beyond METRO_TRAIN.doorHalf so clear aperture >= train opening + 0.1 m (1.56 m). */
+  doorHalfPad: 0.06,
+  /** Perpendicular distance from track centre to the screen-door line (platform edge 1.55 + inset 0.35). */
+  trackToDoorLine: 1.9,
+} as const;
 
 export const MERIDIAN = {
   island: { xMin: -9, xMax: 9, zMin: 29, zMax: 119 } as Rect,
@@ -440,6 +450,14 @@ export const MERIDIAN = {
   railDeckHalfWidth: 12.3,
   /** F4 body is too low over the deck here: not walkable beneath it. */
   f4FootprintZ: [52.11, 58.0] as const,
+  /** Bridge engineering details (P3-3): expansion gap at nave end walls, hanger rhythm/dimensions, inlay offset. */
+  expansionGap: 0.05,
+  hangerPitch: 9.0,
+  hangerX: 12.22,
+  hangerRodR: 0.015,
+  rosetteR: 0.125,
+  inlayOffset: 0.5,
+  inlayWidth: 0.08,
 } as const;
 
 export const VESPER = {

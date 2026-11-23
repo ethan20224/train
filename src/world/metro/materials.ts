@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { MaterialLibrary } from '../../core/types';
+import { VOID_DETAIL } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
 
 /**
@@ -38,8 +39,10 @@ export interface MetroMaterialSet {
   bronze: THREE.MeshStandardMaterial;
   /** Library brass. */
   brass: THREE.MeshStandardMaterial;
-  /** HDR light strips: warm-white 3500 K strip (~3.0) and cool-white 4000 K ring (~3.2). */
-  emissive: { warmStrip: THREE.MeshBasicMaterial; coolRing: THREE.MeshBasicMaterial };
+  /** Architectural white-painted structural steel (Meridian bridge box girder, deep structure). */
+  whiteSteel: THREE.MeshStandardMaterial;
+  /** HDR light strips: 3500 K warm strip (skirts/interiors), 3200 K cove strip (deck soffits, Ruling 28), 4000 K cool ring. */
+  emissive: { warmStrip: THREE.MeshBasicMaterial; coveStrip: THREE.MeshBasicMaterial; coolRing: THREE.MeshBasicMaterial };
 }
 
 export type MetroMaterialName = Exclude<keyof MetroMaterialSet, 'emissive'>;
@@ -57,7 +60,7 @@ export interface MetroMaterials extends MetroMaterialSet {
 
 const METERS_PER_TILE: Record<MetroMaterialName, number> = {
   carvedStone: 6.0, strata: 2.0, honedLimestone: 6.0, onyx: 2.0, terrazzo: 1.5,
-  stainless: 1.0, champagne: 1.0, glass: 1.0, bronze: 1.0, brass: 1.0,
+  stainless: 1.0, champagne: 1.0, glass: 1.0, bronze: 1.0, brass: 1.0, whiteSteel: 2.0,
 };
 
 // --- procedural canvases ------------------------------------------------------------------------------------------
@@ -319,6 +322,7 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
 
   const emissive = {
     warmStrip: new THREE.MeshBasicMaterial({ name: 'metroWarmStrip', color: hdrFromKelvin(3500, 3.0) }),
+    coveStrip: new THREE.MeshBasicMaterial({ name: 'metroCoveStrip', color: hdrFromKelvin(VOID_DETAIL.lightK.cove, 3.0) }),
     coolRing: new THREE.MeshBasicMaterial({ name: 'metroCoolRing', color: hdrFromKelvin(4000, 3.2) }),
   };
 
@@ -364,11 +368,15 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
     const brass = (lib.get('brass') as THREE.MeshStandardMaterial).clone();
     brass.name = 'metroBrass';
 
-    return { carvedStone, strata, honedLimestone, onyx, terrazzo, stainless, champagne, glass, bronze, brass, emissive };
+    const whiteSteel = new THREE.MeshStandardMaterial({
+      name: 'metroWhiteSteel', color: 0xf2f1ec, roughness: 0.45, metalness: 0,
+    });
+
+    return { carvedStone, strata, honedLimestone, onyx, terrazzo, stainless, champagne, glass, bronze, brass, whiteSteel, emissive };
   };
 
   const lit = (s: MetroMaterialSet): THREE.Material[] => [
-    s.carvedStone, s.strata, s.honedLimestone, s.onyx, s.terrazzo, s.stainless, s.champagne, s.glass, s.bronze, s.brass,
+    s.carvedStone, s.strata, s.honedLimestone, s.onyx, s.terrazzo, s.stainless, s.champagne, s.glass, s.bronze, s.brass, s.whiteSteel,
   ];
 
   const voidSet = build();
@@ -387,16 +395,26 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
   });
   for (const m of lit(deepSet)) m.name = m.name.replace('metro', 'metroDeep');
   deepSet.honedLimestone.name = 'metroDeepHonedLimestone';
+  // Deep cavern terrazzo sits under direct 7.0 deep sun: tone down albedo/env like void.ts so it reads as rich dark
+  // graphite terrazzo rather than bright salt-and-pepper gravel. Void terrazzo stays untouched.
+  deepSet.terrazzo.color.setScalar(0.54);
+  deepSet.terrazzo.roughness = 0.24;
+  deepSet.terrazzo.envMapIntensity = 0.62;
   voidSet.emissive = emissive;
   // separate instances: deep materials are mutated per depth look, the void ones must not be touched
-  deepSet.emissive = { warmStrip: emissive.warmStrip.clone(), coolRing: emissive.coolRing.clone() };
+  deepSet.emissive = {
+    warmStrip: emissive.warmStrip.clone(),
+    coveStrip: emissive.coveStrip.clone(),
+    coolRing: emissive.coolRing.clone(),
+  };
   deepSet.emissive.warmStrip.name = 'metroDeepWarmStrip';
+  deepSet.emissive.coveStrip.name = 'metroDeepCoveStrip';
   deepSet.emissive.coolRing.name = 'metroDeepCoolRing';
 
   return {
     ...voidSet,
     deep: deepSet,
-    deepList: [...lit(deepSet), deepSet.emissive.warmStrip, deepSet.emissive.coolRing],
+    deepList: [...lit(deepSet), deepSet.emissive.warmStrip, deepSet.emissive.coveStrip, deepSet.emissive.coolRing],
     metersPerTile: METERS_PER_TILE,
     proceduralTextureMB,
   };

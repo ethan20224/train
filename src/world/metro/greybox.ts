@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  CAVERN, DISC, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
+  CAVERN, DISC, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, OCULUS, SKY,
   THRESHOLD, TRENCH, VESPER,
 } from '../../layoutMetro';
 
@@ -71,11 +71,7 @@ export function buildGreybox(): Greybox {
     rectPts(GLASS_FLOOR.xMin, GLASS_FLOOR.zMin, GLASS_FLOOR.xMax, GLASS_FLOOR.zMax),
   ], VESPER.topY, VESPER.slabThickness), darkFloor));
   D.add(new THREE.Mesh(slab(rectPts(GLASS_FLOOR.xMin, GLASS_FLOOR.zMin, GLASS_FLOOR.xMax, GLASS_FLOOR.zMax), LIFTS.positions.map(([x, z]) => circle(x, z, LIFTS.tubeR, 32)), VESPER.topY, 0.08), glass));
-  const isl = MERIDIAN.island;
-  D.add(new THREE.Mesh(slab(rectPts(isl.xMin, isl.zMin, isl.xMax, isl.zMax), [
-    circle(cx, cz, DISC.wellR), ...MERIDIAN.f5OpeningX.map(([a, b]) => rectPts(a, MERIDIAN.f5OpeningZ[0], b, MERIDIAN.f5OpeningZ[1])),
-  ], MERIDIAN.topY, MERIDIAN.deckThickness), deepStone));
-  D.add(box(deepSteel, -MERIDIAN.railDeckHalfWidth, MERIDIAN.railY - 0.6, isl.zMin - 9, MERIDIAN.railDeckHalfWidth, MERIDIAN.railY, isl.zMax + 9));
+  // Floating Meridian bridge, hangers, PSDs & tracks are built by meridian.ts (P3-3).
   const deepIsland = new THREE.Mesh(new THREE.BoxGeometry(HALCYON.halfLength * 2, 1.2, HALCYON.halfWidth * 2), deepStone);
   deepIsland.rotation.y = -Math.atan2(HALCYON.dir[1], HALCYON.dir[0]); deepIsland.position.set(HALCYON.centre[0], HALCYON.topY - 0.6, HALCYON.centre[1]);
   D.add(deepIsland);

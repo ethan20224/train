@@ -2,6 +2,16 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P3-3 — Floating Meridian Bridge, Platform Screen Doors & Slab Track (`p3-3/`)
+
+Chamfered white-steel box-girder bridge spanning the 108 m nave with 50 mm wall expansion gaps, warm 3200 K soffit coves along both outer edges, 6 m fascia splices & underside ribs, 22 hairline stainless tension hangers anchored flush into the buried sky, dark polished terrazzo island with flush ink-blue satin enamel inlays, ultra-clear 1.1 m glass balustrades, reusable champagne-framed full-height screen doors (`psd.ts`, white dot-matrix transoms + non-emissive line bar), and modern concrete slab tracks (`track.ts`).
+
+- **Crossing (bridge floating on hangers + warm 3200 K edge coves)** — ![crossing](p3-3/crossing.jpg)
+- **Skyhole (underside cove ribbons + disc-well collar + sky rosettes)** — ![skyhole](p3-3/skyhole.jpg)
+- **Meridian (terrazzo deck, ink-blue inlay, champagne PSDs, F4 landing)** — ![meridian](p3-3/meridian.jpg)
+- **Skyride (descending F4 onto the bridge, slab tracks entering twin bores)** — ![skyride](p3-3/skyride.jpg)
+- **Mapwall (under F4 looking south down the platform)** — ![mapwall](p3-3/mapwall.jpg)
+
 ## P3-2 — The Buried Sky (`p3-2/`)
 
 CoeLux-style "window to infinity" noon sky 32 m underground, razor-crisp SSE solar disc + tight aureole, polished stainless slot collars around lift tubes and funicular, sealed eclipse aperture lip, eclipse + slot shadow casters (`3.08 × 3.07 cm/texel` cross-prism shadow fit), and new/re-framed `sun`, `skyride`, and `skyhole` presets.
