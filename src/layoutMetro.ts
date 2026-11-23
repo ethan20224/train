@@ -682,7 +682,7 @@ export const VOID_LOOK = {
 
 export const MAP_WALL = { z: 20, xMin: -20, xMax: 20, yMin: -41, yMax: -34 } as const;
 export const WATER_WALL = { x: -60, zMin: 54, zMax: 94, yMin: -70, yMax: -34 } as const;
-export const DROPLETS = { count: 2400, rInner: 12, rOuter: 38, yTop: -33, yBottomMin: -42, bridgeExclusionHalfX: 12.5 } as const;
+export const DROPLETS = { count: 2400, rInner: 21, rOuter: 38, yTop: -33, yBottomMin: -42, bridgeExclusionHalfX: 12.5 } as const;
 
 /** Depth zones (camera eye y). */
 export const ZONES = {

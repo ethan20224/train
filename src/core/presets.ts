@@ -57,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'escalator', 'speedgates', 'disc', 'lifts', 'lift', 'twin', 'wellgate',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'droplets', 'escalator', 'speedgates', 'disc', 'lifts', 'lift', 'twin', 'wellgate',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -228,6 +228,12 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
     target: [20.0, VESPER.railY + 2.35, VESPER.trackZ[0] + 0.3],
     fov: 58,
     intent: 'On the Crossing floor beside the Vesper screen doors with a mirror train dwelling and doors open, looking along its nose, flank and open saloon toward the Meridian bridge.',
+  },
+  droplets: {
+    position: [-2.5, MERIDIAN.topY + EYE, 105.0],
+    target: [-23.0, -33.2, 74.0],
+    fov: 66,
+    intent: 'From the Meridian island near its north end looking up and outward across the champagne kinetic droplet ceiling with the buried noon sky behind it and the eclipse at the upper-right frame edge.',
   },
 };
 

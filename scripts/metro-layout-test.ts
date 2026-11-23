@@ -1,10 +1,11 @@
 // Geometry invariants of the Meridian Deep layout (spec §2). Run: npm run metro-layout-test
 import assert from 'node:assert/strict';
 import {
-  CAVERN, DISC, ESCALATOR, FLIGHTS, FUNICULAR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, METRO_TRAIN, OCULUS, PORTAL, PORTALS, PSD, SHELL, SKY,
+  CAVERN, DISC, DROPLETS, ESCALATOR, FLIGHTS, FUNICULAR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, METRO_TRAIN, OCULUS, PORTAL, PORTALS, PSD, SHELL, SKY,
   THRESHOLD, THROAT, VESPER, escalatorUnits, funicularRailTopAt, funicularRailUndersideAt, voidRadiusAt,
 } from '../src/layoutMetro';
 import { TRACKS as METRO_TRACKS, trackPoint } from '../src/metro/tracks';
+import { buildTeardropGeometry, computeDropletAnchors } from '../src/world/metro/droplets';
 import { GATES, KIOSK } from '../src/layout';
 
 let passed = 0;
@@ -199,6 +200,28 @@ test('twelve PORTALS entries align with all 6 metro tracks (portalIn and portalO
       assert.ok(Math.hypot(p!.facing[0] - tr.dir[0] * sgn, p!.facing[1] - tr.dir[1] * sgn) < 1e-6, `${tr.line} T${tr.track} ${role} facing`);
     }
   }
+});
+
+test('kinetic droplets (Ruling 35): r in [21, 38], >= 2 m clear of walls/lifts, excludes bridge & funicular, <= 2400 & <= 200 tris', () => {
+  assert.equal(DROPLETS.rInner, 21);
+  assert.equal(DROPLETS.rOuter, 38);
+  const pts = computeDropletAnchors();
+  assert.ok(pts.length >= 1200 && pts.length <= DROPLETS.count, `droplet count ${pts.length}`);
+  for (const [x, z] of pts) {
+    const r = Math.hypot(x - OCULUS.cx, z - OCULUS.cz);
+    assert.ok(r >= DROPLETS.rInner - 1e-9 && r <= DROPLETS.rOuter + 1e-9, `r=${r}`);
+    assert.ok(Math.abs(x) >= DROPLETS.bridgeExclusionHalfX - 1e-9, `bridge excl x=${x}`);
+    const inTr = x >= CAVERN.transept.xMin + 2 && x <= CAVERN.transept.xMax - 2 && z >= CAVERN.transept.zMin + 2 && z <= CAVERN.transept.zMax - 2;
+    const inNv = x >= CAVERN.nave.xMin + 2 && x <= CAVERN.nave.xMax - 2 && z >= CAVERN.nave.zMin + 2 && z <= CAVERN.nave.zMax - 2;
+    assert.ok(inTr || inNv, `wall clear (${x},${z})`);
+    for (const [lx, lz] of LIFTS.positions) assert.ok(Math.hypot(x - lx, z - lz) >= LIFTS.tubeR + 2 - 1e-9, `lift clear (${x},${z})`);
+    if (x > 16) assert.ok(Math.abs(z - FUNICULAR.z) >= 3 - 1e-9, `funicular excl (${x},${z})`);
+  }
+  const geo = buildTeardropGeometry();
+  const tris = (geo.index ? geo.index.count : geo.getAttribute('position').count) / 3;
+  assert.ok(tris <= 200 && tris >= 60, `teardrop tris=${tris}`);
+  geo.dispose();
+  console.log(`     droplets: ${pts.length} instances, ${tris} tris/droplet`);
 });
 
 console.log(`\n${passed} metro layout checks passed`);

@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import type { PresetName } from '../core/presets';
 import type { BuildContext, FrameInfo, WorldModule } from '../core/types';
-import { METRO_TRAIN, VESPER } from '../layoutMetro';
+import { METRO_TRAIN, OCULUS, PORTALS, VESPER } from '../layoutMetro';
 import { disc } from '../metro/disc';
 import { onMetroFrame } from '../metro/runtime';
 import { createTimetable, type TrainState } from '../metro/timetable';
 import { TRACKS, trackOf } from '../metro/tracks';
-import { alignedPsdDoorOpen, evaluatePortalWaves, formatTransomText, trackIndexOf } from '../metro/choreography';
+import { alignedPsdDoorOpen, evaluatePortalWaves, formatTransomText, timeToPortalMouth, trackIndexOf } from '../metro/choreography';
 import { buildMetroImpostors } from './metro/impostors';
 import { createMetroMaterials } from './metro/materials';
 import { buildEscalators } from './metro/escalators';
@@ -26,6 +26,7 @@ import { buildLiftsView } from './metro/liftsView';
 import { buildFunicularView } from './metro/funicularView';
 import { updateSensingHalo } from './metro/halo';
 import { createTrainsView } from './metro/trainsView';
+import { buildDroplets } from './metro/droplets';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Monolith & Machine cavern complete. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -55,10 +56,11 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const funicularView = buildFunicularView(ctx.materials, kit);
   const timetable = createTimetable({ seed: 42 });
   const trainsView = createTrainsView(kit);
+  const droplets = buildDroplets(kit);
   voidGroup.add(liftsView.voidGroup, funicularView.voidGroup);
   deepGroup.add(
     shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group,
-    waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object,
+    waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group,
   );
   // 6 PSD row controllers ordered identically to TRACKS [meridian0, meridian1, vesper0, vesper1, halcyon0, halcyon1]
   const psdRows = [
@@ -70,6 +72,8 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const stoppedByTrack: Array<TrainState | null> = [null, null, null, null, null, null];
   const displayByTrack: Array<TrainState | null> = [null, null, null, null, null, null];
   const waveBuf = new Float32Array(portals.boreCount * portals.segmentCount);
+  const lastPulsedIdByTrack: number[] = [-1, -1, -1, -1, -1, -1];
+  const PULSE_WEIGHT = { meridian: 1.0, vesper: 0.9, halcyon: 0.65 } as const;
   const HALF_LEN = METRO_TRAIN.length / 2;
 
   const syncPsds = (trains: readonly TrainState[]): void => {
@@ -132,6 +136,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     liftsView.update();
     funicularView.update();
     syncPortalWaves(timetable.trains(), realClock);
+    droplets.updateReal(realClock);
     waterWall.update(realClock);
     updateSensingHalo(dt, feet);
   });
@@ -141,7 +146,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     ...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...meridian.deepMaterials,
     ...crossing.deepMaterials, ...halcyon.deepMaterials, ...portals.deepMaterials,
     ...waterWall.deepMaterials, ...onyxWall.deepMaterials, ...liftsView.deepMaterials, ...funicularView.deepMaterials,
-    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials,
+    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials,
   ];
   root.userData.bothZoneMaterials = [...liftsView.bothZoneMaterials, ...funicularView.bothZoneMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
@@ -189,6 +194,17 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
       const ts = timetable.trains();
       trainsView.update(ts, f.camera.position);
       syncPsds(ts);
+      droplets.updateSim(timetable.time);
+      for (let k = 0; k < ts.length; k++) {
+        const t = ts[k]!;
+        if (t.phase !== 'approaching') continue;
+        const idx = trackIndexOf(t.line, t.track);
+        if (lastPulsedIdByTrack[idx] !== t.id && timeToPortalMouth(t) <= 6.5) {
+          lastPulsedIdByTrack[idx] = t.id;
+          const bore = PORTALS[idx * 2]!;
+          droplets.triggerPulse(bore.centre[0] - OCULUS.cx, bore.centre[2] - OCULUS.cz, timetable.time, PULSE_WEIGHT[t.line]);
+        }
+      }
     },
   };
 }

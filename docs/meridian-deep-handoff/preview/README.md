@@ -2,6 +2,19 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P4-4 — Kinetic Droplet Ceiling (`p4-4/`)
+
+Sculptural Changi "Kinetic Rain" canopy suspended beneath the buried noon sky in **2 draw calls** (`src/world/metro/droplets.ts`, Ruling 35):
+- **2,314 polished champagne teardrops** (`140 tris` lathe each, `0.22 m` tall, env-mapped `kit.deep.champagne` clone, `noShadow`) on a `0.84 m` architectural lattice in `r ∈ [21, 38]` around `(0, 74)`, clipped `≥ 2 m` clear of all cavern walls & lift tubes and cleanly excluding the Meridian bridge (`|x| < 12.5`) and funicular corridor (`|z − 74| < 3, x > 16`).
+- **2,314 gossamer hairline cables** in one merged distance-fading billboard ribbon mesh anchored at `SKY.y = −32`, sharing the exact GLSL elevation function so every cable stays locked to its moving droplet tip.
+- **Vertex-shader choreography:** slow 45 s real-time sculptural cycle smoothly morphing `wave crest → 3-arm eclipse vortex → serene calm`, plus up to 4 simulation-time arrival pulses (`uPulse[4]`) rippling outward across the canopy from each arriving train's portal.
+
+- **Droplets t = 0 s (new preset from Meridian north island — sweeping champagne canopy, sky behind & eclipse at upper-right edge)** — ![droplets-t0](p4-4/droplets-t0.jpg)
+- **Droplets t = +1 s (1 s later — liquid wave crest rolling smoothly across the left foreground)** — ![droplets-t1](p4-4/droplets-t1.jpg)
+- **Droplets t = +2 s (2 s later — graceful heavy wave motion, zero jitter)** — ![droplets-t2](p4-4/droplets-t2.jpg)
+- **Skyhole (2,314 champagne teardrops framing the eclipse and parting cleanly around the funicular sky slot)** — ![skyhole](p4-4/skyhole.jpg)
+- **Crossing (warm champagne canopy glinting in the upper-right sky pocket above the transept)** — ![crossing](p4-4/crossing.jpg)
+
 ## P4-3 — Synced Screen Doors, 12-Bore Light-Wave & Transom Displays (`p4-3/`)
 
 Arrivals are now choreographed purely by light, motion, and quiet hairline typography (`0` extra draw calls):
