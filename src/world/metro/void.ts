@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
 import {
-  ESCALATOR_BANDS, LANDINGS, LIFTS, OCULUS, ONYX_BAND, SKY, THRESHOLD, VOID, VOID_DETAIL as D, VOID_RING_FIRST_Y, lightRingYs, voidRadiusAt,
+  ESCALATOR_BANDS, FUNICULAR, LANDINGS, LIFTS, OCULUS, ONYX_BAND, SKY, THRESHOLD, VOID, VOID_DETAIL as D, VOID_RING_FIRST_Y, lightRingYs, voidRadiusAt,
   type Landing,
 } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
@@ -184,10 +184,10 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
     [RW.slotHalf, RW.proud - 0.02], [RW.slotHalf, RW.proud], [RW.halfWidth, RW.proud], [RW.halfWidth, 0],
   ];
   const STRIP: P2[] = [[RW.stripHalf, RW.proud - 0.012], [-RW.stripHalf, RW.proud - 0.012]];
-  const ringFrames = (y: number, r: number, nR: number, nUp: number, n: number): Frame[] => {
+  const ringFrames = (y: number, r: number, nR: number, nUp: number, n: number, a0 = 0, a1 = TAU): Frame[] => {
     const out: Frame[] = [];
     for (let i = 0; i <= n; i++) {
-      const phi = (i / n) * TAU;
+      const phi = a0 + ((a1 - a0) * i) / n;
       const rad = v3(Math.cos(phi), 0, Math.sin(phi));
       const b = rad.clone().multiplyScalar(nR).add(v3(0, nUp, 0)).normalize();
       const a = rad.clone().multiplyScalar(-nUp).add(v3(0, nR, 0)).normalize();
@@ -195,10 +195,15 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
     }
     return out;
   };
+  const funPortalHalfAng = Math.asin((FUNICULAR.topStation.zMax - CZ) / R0); // +-10.95 deg around +x (z 70.2..77.8)
+  const funPortalTopY = THRESHOLD.y + FUNICULAR.topStation.portalHeight; // -27.0
   /** Stainless bezel and emissive slot at height y on the surface of radius r (normal components nR, nUp). */
   const channel = (y: number, r: number, nR: number, nUp: number, era: keyof typeof stripCol, wash = true): void => {
-    const fr = ringFrames(y, r, nR, nUp, RW.segments);
-    stainless.add(sweep(ccw(BEZEL), fr, { closed: true }));
+    const cutPortal = r > R0 - 0.5 && y <= funPortalTopY + 0.1;
+    const fr = cutPortal
+      ? ringFrames(y, r, nR, nUp, RW.segments, funPortalHalfAng, TAU - funPortalHalfAng)
+      : ringFrames(y, r, nR, nUp, RW.segments);
+    stainless.add(sweep(ccw(BEZEL), fr, { closed: true, caps: cutPortal }));
     lights.add(sweep(STRIP, fr), stripCol[era]);
     if (wash) ringSrc.push({ y: y + nUp * (RW.proud - 0.012), r: r + nR * (RW.proud - 0.012), color: washCol(stripCol[era], WASH.ring) });
   };
@@ -426,13 +431,22 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
   // ---- polished era: panels --------------------------------------------------------------------
   const PO = D.polished;
   const limeSoup = new Soup();
-  const panelBand = (R: number, rows: ReadonlyArray<readonly [number, number]>, tint: readonly [number, number, number], sink: Soup): void => {
+  const panelBand = (R: number, rows: ReadonlyArray<readonly [number, number]>, tint: readonly [number, number, number], sink: Soup, cutEastPortal = false): void => {
     const N = Math.round((TAU * R) / PO.panelW);
     const gTh = PO.gap / 2 / R;
     const back = R + PO.panelThickness;
+    const pLo = funPortalHalfAng;
+    const pHi = TAU - funPortalHalfAng;
     for (const [yTop, yBot] of rows) {
+      const portalRow = cutEastPortal && yBot < funPortalTopY - 0.05;
       for (let k = 0; k < N; k++) {
-        const t0 = (k / N) * TAU, t1 = ((k + 1) / N) * TAU;
+        let t0 = (k / N) * TAU, t1 = ((k + 1) / N) * TAU;
+        if (portalRow) {
+          if (t1 <= pLo + 1e-4 || t0 >= pHi - 1e-4) continue;
+          t0 = Math.max(t0, pLo);
+          t1 = Math.min(t1, pHi);
+          if (t1 - t0 < gTh * 3) continue;
+        }
         const a = t0 + gTh, b = t1 - gTh;
         const ya = yTop - PO.gap / 2, yb = yBot + PO.gap / 2;
         const tone = 0.95 + 0.07 * rnd();
@@ -462,7 +476,7 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
   };
   const polTop = VOID.eras[2].yTop, polBottom = VOID.eras[2].yBottom;
   const onyxHi = ONYX_BAND.y + ONYX_BAND.height / 2, onyxLo = ONYX_BAND.y - ONYX_BAND.height / 2;
-  panelBand(R0, [[polTop, onyxHi], [onyxLo, onyxLo - PO.panelH], [onyxLo - PO.panelH, polBottom]], [0.93, 0.955, 1.0], limeSoup);
+  panelBand(R0, [[polTop, onyxHi], [onyxLo, onyxLo - PO.panelH], [onyxLo - PO.panelH, polBottom]], [0.93, 0.955, 1.0], limeSoup, true);
 
   // onyx band: flush ring with stainless reveals; the emissive veins are the backlight
   {

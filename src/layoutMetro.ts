@@ -367,16 +367,54 @@ export const LIFTS = {
   headY: -24,
 } as const;
 
+const FUNICULAR_TOP_WEST_X = 20.3; // 0.3 m outside Threshold outer edge (r = 20 at z = 74); approved deck uncut
+const FUNICULAR_BOT_EAST_X = 57.0; // <= 57.4 so entire 4 m cabin & pit sit inside continuous Crossing east balustrade (x = 57.94)
+const FUNICULAR_LEN = 4.0;
+const FUNICULAR_BOT_WEST_X = FUNICULAR_BOT_EAST_X - FUNICULAR_LEN; // 53.0
+const FUNICULAR_RUN_X = FUNICULAR_BOT_WEST_X - FUNICULAR_TOP_WEST_X; // 32.7 m
+const FUNICULAR_DROP_Y = 40.0; // THRESHOLD.y (-30) - VESPER.topY (-70)
+const FUNICULAR_SLOPE = FUNICULAR_DROP_Y / FUNICULAR_RUN_X; // ~1.22324 (~50.73 deg)
+const FUNICULAR_FLOOR_T = 0.18; // cabin deck thickness above inclined rail top at west edge
+const FUNICULAR_BEAM_D = 0.55;  // rail beam vertical depth below rail top
+
 export const FUNICULAR = {
-  /** [x, y] of the track ends along z = FUNICULAR.z. */
-  top: [18, -30] as readonly [number, number],
-  bottom: [58, -70] as readonly [number, number],
-  z: 74, cabinLength: 4, cabinWidth: 2.4, cabinHeight: 2.6,
-  /** Half-width (across z) of the inclined track slab. */
+  /** [x, y] of the cabin floor's west edge at top (-30) and bottom (-70) stops (Ruling 37). */
+  top: [FUNICULAR_TOP_WEST_X, -30] as readonly [number, number],
+  bottom: [FUNICULAR_BOT_WEST_X, -70] as readonly [number, number],
+  /** Exact incline slope (rise / run) and angle in radians (~50.73 deg). */
+  slope: FUNICULAR_SLOPE,
+  slopeRad: Math.atan2(FUNICULAR_DROP_Y, FUNICULAR_RUN_X),
+  floorThickness: FUNICULAR_FLOOR_T,
+  beamDepth: FUNICULAR_BEAM_D,
+  /** Horizontal inset from Crossing floor east edge (x = 58) to cabin east edge at bottom stop. */
+  stopInset: 58 - FUNICULAR_BOT_EAST_X,
+  /** Inclined rail top endpoints [x, y] running from top stop down to the bottom pit buffer beneath cabin east end. */
+  railTopEnd: [FUNICULAR_TOP_WEST_X - 0.12, -30 - FUNICULAR_FLOOR_T + FUNICULAR_SLOPE * 0.12] as readonly [number, number],
+  railBottomEnd: [FUNICULAR_BOT_EAST_X + 0.15, -70 - FUNICULAR_FLOOR_T - FUNICULAR_SLOPE * (FUNICULAR_LEN + 0.15)] as readonly [number, number],
+  z: 74, cabinLength: FUNICULAR_LEN, cabinWidth: 2.4, cabinHeight: 2.6,
+  /** Half-width (across z) of the inclined track slab/beam. */
   trackHalfWidth: 1.3,
-  /** Slot in the sky plane where the track passes through (x from xMin to xMax, z = FUNICULAR.z +- halfZ). */
-  skySlot: { xMin: 18.5, xMax: 22, halfZ: 1.6 },
+  /** Swept-volume slot in the sky plane (y = -32) clearing both cabin roof and rail underside by >= 0.34 m. */
+  skySlot: { xMin: 20.95, xMax: 28.65, halfZ: 1.6 },
+  /** Bottom pit cut into the Crossing floor beneath the bottom stop (xMin clears descending rail underside at -70). */
+  pit: { xMin: 52.15, xMax: FUNICULAR_BOT_EAST_X + 0.3, zMin: 74 - 1.5, zMax: 74 + 1.5, floorY: -76.0 },
+  /** Crossing floor under-incline guard start X: everywhere rail underside is < 2.3 m above -70 (x >= 50.52) is guarded. */
+  underTrackGuardXMin: 50.2,
+  /** Top station alcove platform outside the east Threshold drum wall (flush at -30, approved deck uncut). */
+  topStation: { xMin: 19.0, xMax: 24.8, zMin: 70.2, zMax: 77.8, portalHeight: 3.0 },
+  /** Kinematics along the incline (metres/sec). */
+  vmax: 3.0, accel: 0.7, minSpeed: 0.05, departDelay: 2.0, callRadius: 6.0, doorSeconds: 0.6,
 } as const;
+
+/** Elevation of the inclined funicular rail top at world x. */
+export function funicularRailTopAt(x: number): number {
+  return FUNICULAR.top[1] - FUNICULAR.floorThickness - FUNICULAR.slope * (x - FUNICULAR.top[0]);
+}
+
+/** Elevation of the inclined funicular rail beam underside at world x. */
+export function funicularRailUndersideAt(x: number): number {
+  return funicularRailTopAt(x) - FUNICULAR.beamDepth;
+}
 
 /** Half-width (across z) of each rail trench cut into the Crossing base floor, about VESPER.trackZ. */
 export const TRENCH = { halfWidth: 1.6 } as const;

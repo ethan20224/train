@@ -1,6 +1,6 @@
 import { PLAYER } from '../layout';
 import {
-  DISC, ESCALATOR, F3_LOW_FOOTPRINT_Z0, FLIGHTS, ESCALATOR_BANDS, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MERIDIAN, OCULUS, PSD, THRESHOLD, THROAT, VESPER, escalatorUnits,
+  DISC, ESCALATOR, F3_LOW_FOOTPRINT_Z0, FLIGHTS, ESCALATOR_BANDS, FUNICULAR, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MERIDIAN, OCULUS, PSD, THRESHOLD, THROAT, VESPER, escalatorUnits,
 } from '../layoutMetro';
 import { boundsOf, circleShape, obbShape, rectShape, type Region, type Shape } from '../player/regions';
 import { escalators } from './escalators';
@@ -56,6 +56,18 @@ export function metroStaticRegions(): Region[] {
     landing(LANDINGS.L2),
     { ...boundsOf(annulus), y: THRESHOLD.y, circle: annulus, holes: [circleShape(cx, cz, THRESHOLD.rInner + C), ...bandHoles(ESCALATOR_BANDS.outer, F3_LOW_FOOTPRINT_Z0, F3.to - 0.3), ...liftHoles()] },
     landing(LANDINGS.thresholdBridge),
+    // Funicular top station side landings outside the east Threshold drum wall (flush at -30; cabin bay cut out)
+    {
+      xMin: FUNICULAR.topStation.xMin, xMax: FUNICULAR.topStation.xMax - C,
+      zMin: FUNICULAR.topStation.zMin + C, zMax: FUNICULAR.topStation.zMax - C,
+      y: THRESHOLD.y,
+      holes: [rectShape(
+        FUNICULAR.top[0] - C,
+        FUNICULAR.top[0] + FUNICULAR.cabinLength + C,
+        FUNICULAR.pit.zMin - C,
+        FUNICULAR.pit.zMax + C,
+      )],
+    },
     {
       xMin: -doorX, xMax: doorX, zMin: isl.zMin + C, zMax: isl.zMax - C, y: MERIDIAN.topY,
       holes: [
@@ -70,6 +82,8 @@ export function metroStaticRegions(): Region[] {
         circleShape(cx, cz, DISC.wellR + C),
         ...bandHoles(inner, VESPER.f5FootprintZ[0] + 0.3, VESPER.f5FootprintZ[1]),
         rectShape(VESPER.f6OpeningX[0], VESPER.f6OpeningX[1] + C, VESPER.f6OpeningZ[0] - C, VESPER.f6OpeningZ[1] + C),
+        // Funicular bottom pit + under-incline headroom guard (< 2.3 m under rail/chassis)
+        rectShape(FUNICULAR.underTrackGuardXMin - C, FUNICULAR.pit.xMax + C, FUNICULAR.pit.zMin - C, FUNICULAR.pit.zMax + C),
         ...liftHoles(),
       ],
     },

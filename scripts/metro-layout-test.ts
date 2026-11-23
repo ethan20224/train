@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   CAVERN, DISC, ESCALATOR, FLIGHTS, FUNICULAR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, METRO_TRAIN, OCULUS, PORTAL, PORTALS, PSD, SHELL, SKY,
-  THRESHOLD, THROAT, VESPER, escalatorUnits, voidRadiusAt,
+  THRESHOLD, THROAT, VESPER, escalatorUnits, funicularRailTopAt, funicularRailUndersideAt, voidRadiusAt,
 } from '../src/layoutMetro';
 import { TRACKS as METRO_TRACKS, trackPoint } from '../src/metro/tracks';
 import { GATES, KIOSK } from '../src/layout';
@@ -114,14 +114,54 @@ test('capsule lifts: on the Threshold annulus, outside the sky hole, on the Cros
   }
 });
 
-test('funicular: top on the annulus, bottom on the floor, clear of the hole and the Meridian trains', () => {
+test('funicular (Ruling 37): ~50.7° slope, rail strictly below floor, clears deck/sky/floor outside slot & pit, both stops flush', () => {
   const [tx, ty] = FUNICULAR.top; const [bx, by] = FUNICULAR.bottom;
-  assert.ok(Math.abs(Math.abs(ty - by) / Math.abs(bx - tx) - 1) < 1e-9, '45°');
-  assert.ok(Math.hypot(tx, FUNICULAR.z - OCULUS.cz) >= THRESHOLD.rInner && ty === THRESHOLD.y, 'top on the Threshold');
-  assert.ok(bx <= VESPER.floor.xMax && by === VESPER.topY, 'bottom on the floor');
-  const xAtSky = tx + (ty - SKY.y);
-  assert.ok(Math.hypot(xAtSky, FUNICULAR.z - OCULUS.cz) >= SKY.holeR, 'pierces the sky outside the hole');
+  // Both stops flush with Threshold (-30) and Crossing (-70); top west end 0.3 m outside r=20; bottom east end <= 57.4 inside Crossing east balustrade
+  assert.equal(ty, THRESHOLD.y, 'top stop flush at -30');
+  assert.equal(by, VESPER.topY, 'bottom stop flush at -70');
+  assert.ok(tx >= THRESHOLD.rOuter + 0.25 && tx <= THRESHOLD.rOuter + 0.35, `top west end ~20.3 (got ${tx})`);
+  assert.ok(bx + FUNICULAR.cabinLength <= 57.4, `bottom east end <= 57.4 (got ${bx + FUNICULAR.cabinLength})`);
+  assert.ok(FUNICULAR.pit.xMax < VESPER.floor.xMax - 0.5, 'bottom pit strictly inside continuous east balustrade');
+  const slopeDeg = (FUNICULAR.slopeRad * 180) / Math.PI;
+  assert.ok(slopeDeg > 48 && slopeDeg < 54, `slope ~50.7 deg (got ${slopeDeg.toFixed(2)})`);
   assert.ok(tx - FUNICULAR.cabinWidth / 2 >= MERIDIAN.trackX[1] + METRO_TRAIN.width / 2 + 1, 'clear of Meridian east train');
+
+  // Sample 200 positions along the incline: verify every geometric invariant
+  const slot = FUNICULAR.skySlot;
+  const pit = FUNICULAR.pit;
+  for (let i = 0; i <= 200; i++) {
+    const t = i / 200;
+    const xw = tx + (bx - tx) * t;
+    const xe = xw + FUNICULAR.cabinLength;
+    const yc = ty + (by - ty) * t;
+    const yRoof = yc + FUNICULAR.cabinHeight;
+
+    // 1. Rail top is strictly below the level cabin floor at every x across the cabin length
+    for (let k = 0; k <= 8; k++) {
+      const x = xw + (FUNICULAR.cabinLength * k) / 8;
+      assert.ok(funicularRailTopAt(x) <= yc - 0.15, `rail below floor at t=${t.toFixed(2)} x=${x.toFixed(2)}`);
+    }
+    // 2. Cabin never intersects the approved Threshold deck (r <= 20, y in [-32, -30])
+    assert.ok(xw > THRESHOLD.rOuter + 0.1, `cabin west edge clears Threshold r=20 at t=${t.toFixed(2)}`);
+    // 3. Wherever cabin body overlaps the sky plane band [SKY.y - SKY.slotRimDepth, SKY.y], it lies strictly inside skySlot
+    if (yRoof >= SKY.y - SKY.slotRimDepth && yc <= SKY.y) {
+      assert.ok(xw >= slot.xMin + 0.1 && xe <= slot.xMax - 0.1, `cabin inside skySlot at t=${t.toFixed(2)}: [${xw.toFixed(2)}, ${xe.toFixed(2)}] vs [${slot.xMin}, ${slot.xMax}]`);
+    }
+    assert.ok(FUNICULAR.cabinWidth / 2 <= slot.halfZ - 0.3, 'cabin width clears skySlot halfZ');
+    // 4. Cabin never intersects Crossing floor outside the pit (floor is at y = -70, slab underside -71.5)
+    if (yc < VESPER.topY + 0.01) {
+      assert.ok(xw >= pit.xMin && xe <= pit.xMax, `cabin at -70 inside pit: [${xw}, ${xe}]`);
+    }
+  }
+  // 5. Rail underside crossing sky plane (y = -32) and Crossing floor (y = -70) lies strictly inside skySlot and pit
+  const xRailUnderAtSky = tx + (ty - FUNICULAR.floorThickness - FUNICULAR.beamDepth - SKY.y) / FUNICULAR.slope;
+  assert.ok(xRailUnderAtSky >= slot.xMin + 0.25 && xRailUnderAtSky <= slot.xMax - 0.25, `rail underside at sky (${xRailUnderAtSky.toFixed(2)}) inside skySlot`);
+  const xRailUnderAtFloor = tx + (ty - FUNICULAR.floorThickness - FUNICULAR.beamDepth - VESPER.topY) / FUNICULAR.slope;
+  assert.ok(xRailUnderAtFloor >= pit.xMin + 0.15, `rail underside at -70 (${xRailUnderAtFloor.toFixed(2)}) clears pit west lip (${pit.xMin})`);
+  // 6. Wherever rail underside is < 2.3 m above Crossing floor (-70), x is inside underTrackGuardXMin
+  assert.ok(funicularRailUndersideAt(FUNICULAR.underTrackGuardXMin) >= VESPER.topY + 2.3, 'under-incline guard covers entire < 2.3 m headroom zone');
+  // 7. Bottom rail buffer fits inside pit depth
+  assert.ok(funicularRailUndersideAt(bx + FUNICULAR.cabinLength) >= pit.floorY + 0.3, 'chassis/rail clears pit floor');
 });
 
 test('levels stack without collisions', () => {

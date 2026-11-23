@@ -299,8 +299,8 @@ function connectorsAt(p: Vector3): ReadonlySet<Region> {
 /** Mover displacement this frame for a rider whose feet are at (x, y, z) BEFORE being carried, or null. */
 export function carryAt(x: number, z: number, y: number): { x: number; y: number; z: number } | null {
   for (const r of dynamicRegions()) {
-    if (!r.carry || !inRegion(r, x, z)) continue;
-    if (Math.abs(groundY(r, x, z) - r.carry.y - y) <= LEVEL_TOLERANCE) return r.carry;
+    if (!r.carry || !inRegion(r, x + r.carry.x, z + r.carry.z)) continue;
+    if (Math.abs(groundY(r, x + r.carry.x, z + r.carry.z) - r.carry.y - y) <= LEVEL_TOLERANCE) return r.carry;
   }
   return null;
 }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
 import {
-  CAVERN, CROSSING, DISC, GLASS_FLOOR, LIFTS, OCULUS, PSD, TRENCH, VESPER,
+  CAVERN, CROSSING, DISC, FUNICULAR, GLASS_FLOOR, LIFTS, OCULUS, PSD, TRENCH, VESPER,
 } from '../../layoutMetro';
 import { trackOf } from '../../metro/tracks';
 import { LINE_COLORS } from '../../metro/trainModel';
@@ -341,6 +341,7 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
     const rectHoles: Rect2[] = [
       { x0: GLASS_FLOOR.xMin, z0: GLASS_FLOOR.zMin, x1: GLASS_FLOOR.xMax, z1: GLASS_FLOOR.zMax },
       { x0: VESPER.f6OpeningX[0], z0: VESPER.f6OpeningZ[0], x1: VESPER.f6OpeningX[1], z1: VESPER.f6OpeningZ[1] },
+      { x0: FUNICULAR.pit.xMin, z0: FUNICULAR.pit.zMin, x1: FUNICULAR.pit.xMax, z1: FUNICULAR.pit.zMax },
     ];
 
     // Stainless 1.5 m grid lines aligned to x = 0 ± 1.5k and z = 74 ± 1.5k (so z = 65 & 83 align seamlessly with GLASS_FLOOR!)
@@ -408,6 +409,7 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
       circlePts(cx, cz, DISC.wellR, 64),
       rectPts(GLASS_FLOOR.xMin, GLASS_FLOOR.zMin, GLASS_FLOOR.xMax, GLASS_FLOOR.zMax),
       rectPts(VESPER.f6OpeningX[0], VESPER.f6OpeningZ[0], VESPER.f6OpeningX[1], VESPER.f6OpeningZ[1]),
+      rectPts(FUNICULAR.pit.xMin, FUNICULAR.pit.zMin, FUNICULAR.pit.xMax, FUNICULAR.pit.zMax),
     ];
     // Solid architectural floor slab below the top terrazzo finish (60 mm below yTop so zero grazing-angle z-fighting)
     slabBodyBag.add(slabGeo(rectPts(fl.xMin, fl.zMin, fl.xMax, fl.zMax), wellHoles, yTop - D.terrazzoT, VESPER.slabThickness - D.terrazzoT));
@@ -627,10 +629,8 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
     const zPsdS = fl.zMax - PSD.inset; // 83.65
     addGlassRun([[fl.xMin + 0.06, zPsdN + 0.06], [fl.xMin + 0.06, zPsdS - 0.06]]);
 
-    // D. East floor end (x = +57.94, guarding the onyx reveal, leaving the funicular station gap z 71.8..76.2)
-    const [fg0, fg1] = CROSSING.funicularEdgeGapZ;
-    addGlassRun([[fl.xMax - 0.06, zPsdN + 0.06], [fl.xMax - 0.06, fg0]]);
-    addGlassRun([[fl.xMax - 0.06, fg1], [fl.xMax - 0.06, zPsdS - 0.06]]);
+    // D. East floor end (x = +57.94, continuous glass balustrade guarding the onyx reveal; funicular bottom station sits inside it)
+    addGlassRun([[fl.xMax - 0.06, zPsdN + 0.06], [fl.xMax - 0.06, zPsdS - 0.06]]);
   }
 
   // ---- 5. Three groups of Monolith honed-limestone cantilevered benches with warm 3200 K under-lights ----

@@ -1,11 +1,12 @@
 // Escalator sensing, disc rides, conveyor walking (Task 4). Run: npm run metro-runtime-test
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
-import { DISC, ESCALATOR, HALCYON, LIFTS, OCULUS, THRESHOLD, VESPER, escalatorUnits } from '../src/layout';
+import { DISC, ESCALATOR, FUNICULAR, HALCYON, LIFTS, OCULUS, THRESHOLD, VESPER, escalatorUnits } from '../src/layout';
 import { carryAt, heightAt, setDynamicRegions } from '../src/player/navigation';
 import { walkStep } from '../src/player/walk';
 import { disc } from '../src/metro/disc';
 import { escalators } from '../src/metro/escalators';
+import { funicular } from '../src/metro/funicular';
 import {
   LIFT_STOPS, createLifts, liftCallButtonPos, liftDoorDir, liftFloorButtonPos, lifts,
 } from '../src/metro/lifts';
@@ -273,5 +274,80 @@ test('lifts: interaction targeting returns liftCall outside closed door, liftFlo
 
   // Far away at Threshold north edge: null
   assert.equal(findTarget({ x: 0, y: -30, z: 93 }, { x: 0, y: -28.35, z: 93 }, { x: 0, y: 0, z: 1 }, false, true, snap), null);
+});
+
+// ---- Inclined funicular (P3-8b) -------------------------------------------------------------------
+
+test('funicular: pit & under-track unwalkable; gates closed when undocked; ride -70 -> -30 -> -70 and disarm on arrival', () => {
+  // Ensure funicular is docked at bottom (-70)
+  const botWait = new Vector3(55.0, VESPER.topY, 71.0);
+  const vel = { x: 0, z: 0 };
+  for (let t = 0; t < 30 && !funicular.gateOpen('bottom'); t += DT) frame(botWait, vel, null, DT);
+  assert.equal(funicular.docked, 'bottom', 'funicular docked at Crossing (-70)');
+  assert.equal(funicular.gateOpen('top'), false, 'top station gates closed while cabin at bottom');
+  assert.equal(funicular.stationGateOpen01('top'), 0, 'top station gate phase 0');
+  assert.equal(heightAt(22.3, 72.5, THRESHOLD.y), null, 'top doorway connector closed while cabin at bottom');
+  assert.equal(heightAt(51.2, FUNICULAR.z, VESPER.topY), null, 'under-incline guard stays unwalkable');
+
+  // Step aboard from south Crossing landing (z 71 -> z 74)
+  const feet = botWait.clone();
+  run(feet, vel, new Vector3(55.0, VESPER.topY, FUNICULAR.z), 2.5);
+  near(feet.z, FUNICULAR.z, 0.2, 'boarded cabin at -70');
+  // Wait 2 s occupied + 0.6 s door close + ~21 s incline climb to Threshold (-30)
+  run(feet, vel, null, 28);
+  assert.equal(funicular.docked, 'top', 'arrived at Threshold (-30)');
+  assert.equal(funicular.gateOpen('top'), true, 'top gates opened on arrival');
+  assert.equal(funicular.gateOpen('bottom'), false, 'bottom gates closed when cabin at top');
+  near(feet.y, THRESHOLD.y, 1e-4, 'rider arrived flush at -30');
+  near(feet.x, FUNICULAR.top[0] + 2.0, 0.4, 'rider carried horizontally to top x');
+  // Pit is unwalkable when cabin is at top
+  assert.equal(heightAt(55.0, FUNICULAR.z, VESPER.topY), null, 'bottom pit unwalkable while cabin at top');
+
+  // Disarmed on arrival: staying aboard 5 s must NOT immediately depart back down
+  run(feet, vel, null, 5);
+  assert.equal(funicular.docked, 'top', 'disarmed after arrival until rider steps off');
+
+  // Step off onto north Threshold landing (z 76.6), walk onto Threshold annulus (x 18.5, z 76.6), then return & ride down to -70
+  run(feet, vel, new Vector3(22.3, THRESHOLD.y, 76.6), 2.5);
+  near(feet.y, THRESHOLD.y, 1e-5, 'stepped onto top station north landing');
+  run(feet, vel, new Vector3(18.5, THRESHOLD.y, 76.6), 2.5);
+  near(feet.y, THRESHOLD.y, 1e-5, 'reached Threshold annulus cleanly');
+  run(feet, vel, new Vector3(22.3, THRESHOLD.y, 76.6), 2.5);
+  run(feet, vel, new Vector3(22.3, THRESHOLD.y, FUNICULAR.z), 2.5);
+  run(feet, vel, null, 28);
+  assert.equal(funicular.docked, 'bottom', 'rode back down to Crossing (-70)');
+  near(feet.y, VESPER.topY, 1e-4, 'arrived flush at -70');
+  near(feet.x, FUNICULAR.bottom[0] + 2.0, 0.4, 'carried back to bottom x');
+});
+
+test('funicular: approach calls empty cabin from the other end; large dt spikes keep rider aboard', () => {
+  // Currently docked at bottom; player approaches top station at -30
+  const topCaller = new Vector3(22.3, THRESHOLD.y, 71.2);
+  const vel = { x: 0, z: 0 };
+  for (let t = 0; t < 30 && !funicular.gateOpen('top'); t += DT) frame(topCaller, vel, null, DT);
+  assert.equal(funicular.docked, 'top', 'approaching top station summoned cabin');
+  // Board and ride down with large dt = 0.12 s spikes!
+  const feet = topCaller.clone();
+  run(feet, vel, new Vector3(22.3, THRESHOLD.y, FUNICULAR.z), 2.5);
+  run(feet, vel, null, 3.0, 0.05);
+  run(feet, vel, null, 28.0, 0.12);
+  assert.equal(funicular.docked, 'bottom', 'arrived at bottom under large dt spikes');
+  near(feet.y, VESPER.topY, 1e-4, 'rider stayed aboard through inclined dt spikes');
+  assert.ok(feet.x >= FUNICULAR.bottom[0] + 0.3 && feet.x <= FUNICULAR.bottom[0] + FUNICULAR.cabinLength - 0.3, 'rider inside cabin x bounds');
+});
+
+test('funicular: a player standing in a closing doorway is never trapped', () => {
+  // Cabin is docked at bottom; stand right in the south doorway connector (z = 72.5)
+  const feet = new Vector3(55.0, VESPER.topY, 72.5);
+  const vel = { x: 0, z: 0 };
+  run(feet, vel, null, 0.5);
+  // Someone approaches the top station -> funicular closes bottom gates and departs
+  const topCaller = new Vector3(22.3, THRESHOLD.y, 71.2);
+  for (let t = 0; t < 2.0; t += DT) funicular.update(DT, topCaller);
+  assert.equal(funicular.gateOpen('bottom'), false, 'bottom gates closed');
+  // Player walks back out onto the Crossing floor without getting trapped
+  run(feet, vel, new Vector3(55.0, VESPER.topY, 70.0), 3.0);
+  near(feet.y, VESPER.topY, 1e-5, 'still on Crossing floor');
+  assert.ok(feet.z < 71.5, `walked back out of closing funicular doorway (z=${feet.z.toFixed(2)})`);
 });
 console.log(`\n${passed} metro runtime checks passed`);

@@ -2,6 +2,18 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P3-8b — Inclined Glass Funicular (`p3-8b/`)
+
+Working inclined glass funicular connecting the east Threshold (`−30 m`) top station alcove to the Crossing floor (`−70 m`) east station along a 50.7° brushed-stainless rack rail (Ruling 37):
+- **Cabin & chassis (`funicularView.ts`, 4 calls total in `metroVoid` — both-zone env swap):** level 4.0 × 2.4 m champagne-framed glass box with panoramic skylight & warm recessed ceiling halo, dark graphite deck, bi-parting doors on both `±z` long sides (strictly closed while moving), riding on a triangulated brushed-stainless wedge bogie chassis.
+- **Rack rail, stations & safety (`funicular.ts`, `funicularView.ts` — 3 deep calls):** brushed-stainless architectural monorail spine + toothed steel rack split cleanly at the sky plane (`y = −32`), enclosed luminous sky-slot light-well hood, top station glass canopy & east Threshold portal (approved Threshold deck untouched), bottom pit (`−76 m`) with hydraulic buffers, under-incline `1.1 m` glass guard protecting `< 2.3 m` headroom (`x ≥ 50.2`), and full-height champagne-framed sliding station gates strictly inside the continuous Crossing east balustrade.
+
+- **Funicular (re-framed hero preset — level glass cabin on triangulated wedge chassis gliding down out of the sky slot toward the camera)** — ![funicular](p3-8b/funicular.jpg)
+- **Skyhole (enclosed luminous funicular sky slot alongside the circular eclipse & floating Meridian bridge)** — ![skyhole](p3-8b/skyhole.jpg)
+- **Onyx (brushed-stainless monorail spine, under-incline glass guard & bottom station in front of the backlit white onyx wall)** — ![onyx](p3-8b/onyx.jpg)
+- **Crossing (full transept with twin ringed glass lifts & inclined funicular monorail spine)** — ![crossing](p3-8b/crossing.jpg)
+- **Threshold (approved deck & speed gates unchanged; stainless funicular portal visible on east wall)** — ![threshold](p3-8b/threshold.jpg)
+
 ## P3-8a — Twin Glass Capsule Lifts (`p3-8a/`)
 
 Two independent working glass capsule lifts connecting Threshold (`−30 m`), Crossing (`−70 m`), and Halcyon (`−82 m`) both up and down:

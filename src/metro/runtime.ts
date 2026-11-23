@@ -1,6 +1,7 @@
 import type { Region } from '../player/regions';
 import { disc } from './disc';
 import { escalators } from './escalators';
+import { funicular } from './funicular';
 import { lifts } from './lifts';
 
 const dynRegions: Region[] = [];
@@ -8,6 +9,7 @@ function syncDynamicRegions(): void {
   dynRegions.length = 0;
   for (const r of disc.regions()) dynRegions.push(r);
   for (const r of lifts.regions()) dynRegions.push(r);
+  for (const r of funicular.regions()) dynRegions.push(r);
 }
 syncDynamicRegions();
 
@@ -16,6 +18,7 @@ export function updateMetroRuntime(dt: number, feet: { x: number; y: number; z: 
   escalators.update(dt, feet);
   disc.update(dt, feet);
   lifts.update(dt, feet);
+  funicular.update(dt, feet);
   syncDynamicRegions();
   for (const fn of visualHooks) fn(dt, feet);
 }

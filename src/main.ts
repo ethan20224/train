@@ -14,6 +14,7 @@ import { buildMetro } from './world/metro';
 import { DepthLook } from './lighting/looks';
 import { updateMetroRuntime, metroDynamicRegions } from './metro/runtime';
 import { disc } from './metro/disc';
+import { funicular } from './metro/funicular';
 import { lifts } from './metro/lifts';
 import { createAudioEngine } from './audio/audio';
 import { buildAtmosphere } from './lighting/atmosphere';
@@ -140,6 +141,7 @@ async function boot(): Promise<void> {
     controls.setEnabled(false);
     applyPreset(camera, camPreset);
     lifts.stageForPreset(camPreset);
+    funicular.stageForPreset(camPreset);
   }
 
   Object.assign(window.__meridian, { camera, renderer, scene, quality: quality.state, feet: controls.feet, locked: () => controls.isLocked });
@@ -199,6 +201,7 @@ async function boot(): Promise<void> {
     look: depthLook.factor,
     disc: { y: disc.y, docked: disc.docked },
     lifts: lifts.snapshots(),
+    funicular: funicular.snapshot(),
     feet: controls.feet.toArray(),
   });
   // Guarantee: the static sun shadow map is rendered once, then never again (autoUpdate = false).

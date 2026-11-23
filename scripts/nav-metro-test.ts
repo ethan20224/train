@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { heightAt, resolve } from '../src/player/navigation';
 import { FLIGHTS, HALCYON, LANDINGS, MERIDIAN, OCULUS, PLAYER, THRESHOLD, VESPER, escalatorUnits } from '../src/layout';
-import { CROSSING, DISC, SPEED_GATES, speedGateCabinets, speedGateLanes } from '../src/layoutMetro';
+import { CROSSING, DISC, FUNICULAR, SPEED_GATES, speedGateCabinets, speedGateLanes } from '../src/layoutMetro';
 
 let passed = 0;
 const test = (n: string, fn: () => void): void => { fn(); passed++; console.log(`ok   ${n}`); };
@@ -128,6 +128,15 @@ test('Crossing floor (P3-4): monolith benches block, well ring blocks all round 
   }
   assert.ok(resolve(at(-50, 74, VESPER.topY), new Vector3(-70, 0, 74)).x >= VESPER.floor.xMin, 'west floor end holds');
   assert.ok(resolve(at(50, 74, VESPER.topY), new Vector3(70, 0, 74)).x <= VESPER.floor.xMax, 'east floor end holds');
+  // Funicular bottom pit and under-incline headroom guard (< 2.3 m) are never walkable on Crossing floor
+  assert.equal(heightAt(55.0, FUNICULAR.z, VESPER.topY), null, 'funicular bottom pit unwalkable');
+  assert.equal(heightAt(51.2, FUNICULAR.z, VESPER.topY), null, 'funicular under-incline guard unwalkable');
+  const pGuard = walk(at(48.0, FUNICULAR.z, VESPER.topY), new Vector3(56.0, 0, FUNICULAR.z));
+  assert.ok(pGuard.x <= FUNICULAR.underTrackGuardXMin - PLAYER.wallClearance + 0.02, `under-track guard held at x=${pGuard.x.toFixed(2)}`);
+  // Funicular top station side landings at -30 are walkable off Threshold annulus; cabin bay is unwalkable without cabin
+  assert.notEqual(heightAt(22.0, 71.4, THRESHOLD.y), null, 'funicular top south landing walkable');
+  assert.notEqual(heightAt(22.0, 76.6, THRESHOLD.y), null, 'funicular top north landing walkable');
+  assert.equal(heightAt(22.3, FUNICULAR.z, THRESHOLD.y), null, 'funicular top cabin bay unwalkable without cabin');
 });
 
 test('fuzz: 100k random moves on every metro level never leave the walkable set', () => {
