@@ -57,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'droplets', 'escalator', 'speedgates', 'disc', 'lifts', 'lift', 'twin', 'wellgate',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'droplets', 'escalator', 'speedgates', 'tickethall', 'disc', 'lifts', 'lift', 'twin', 'wellgate',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -216,7 +216,8 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   onyx: { position: [34, VESPER.topY + EYE, 68.0], target: [60, -54, 76.5], fov: 66, intent: 'Crossing floor east end (clear of the funicular) facing the 40 m backlit book-matched white onyx wall, slim stainless joint grid, Vesper east portals and lit 2 m floor reveal.' },
   funicular: { position: [51.0, VESPER.topY + EYE + 0.3, 81.2], target: [31.5, -45.5, FUNICULAR.z], fov: 66, intent: 'From the east Crossing floor beside the bottom station looking up the 50.7 deg brushed-stainless rack incline as the glass funicular cabin glides out of the buried blue sky slot toward the camera.' },
   escalator: { position: [5.0, LANDINGS.L1.y + EYE, 80.7], target: [5.6, -17.5, 66], fov: 62, intent: 'At the top of F2 looking down the flight: steps flowing away, glass balustrades, handrails, warm skirt lines.' },
-  speedgates: { position: [10.6, THRESHOLD.y + EYE, 80.6], target: [7.2, THRESHOLD.y + 0.9, 82.4], fov: 60, intent: 'Threshold: the east speed-gate bank seen from the F3 side, champagne cabinets, glass panels, light lines.' },
+  speedgates: { position: [10.9, THRESHOLD.y + EYE, 80.9], target: [8.1, THRESHOLD.y + 0.7, 87.5], fov: 62, intent: 'Threshold: the whole east fare line from the F3 landing, receding along z: satin stainless cabinets, glass leaves, the glass run to the drum wall.' },
+  tickethall: { position: [-9.2, THRESHOLD.y + EYE, 80.9], target: [-5.0, THRESHOLD.y + 1.9, 93.0], fov: 72, intent: 'Threshold ticket hall from the paid side: the MERIDIAN DEEP identity on the drum wall, the west gate line, the west wayfinding totem.' },
   disc: { position: [OCULUS.cx, DISC.topY + EYE, OCULUS.cz + 2.9], target: [OCULUS.cx, DISC.topY - 0.4, OCULUS.cz - 2.4], fov: 72, intent: 'Standing on the Sinking Floor at the top: the inlaid medallion, the brass rail, the open gangway behind.' },
   lifts: { position: [-11.2, THRESHOLD.y + EYE, 71.5], target: [-17, -25.6, 77], fov: 62, intent: 'Threshold: the two glass lift tubes rising to their stainless-and-glass machinery lanterns, sheaves visible.' },
   lift: { position: [-17.78, -39.5 + EYE, 74.38], target: [10, -45.5, 69.5], fov: 76, intent: 'Inside the south glass capsule lift descending out of the buried sky: white onyx depth gauge and champagne frame foreground, buried noon sky overhead, Meridian bridge, sunlit cavern and Crossing floor spreading beyond.' },

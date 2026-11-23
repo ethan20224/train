@@ -244,48 +244,182 @@ export const DISC_DETAIL = {
 } as const;
 
 /**
- * Speed gates on the Threshold bridge (spec §2.7): two banks of `lanes` lanes on the line x = +-THRESHOLD.gateX, side by side along z.
- * Lane width is clear walking width; the cabinets between lanes take whatever remains of the bridge depth.
+ * The Threshold fare line (spec §2.7, rebuilt 2026-11-23). Four straight gate lines make the Threshold annulus a sealed ticket hall:
+ * `east` / `west` on x = +-THRESHOLD.gateX (8 lanes + 1 wide lane, from the sky-hole edge to the drum wall), `lobby` (a glass-walled
+ * lobby round the two lift doors, entered through 2 lanes) and `funicular` (one lane in each side landing of the top-station alcove). Between lanes stand
+ * slim stainless cabinets; the rest of every line is fixed glass. Everything is derived here: the renderer, navigation and tests read
+ * the same numbers. Lanes are always walkable (2035: validation is ticketless); cabinets and glass block.
  */
 export const SPEED_GATES = {
-  lanes: THRESHOLD.lanesPerSide, laneWidth: 0.9,
-  zMin: LANDINGS.thresholdBridge.zMin, zMax: LANDINGS.thresholdBridge.zMax,
-  /** Cabinet length along the walking direction (x), height, glass lid thickness. */
-  cabinetLength: 1.4, cabinetHeight: 1.0, cabinetWidth: 0.18, plinthGap: 0.02, plinthH: 0.06,
-  panelHeight: 1.2, panelThickness: 0.01,
-  /** Panels slide apart over this many REAL seconds when the player is within `approachR` of a lane; the light line brightens inside `glowR`. */
-  panelSeconds: 0.35, approachR: 2.2, glowR: 4.5,
-  /** Collision: each cabinet is a row of circles of this radius (nav adds the player radius; lanes always pass). */
-  collideR: 0.17, collideStep: 0.275,
+  /** Clear walking width of a standard lane and of the wide (accessible) lane, measured between cabinet faces. */
+  laneClear: 0.9, wideLaneClear: 1.2,
+  /** Cabinet: length along the walking direction (x), thickness across it (z), height; the 20 mm shadow-gap plinth. */
+  cabinetLength: 1.6, cabinetThickness: 0.2, cabinetHeight: 1.0, plinthGap: 0.02, plinthH: 0.06,
+  /** Fixed glass barrier: height, ultra-clear thickness, longest post pitch. */
+  glassHeight: 1.1, glassThickness: 0.012, postPitchMax: 1.5,
+  /** Moving glass leaves (wings): height, thickness. They swing flat against the cabinet face when a lane opens. */
+  leafHeight: 1.35, leafThickness: 0.01,
+  /** Standard lanes per main line (plus one wide lane at the north end) and in the lift lobby; the funicular has one lane per side landing. */
+  lanesPerMain: 8, lanesLobby: 2,
+  /** Leaves open over this many REAL seconds. A lane opens when the player is within `approachR` (hysteresis `closeExtra`), or will be
+   *  within it `lookAheadSec` from now at the current velocity, so the leaves are fully open before a runner arrives. The LED line
+   *  brightens inside `glowR`. */
+  panelSeconds: 0.35, approachR: 3.0, closeExtra: 0.5, lookAheadSec: 0.6, glowR: 5.5,
+  /** Navigation pad round every cabinet and glass run (less than PLAYER.radius: the 1.0 / 1.1 m barriers are below elbow height, so the
+   *  body overlaps them by a hand width and the 0.9 m lane keeps a 0.46 m wide corridor for the player's centre). */
+  collidePad: 0.22,
+  /** Clear gap between the escalator ends (F3.to + ESCALATOR.endOverlap) plus the pad, and the first main-line cabinet face. */
+  southClear: 0.12,
 } as const;
-/** Cabinet pitch slot across the lanes (z): the room left between lanes; the slim blade (`cabinetWidth`) is centred in it. */
-export const SPEED_GATE_CABINET_W = (SPEED_GATES.zMax - SPEED_GATES.zMin - SPEED_GATES.lanes * SPEED_GATES.laneWidth) / (SPEED_GATES.lanes + 1);
-export interface SpeedGateLane { readonly x: number; readonly z: number; readonly side: 1 | -1; readonly index: number }
-export function speedGateLanes(): SpeedGateLane[] {
-  const out: SpeedGateLane[] = [];
-  for (const side of [-1, 1] as const) {
-    for (let i = 0; i < SPEED_GATES.lanes; i++) {
-      out.push({ x: side * THRESHOLD.gateX, z: SPEED_GATES.zMin + SPEED_GATE_CABINET_W * (i + 1) + SPEED_GATES.laneWidth * (i + 0.5), side, index: i });
+
+export type FareLineId = 'east' | 'west' | 'lobby' | 'funicular';
+export interface SpeedGateLane {
+  readonly line: FareLineId; readonly index: number;
+  /** Lane centre (on the line x, mid-lane z) and clear width. */
+  readonly x: number; readonly z: number; readonly width: number; readonly wide: boolean;
+  /** Sign of x pointing into the paid side of the line. */
+  readonly inward: 1 | -1;
+  /** Indices (within the line's cabinets) of the cabinets south and north of this lane. */
+  readonly cabSouth: number; readonly cabNorth: number;
+}
+export interface FareCabinet { readonly line: FareLineId; readonly index: number; readonly x: number; readonly z: number }
+/** Fixed glass run on a line. axis 'z': runs along z at x = `at`; axis 'x': runs along x at z = `at`. Ends: 'wall' (drum, post at the wall), 'post', 'cabinet' (glass tucked into the cabinet face). */
+export interface FareGlassRun {
+  readonly line: FareLineId; readonly axis: 'x' | 'z'; readonly at: number; readonly t0: number; readonly t1: number;
+  readonly end0: 'wall' | 'post' | 'cabinet'; readonly end1: 'wall' | 'post' | 'cabinet';
+}
+export interface FareLine {
+  readonly id: FareLineId; readonly x: number; readonly inward: 1 | -1;
+  readonly lanes: readonly SpeedGateLane[]; readonly cabinets: readonly FareCabinet[]; readonly glass: readonly FareGlassRun[];
+}
+
+/** The lift lobby: its glass line sits on x = `x` from `zMin` to `zMax`; the two cross screens run from it west to the drum wall. */
+export const LIFT_LOBBY = { x: -13.4, zMin: 71.0, zMax: 85.0, gateCentreZ: 82.0 } as const;
+/** Funicular gate line: its cabinets end this far short of the cabin's west edge (FUNICULAR.top[0]). */
+const FUNICULAR_LINE_CLEAR = 0.2;
+
+/** Drum wall (r = THRESHOLD.rOuter about the oculus axis), nudged 0.05 m into the wall so glass seals against it. */
+const DRUM_EMBED = 0.05;
+function drumZ(x: number, sign: 1 | -1): number {
+  const R = THRESHOLD.rOuter + DRUM_EMBED;
+  return OCULUS.cz + sign * Math.sqrt(R * R - (x - OCULUS.cx) * (x - OCULUS.cx));
+}
+function drumX(z: number, sign: 1 | -1): number {
+  const R = THRESHOLD.rOuter + DRUM_EMBED;
+  return OCULUS.cx + sign * Math.sqrt(R * R - (z - OCULUS.cz) * (z - OCULUS.cz));
+}
+
+/** One cabinet-and-lane group on a straight line, from `zStart` (south face of the first cabinet) in the given lane width order; indices continue from `base`. */
+function gateGroup(id: FareLineId, x: number, inward: 1 | -1, zStart: number, widths: readonly number[], base = { cab: 0, lane: 0 }): { lanes: SpeedGateLane[]; cabinets: FareCabinet[]; zEnd: number } {
+  const t = SPEED_GATES.cabinetThickness;
+  const cabinets: FareCabinet[] = [{ line: id, index: base.cab, x, z: zStart + t / 2 }];
+  const lanes: SpeedGateLane[] = [];
+  let z = zStart + t;
+  widths.forEach((w, i) => {
+    lanes.push({ line: id, index: base.lane + i, x, z: z + w / 2, width: w, wide: w > SPEED_GATES.laneClear + 1e-9, inward, cabSouth: base.cab + i, cabNorth: base.cab + i + 1 });
+    z += w;
+    cabinets.push({ line: id, index: base.cab + i + 1, x, z: z + t / 2 });
+    z += t;
+  });
+  return { lanes, cabinets, zEnd: z };
+}
+
+let fareCache: readonly FareLine[] | null = null;
+/** All four fare lines. Computed once, lazily (LIFTS and FUNICULAR are declared further down this module). */
+export function fareLines(): readonly FareLine[] {
+  if (fareCache) return fareCache;
+  const S = SPEED_GATES;
+  const out: FareLine[] = [];
+  const f3 = FLIGHTS.find((f) => f.id === 'F3')!;
+  // Main lines: the first cabinet face stands clear of the F3 / F4 landings; glass closes the rest, from the sky-hole edge to the drum wall.
+  const mainStart = f3.to + ESCALATOR.endOverlap + S.collidePad + S.southClear;
+  const mainWidths = [...(Array(S.lanesPerMain).fill(S.laneClear) as number[]), S.wideLaneClear];
+  for (const side of [1, -1] as const) {
+    const id: FareLineId = side > 0 ? 'east' : 'west';
+    const x = side * THRESHOLD.gateX;
+    const inward = (-side) as 1 | -1;
+    const g = gateGroup(id, x, inward, mainStart, mainWidths);
+    out.push({
+      id, x, inward, lanes: g.lanes, cabinets: g.cabinets,
+      glass: [
+        { line: id, axis: 'z', at: x, t0: LANDINGS.thresholdBridge.zMin, t1: mainStart, end0: 'post', end1: 'cabinet' },
+        { line: id, axis: 'z', at: x, t0: g.zEnd, t1: drumZ(x, 1), end0: 'cabinet', end1: 'wall' },
+      ],
+    });
+  }
+  // Lift lobby: the lifts' Threshold doors face east (toward the sky hole), so the lobby is the strip between the drum wall and x = LIFT_LOBBY.x;
+  // its 2 lanes sit beside the F3 landing, nearest the arrivals.
+  {
+    const L = LIFT_LOBBY;
+    const widths = Array(S.lanesLobby).fill(S.laneClear) as number[];
+    const span = widths.reduce((a, b) => a + b, 0) + (widths.length + 1) * S.cabinetThickness;
+    const g = gateGroup('lobby', L.x, -1, L.gateCentreZ - span / 2, widths);
+    out.push({
+      id: 'lobby', x: L.x, inward: -1, lanes: g.lanes, cabinets: g.cabinets,
+      glass: [
+        { line: 'lobby', axis: 'z', at: L.x, t0: L.zMin, t1: g.cabinets[0]!.z - S.cabinetThickness / 2, end0: 'post', end1: 'cabinet' },
+        { line: 'lobby', axis: 'z', at: L.x, t0: g.zEnd, t1: L.zMax, end0: 'cabinet', end1: 'post' },
+        { line: 'lobby', axis: 'x', at: L.zMin, t0: drumX(L.zMin, -1), t1: L.x, end0: 'wall', end1: 'post' },
+        { line: 'lobby', axis: 'x', at: L.zMax, t0: drumX(L.zMax, -1), t1: L.x, end0: 'wall', end1: 'post' },
+      ],
+    });
+  }
+  // Funicular top station. The cabin bay (FUNICULAR.pit z range) is a pit and the cabin is boarded from its two long sides, so riders reach
+  // the platform only along the two side landings between the portal jambs and the bay: one lane in each, glass across the bay front and
+  // out to the drum wall. (Lanes down the cabin axis would lead into the pit.)
+  {
+    const x = FUNICULAR.top[0] - S.cabinetLength / 2 - FUNICULAR_LINE_CLEAR;
+    const TS = FUNICULAR.topStation, pit = FUNICULAR.pit;
+    const t = S.cabinetThickness;
+    const south = gateGroup('funicular', x, 1, (TS.zMin + pit.zMin) / 2 - S.laneClear / 2 - t, [S.laneClear]);
+    const north = gateGroup('funicular', x, 1, (pit.zMax + TS.zMax) / 2 - S.laneClear / 2 - t, [S.laneClear], { cab: 2, lane: 1 });
+    out.push({
+      id: 'funicular', x, inward: 1, lanes: [...south.lanes, ...north.lanes], cabinets: [...south.cabinets, ...north.cabinets],
+      glass: [
+        { line: 'funicular', axis: 'z', at: x, t0: drumZ(x, -1), t1: south.cabinets[0]!.z - t / 2, end0: 'wall', end1: 'cabinet' },
+        { line: 'funicular', axis: 'z', at: x, t0: south.zEnd, t1: north.cabinets[0]!.z - t / 2, end0: 'cabinet', end1: 'cabinet' },
+        { line: 'funicular', axis: 'z', at: x, t0: north.zEnd, t1: drumZ(x, 1), end0: 'cabinet', end1: 'wall' },
+      ],
+    });
+  }
+  fareCache = out;
+  return out;
+}
+export const speedGateLanes = (): SpeedGateLane[] => fareLines().flatMap((l) => l.lanes);
+export const speedGateCabinets = (): FareCabinet[] => fareLines().flatMap((l) => l.cabinets);
+/** Half-thickness used for the plan footprint of a glass run (posts and rail are wider than the 12 mm pane). */
+const GLASS_FOOT = 0.03;
+/** Physical plan footprints of every cabinet and glass run: navigation pads them by `collidePad` and cuts them out of the Threshold level. */
+export function fareBlockers(): Array<{ xMin: number; xMax: number; zMin: number; zMax: number }> {
+  const S = SPEED_GATES;
+  const out: Array<{ xMin: number; xMax: number; zMin: number; zMax: number }> = [];
+  for (const l of fareLines()) {
+    for (const c of l.cabinets) out.push({ xMin: c.x - S.cabinetLength / 2, xMax: c.x + S.cabinetLength / 2, zMin: c.z - S.cabinetThickness / 2, zMax: c.z + S.cabinetThickness / 2 });
+    for (const g of l.glass) {
+      const a = Math.min(g.t0, g.t1), b = Math.max(g.t0, g.t1);
+      out.push(g.axis === 'z' ? { xMin: g.at - GLASS_FOOT, xMax: g.at + GLASS_FOOT, zMin: a, zMax: b } : { xMin: a, xMax: b, zMin: g.at - GLASS_FOOT, zMax: g.at + GLASS_FOOT });
     }
   }
   return out;
 }
-/** Cabinet centres: lanes + 1 per side (the outer two stand at the bridge-depth ends). */
-export function speedGateCabinets(): Array<{ x: number; z: number; side: 1 | -1; index: number }> {
-  const out: Array<{ x: number; z: number; side: 1 | -1; index: number }> = [];
-  for (const side of [-1, 1] as const) {
-    for (let i = 0; i <= SPEED_GATES.lanes; i++) {
-      out.push({ x: side * THRESHOLD.gateX, z: SPEED_GATES.zMin + SPEED_GATE_CABINET_W / 2 + i * (SPEED_GATE_CABINET_W + SPEED_GATES.laneWidth), side, index: i });
-    }
-  }
-  return out;
-}
-/** Collision circles of every cabinet (level THRESHOLD.y), for src/obstacles.ts. */
-export function speedGateObstacleCircles(): Array<{ x: number; z: number; r: number }> {
+
+/**
+ * Ticket-hall dressing (src/world/metro/ticketHall.ts): the station identity on the north drum wall and one wayfinding totem per F3 landing.
+ * Identity: backlit lettering on the polished-era panel row between the wall light rings at y = -26.5 and -29 (clear of both and of the
+ * -27.3 panel joint). Totems stand beside the arrival path, in line with a main-line cabinet (not a lane), facing the F3 exits (south).
+ */
+export const TICKET_HALL = {
+  identity: { text: 'MERIDIAN DEEP', yTop: -27.4, yBottom: -28.55, yCentre: -27.9, ruleY: -28.43, width: 11.0, wallInset: 0.05 },
+  totem: { height: 2.4, width: 0.56, depth: 0.12, z: 84.16, x: 10.7, faceWidth: 0.46, faceY0: 1.1, faceY1: 2.3, collideR: 0.15, collideStep: 0.14 },
+} as const;
+/** Totem footprint circles at the Threshold level (src/obstacles.ts): a row along x of the totem's width, both landings. */
+export function totemObstacleCircles(): Array<{ x: number; z: number; r: number }> {
+  const T = TICKET_HALL.totem;
   const out: Array<{ x: number; z: number; r: number }> = [];
-  const n = Math.ceil(SPEED_GATES.cabinetLength / SPEED_GATES.collideStep);
-  for (const c of speedGateCabinets()) {
-    for (let k = 0; k < n; k++) out.push({ x: c.x + (k - (n - 1) / 2) * SPEED_GATES.collideStep, z: c.z, r: SPEED_GATES.collideR });
+  const span = T.width - 2 * T.collideR;
+  const n = Math.ceil(span / T.collideStep);
+  for (const side of [1, -1] as const) {
+    for (let k = 0; k <= n; k++) out.push({ x: side * T.x + (k / n - 0.5) * span, z: T.z, r: T.collideR });
   }
   return out;
 }
@@ -682,7 +816,55 @@ export const VOID_LOOK = {
 
 export const MAP_WALL = { z: 20, xMin: -20, xMax: 20, yMin: -41, yMax: -34 } as const;
 export const WATER_WALL = { x: -60, zMin: 54, zMax: 94, yMin: -70, yMax: -34 } as const;
+
+/**
+ * Cloud-forest waterfall over the west wall (src/world/metro/waterWall.ts + waterfall*.ts). Rock depth is measured from x = WATER_WALL.x
+ * toward +x and never exceeds maxDepth (face stays at x <= -58.35, clear of the Crossing floor edge at x = -58).
+ * Cascades (z centre, ribbon width at the lip) keep clear of both Vesper bores (z 62.45, 85.55, 5 m wide + cut margin).
+ */
+export const WATERFALL = {
+  yTop: WATER_WALL.yMax, yBase: -72.5, poolY: -72.26,
+  maxDepth: 1.55,
+  /** Clear margin around each bore opening where the rock is cut away (m, before snapping to the 0.2 x 0.14 m grid). */
+  boreCutMargin: 0.4,
+  cascades: [
+    { z: 56.6, w: 1.5 },
+    { z: 68.2, w: 2.2 },
+    { z: 74.0, w: 5.0 },
+    { z: 80.2, w: 2.6 },
+    { z: 91.2, w: 1.6 },
+  ] as ReadonlyArray<{ readonly z: number; readonly w: number }>,
+} as const;
 export const DROPLETS = { count: 2400, rInner: 21, rOuter: 38, yTop: -33, yBottomMin: -42, bridgeExclusionHalfX: 12.5 } as const;
+
+/**
+ * Cloud forest (user ruling 2026-11-23, docs/meridian-deep-handoff/CLOUD-FOREST-PLAN.md): planted in the non-walkable base
+ * floor field (y = CAVERN.baseFloorY) of the two nave arms under the Meridian bridge and the two transept strips beyond the
+ * Vesper tracks. Pure data; placement lives in src/metro/forestLayout.ts, geometry in src/world/metro/forest.ts.
+ */
+export const FOREST = {
+  /** Planting beds (x, z), inset 0.6 m from the cavern walls. The transept beds stop short of the Vesper bores and the end walls. */
+  beds: [
+    { id: 'naveS', xMin: -19.4, xMax: 19.4, zMin: 20.6, zMax: VESPER.trackZ[0] - TRENCH.halfWidth - 0.3 },
+    { id: 'naveN', xMin: -19.4, xMax: 19.4, zMin: VESPER.trackZ[1] + TRENCH.halfWidth + 0.3, zMax: 127.4 },
+    { id: 'transS', xMin: -57.0, xMax: 57.0, zMin: 54.6, zMax: VESPER.trackZ[0] - TRENCH.halfWidth - 0.3 },
+    { id: 'transN', xMin: -57.0, xMax: 57.0, zMin: VESPER.trackZ[1] + TRENCH.halfWidth + 0.3, zMax: 93.4 },
+  ] as ReadonlyArray<{ readonly id: string } & Rect>,
+  /** Absolute ceiling for any foliage: below the kinetic droplets (DROPLETS.yBottomMin) and the map wall. */
+  capY: DROPLETS.yBottomMin - 1.5,
+  /** Under the Meridian rail deck, wings and trains (|x| < bridgeHalfX) foliage stays below this. */
+  bridgeHalfX: 12.7, underBridgeCapY: -49.6,
+  /** Vesper train envelope beside the beds: nothing below envelopeTopY within envelopeHalfZ of a track centre. */
+  vesperEnvelopeHalfZ: 1.95, vesperEnvelopeTopY: -66.4,
+  /** F5 (north nave): nothing above the truss underside (step line - trussClear) inside the inner bands widened by bandPad. */
+  f5TrussClear: 1.7, f5BandPad: 0.35,
+  /** Ground terrain: mound height above the base floor and the grid pitch of the terrain mesh. */
+  groundRise: 1.1, groundPitch: 0.7,
+  /** Ground mist: height band (world y) and strength; drifts in REAL time. */
+  mist: { yBottom: CAVERN.baseFloorY, yTop: -66.8, strength: 0.34, color: [0.80, 0.86, 0.86] as readonly [number, number, number] },
+  /** Placement seed (deterministic forest). */
+  seed: 2035,
+} as const;
 
 /** Depth zones (camera eye y). */
 export const ZONES = {

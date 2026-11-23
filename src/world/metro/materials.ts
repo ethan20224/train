@@ -386,7 +386,8 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
   // Deep cavern honed limestone uses the clean procedural mineral maps (no 1910 running-bond ashlar mortar lines).
   deepSet.honedLimestone = new THREE.MeshStandardMaterial({
     name: 'metroDeepHonedLimestone',
-    color: 0xfdfaf4,
+    // Warm honed travertine-limestone (cloud forest ruling 2026-11-23): the near-white read as sterile bathroom tile.
+    color: 0xe9dcc6,
     map: honedMaps.map,
     roughnessMap: honedMaps.roughnessMap,
     normalMap: honedMaps.normalMap,

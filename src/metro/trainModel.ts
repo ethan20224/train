@@ -502,7 +502,9 @@ export function applyTunnelDarkness(mat: THREE.Material, tu: TunnelUniforms): vo
 }
 
 export function createSharedMaterials(champagneBase?: THREE.MeshStandardMaterial): TrainSharedMaterials {
-  const body = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.84, 0.86, 0.9), metalness: 1, roughness: 0.06, envMapIntensity: 1.25 });
+  // Satin brushed aluminium (user ruling 2026-11-23: the mirror finish read cheap). Roughness high enough that the low-res
+  // deep env cube blurs into a soft sheen instead of a legible mirror image; slightly darker base so it never blows out.
+  const body = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.66, 0.68, 0.7), metalness: 1, roughness: 0.34, envMapIntensity: 1.0 });
   const glass = glassMaterial();
   const lights = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: true });
   const underframe = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.02, 0.022, 0.026), metalness: 0.6, roughness: 0.55 });

@@ -1,6 +1,6 @@
 import { PLAYER } from '../layout';
 import {
-  DISC, ESCALATOR, F3_LOW_FOOTPRINT_Z0, FLIGHTS, ESCALATOR_BANDS, FUNICULAR, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MERIDIAN, OCULUS, PSD, THRESHOLD, THROAT, VESPER, escalatorUnits,
+  DISC, ESCALATOR, F3_LOW_FOOTPRINT_Z0, FLIGHTS, ESCALATOR_BANDS, FUNICULAR, GLASS_FLOOR, HALCYON, LANDINGS, LIFTS, MERIDIAN, OCULUS, PSD, SPEED_GATES, THRESHOLD, THROAT, VESPER, escalatorUnits, fareBlockers,
 } from '../layoutMetro';
 import { boundsOf, circleShape, obbShape, rectShape, type Region, type Shape } from '../player/regions';
 import { escalators } from './escalators';
@@ -19,8 +19,15 @@ export const HALL_HOLES: readonly Shape[] = [
   ...THROAT.bands.map(([a, b]) => rectShape(a - C, b + C, THROAT.zMin, THROAT.zMax + C)),
 ];
 
-function landing(l: { y: number; zMin: number; zMax: number; halfX: number }): Region {
-  return { xMin: -l.halfX + C, xMax: l.halfX - C, zMin: l.zMin + C, zMax: l.zMax - C, y: l.y };
+/**
+ * The fare line as holes in every region that spans the Threshold level (annulus, bridge, funicular top station): each cabinet and
+ * glass run padded by SPEED_GATES.collidePad. A region hole (not an obstacle circle) so the seal is exact and costs nothing per query.
+ * Lanes are simply the gaps between the cabinet holes.
+ */
+const fareHoles = (): Shape[] => fareBlockers().map((b) => rectShape(b.xMin - SPEED_GATES.collidePad, b.xMax + SPEED_GATES.collidePad, b.zMin - SPEED_GATES.collidePad, b.zMax + SPEED_GATES.collidePad));
+
+function landing(l: { y: number; zMin: number; zMax: number; halfX: number }, holes?: readonly Shape[]): Region {
+  return { xMin: -l.halfX + C, xMax: l.halfX - C, zMin: l.zMin + C, zMax: l.zMax - C, y: l.y, ...(holes ? { holes } : {}) };
 }
 
 function escalatorRegions(): Region[] {
@@ -51,11 +58,12 @@ export function metroStaticRegions(): Region[] {
   const [hx, hz] = HALCYON.centre;
   const [ux, uz] = HALCYON.dir;
   const deep = obbShape(hx, hz, ux, uz, HALCYON.halfLength - C, HALCYON.halfWidth - PSD.inset - C);
+  const fare = fareHoles();
   return [
     landing(LANDINGS.L1),
     landing(LANDINGS.L2),
-    { ...boundsOf(annulus), y: THRESHOLD.y, circle: annulus, holes: [circleShape(cx, cz, THRESHOLD.rInner + C), ...bandHoles(ESCALATOR_BANDS.outer, F3_LOW_FOOTPRINT_Z0, F3.to - 0.3), ...liftHoles()] },
-    landing(LANDINGS.thresholdBridge),
+    { ...boundsOf(annulus), y: THRESHOLD.y, circle: annulus, holes: [circleShape(cx, cz, THRESHOLD.rInner + C), ...bandHoles(ESCALATOR_BANDS.outer, F3_LOW_FOOTPRINT_Z0, F3.to - 0.3), ...liftHoles(), ...fare] },
+    landing(LANDINGS.thresholdBridge, fare),
     // Funicular top station side landings outside the east Threshold drum wall (flush at -30; cabin bay cut out)
     {
       xMin: FUNICULAR.topStation.xMin, xMax: FUNICULAR.topStation.xMax - C,
@@ -66,7 +74,7 @@ export function metroStaticRegions(): Region[] {
         FUNICULAR.top[0] + FUNICULAR.cabinLength + C,
         FUNICULAR.pit.zMin - C,
         FUNICULAR.pit.zMax + C,
-      )],
+      ), ...fare],
     },
     {
       xMin: -doorX, xMax: doorX, zMin: isl.zMin + C, zMax: isl.zMax - C, y: MERIDIAN.topY,

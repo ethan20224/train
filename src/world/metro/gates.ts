@@ -1,22 +1,24 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
-import {
-  LIFT_HEAD as LH, LIFTS, SKY, SPEED_GATES as SG, SPEED_GATE_CABINET_W as CAB_W, THRESHOLD, speedGateCabinets, speedGateLanes,
-} from '../../layoutMetro';
+import { LIFT_HEAD as LH, LIFTS, SKY, SPEED_GATES as SG, THRESHOLD, speedGateLanes } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
 import { LIFT_KINEMATICS, liftCallButtonPos, liftDoorDir, lifts } from '../../metro/lifts';
 import { GeoBag, boxMM, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
+import { LED, buildFareGeometry, type GlassSink } from './fareLine';
 import type { MetroMaterials } from './materials';
 import { vertexGlow } from './glow';
+import { buildTicketHall } from './ticketHall';
 import { installSharedVoidLight } from './voidLight';
 
 /**
- * The Threshold fixtures (spec §2.7): the speed gates on the bridge and the machinery heads of the two glass lift tubes.
- * Speed gates: slim champagne-aluminium cabinets with a glass lid and a white light line; ultra-clear glass panels slide into the
- * cabinets (REAL seconds, ease) as the player comes within SPEED_GATES.approachR of a lane, and the light line brightens.
+ * The Threshold fixtures (spec §2.7): the fare line (speed gates, glass barriers, lift lobby, funicular gates: layout in layoutMetro.ts,
+ * geometry in fareLine.ts), the ticket-hall dressing (ticketHall.ts) and the machinery heads of the two glass lift tubes.
+ * Speed gates: satin stainless cabinets; ultra-clear glass leaves swing flat against the cabinets (REAL seconds, ease) when a lane
+ * opens on approach (or by look-ahead along the player's motion), and the LED line along each cabinet edge brightens.
  * Lift heads: stainless-and-glass lanterns showing the sheave. Everything is built with the void material set (sun-excluded,
- * lit by the void ring light, shared with the escalators) and merged per material: 2 draw calls in all.
+ * lit by the void ring light, shared with the escalators) and merged per material: 4 draw calls here (lift-head metal, fare stainless,
+ * glass, sheaves) plus 2 for the ticket-hall signage.
  */
 
 const Y0 = THRESHOLD.y;
@@ -26,7 +28,7 @@ const smooth = (t: number): number => { const c = Math.min(1, Math.max(0, t)); r
 
 export interface ThresholdFixtures {
   group: THREE.Group;
-  /** Per displayed frame (real time): panels and light lines follow the player. */
+  /** Per displayed frame (real time): leaves and light lines follow the player. */
   update(dt: number, feet: { x: number; y: number; z: number }): void;
   stats: { calls: number; triangles: number };
 }
@@ -34,6 +36,8 @@ export interface ThresholdFixtures {
 export interface ThresholdFixturesOptions {
   /** Fired once whenever a speed-gate lane switches between closed and open. */
   onSpeedGate?: (x: number, y: number, z: number, open: boolean) => void;
+  /** Anisotropy for the signage textures (default 8). */
+  anisotropy?: number;
 }
 
 export function buildThresholdFixtures(
@@ -44,57 +48,43 @@ export function buildThresholdFixtures(
   const group = new THREE.Group();
   group.name = 'metroThresholdFixtures';
 
-  // One satin-metal material (plain champagne anodised aluminium, metalness 1 / roughness 0.3: no brushed map, which reads as wood grain on
-  // flat faces). Cabinets are white vertex colour (uniform); the lift heads get a cool tint to read as steel; light lines are vertex glow.
+  // Lift heads: one satin-metal material (plain champagne anodised aluminium, metalness 1 / roughness 0.3: no brushed map, which reads as wood
+  // grain on flat faces); cool-tinted vertex colour for steel, HDR vertex colour for the light parts.
   const metalMat = kit.champagne.clone();
   metalMat.name = 'thresholdMetal'; metalMat.metalness = 1; metalMat.roughness = 0.3;
   vertexGlow(metalMat);
   installSharedVoidLight(metalMat, 'thresholdMetal'); excludeDirectionalLight(metalMat);
-  const WHITE: [number, number, number] = [1, 1, 1];
+  // Fare line: plain satin stainless (the brushed map is dropped: it reads as wood grain on large faces), cabinet tint in the vertex colour.
+  const fareMat = kit.stainless.clone();
+  fareMat.name = 'thresholdFareStainless'; fareMat.color.set(0xd8d2c8); // warm-neutral satin stainless, no blue
+  fareMat.roughnessMap = null; fareMat.metalness = 1; fareMat.roughness = 0.22;
+  vertexGlow(fareMat);
+  installSharedVoidLight(fareMat, 'thresholdFareStainless'); excludeDirectionalLight(fareMat);
   const STEEL: [number, number, number] = [0.5, 0.58, 0.8];
 
-  const champagne = new GeoBag(lib, 'castIron', kit.metersPerTile.champagne);
   const stainless = new GeoBag(lib, 'castIron', kit.metersPerTile.stainless);
   const glassStatic = new GeoBag(lib, 'glass', 1);
   const glassPanels = new GeoBag(lib, 'glass', 1);
+  /** Animated glass stream: every leaf reports the REAL vertex range it takes, so the animation can never drift off its geometry. */
+  let leafCursor = 0;
+  const glassSink: GlassSink = {
+    addStatic: (g) => { glassStatic.add(g); },
+    addLeaf: (g) => {
+      glassPanels.add(g);
+      const count = g.index ? g.index.count : g.getAttribute('position').count;
+      const r = { start: leafCursor, count };
+      leafCursor += count;
+      return r;
+    },
+  };
 
-  const cabinets = speedGateCabinets();
+  // ---- fare line (cabinets, posts, rails, fixed glass, leaves) and the ticket-hall dressing ----------------------------------------
+  const hall = buildTicketHall(options.anisotropy ?? 8);
+  const fare = buildFareGeometry(glassSink, hall.metalParts);
+  group.add(hall.group);
   const lanes = speedGateLanes();
-  const L = SG.cabinetLength, hw = SG.cabinetWidth / 2, H = SG.cabinetHeight;
-  const gap = SG.plinthGap, plH = SG.plinthH;
-
-  // ---- cabinets: slim blades, a 20 mm shadow-gap plinth, a flush ultra-clear glass strip in the top with the light line under it ------
-  const body: P2[] = [
-    [-hw, plH], [hw, plH], [hw, H - 0.006], [hw - 0.01, H], [0.055, H], [0.055, H - 0.016], [-0.055, H - 0.016], [-0.055, H], [-hw + 0.01, H], [-hw, H - 0.006],
-  ];
-  const stripGeos: THREE.BufferGeometry[] = [];
-  const plinthGeos: THREE.BufferGeometry[] = [];
-  for (const c of cabinets) {
-    const fr = (x: number): Frame => ({ o: v3(x, Y0, c.z), a: v3(0, 0, 1), b: UP.clone() });
-    champagne.add(sweep(body, [fr(c.x - L / 2), fr(c.x + L / 2)], { closed: true, caps: true }));
-    plinthGeos.push(boxMM(c.x - L / 2 + gap, Y0, c.z - hw + gap, c.x + L / 2 - gap, Y0 + plH + 0.002, c.z + hw - gap)); // recessed 20 mm: the shadow gap
-    glassStatic.add(boxMM(c.x - L / 2 + 0.1, Y0 + H - 0.016, c.z - 0.055, c.x + L / 2 - 0.1, Y0 + H, c.z + 0.055));
-    const s = boxMM(c.x - L / 2 + 0.22, Y0 + H - 0.0145, c.z - 0.005, c.x + L / 2 - 0.22, Y0 + H - 0.0125, c.z + 0.005);
-    stripGeos.push(s.index ? s.toNonIndexed() : s);
-  }
-
-  // ---- panels: 10 mm ultra-clear glass, 1.2 m; two per lane, staggered in x so both can park in the shared cabinet. Opening slides them
-  // sideways and sinks them into the blade (top ends flush with the cabinet top), narrowing as they go in ----
-  interface Panel { lane: number; sign: 1 | -1; start: number; z0: number; cabZ: number }
-  const panels: Panel[] = [];
-  const panelW = SG.laneWidth / 2 + 0.01;
-  const pY0 = Y0 + 0.03;
-  const sink = pY0 + SG.panelHeight - (Y0 + H) + 0.004;
-  let nPanel = 0;
-  for (const [li, lane] of lanes.entries()) {
-    for (const sign of [-1, 1] as const) {
-      const x = lane.x + sign * 0.03;
-      const z0 = sign < 0 ? lane.z - SG.laneWidth / 2 : lane.z - 0.01;
-      glassPanels.add(boxMM(x - SG.panelThickness / 2, pY0, z0, x + SG.panelThickness / 2, pY0 + SG.panelHeight, z0 + panelW));
-      panels.push({ lane: li, sign, start: nPanel * 36, z0, cabZ: lane.z + sign * (SG.laneWidth / 2 + CAB_W / 2) });
-      nPanel++;
-    }
-  }
+  const leavesByLane: typeof fare.leaves[] = lanes.map(() => []);
+  for (const lf of fare.leaves) leavesByLane[lf.lane]!.push(lf);
 
   // ---- lift heads (doorways cut open toward sky hole, Threshold deck sleeves, call buttons, turning sheaves) ----
   const lights: THREE.BufferGeometry[] = [];
@@ -151,7 +141,6 @@ export function buildThresholdFixtures(
   // Threshold curved landing glass door leaves (2 lifts x 2 bi-parting leaves, animated inside thresholdGlass — 0 extra draw calls)
   interface LiftDoorLeaf { lift: number; sign: 1 | -1; lx: number; lz: number; start: number; count: number }
   const liftDoorLeaves: LiftDoorLeaf[] = [];
-  let liftLeafVertOffset = 0;
 
   for (let li = 0; li < LIFTS.positions.length; li++) {
     const [lx, lz] = LIFTS.positions[li]!;
@@ -184,15 +173,14 @@ export function buildThresholdFixtures(
     led.translate(bp.x + bp.nx * 0.014, bp.y, bp.z + bp.nz * 0.014);
     lights.push(led.toNonIndexed());
 
-    // Bi-parting curved Threshold landing glass doors (added to glassPanels so they animate on CPU with 0 extra draw calls)
+    // Bi-parting curved Threshold landing glass doors (added to the animated glass stream so they move on the CPU with 0 extra draw calls)
     for (const sign of [-1, 1] as const) {
       const a0 = sign < 0 ? da - DOOR_HALF + 0.004 : da + 0.004;
       const a1 = sign < 0 ? da - 0.004 : da + DOOR_HALF - 0.004;
       const leafG = arcTubeGlass(LIFTS.tubeR - 0.035, Y0 + 0.02, Y0 + DOOR_H - 0.02, a0, a1, 8);
-      const count = leafG.getAttribute('position').count;
-      glassPanels.add(leafG, M());
-      liftDoorLeaves.push({ lift: li, sign, lx, lz, start: nPanel * 36 + liftLeafVertOffset, count });
-      liftLeafVertOffset += count;
+      leafG.applyMatrix4(M());
+      const r = glassSink.addLeaf(leafG);
+      liftDoorLeaves.push({ lift: li, sign, lx, lz, start: r.start, count: r.count });
     }
 
     // 3 symmetrical guide posts outside doorway (da + 60, +180, +300 deg) so no post blocks entry
@@ -246,23 +234,22 @@ export function buildThresholdFixtures(
     g.setAttribute('color', new THREE.BufferAttribute(c, 3));
     return g;
   };
-  const plinthG = tint(mergeGeometries(plinthGeos.map((g) => (g.index ? g.toNonIndexed() : g)), false)!, [0.22, 0.22, 0.22]);
-  const champG = tint(champagne.merge()!, WHITE), steelG = tint(stainless.merge()!, STEEL);
-  const stripG = mergeGeometries(stripGeos, false)!;
+  const steelG = tint(stainless.merge()!, STEEL);
   const ringG = mergeGeometries(lights, false)!;
-  const IDLE = 1.3, PEAK = 3.4;
-  const setStrip = (i: number, v: number): void => {
-    for (let k = 0; k < perStrip; k++) { const o = (stripOff + i * perStrip + k) * 3; col[o] = v; col[o + 1] = v * 0.98; col[o + 2] = v * 0.94; }
-  };
-  const perStrip = stripGeos[0]!.getAttribute('position').count;
-  const stripOff = champG.getAttribute('position').count + steelG.getAttribute('position').count + plinthG.getAttribute('position').count;
-  tint(stripG, [IDLE, IDLE, IDLE]); tint(ringG, [2.6, 2.0, 1.3]);
-  const metalGeo = mergeGeometries([champG, steelG, plinthG, stripG, ringG], false)!;
-  const colAttr = metalGeo.getAttribute('color') as THREE.BufferAttribute;
-  const col = colAttr.array as Float32Array;
-  const metalMesh = mk(metalGeo, metalMat, 'thresholdMetal');
-  void metalMesh;
-  for (let i = 0; i < cabinets.length; i++) setStrip(i, IDLE);
+  tint(ringG, [2.6, 2.0, 1.3]);
+  const metalGeo = mergeGeometries([steelG, ringG], false)!;
+  mk(metalGeo, metalMat, 'thresholdMetal');
+
+  // the fare line's own stainless mesh (cabinets, posts, rails, leaf edges, LED lines); the two animated blocks are contiguous at its end
+  const fareGeo = fare.geo;
+  fareGeo.computeBoundingSphere();
+  mk(fareGeo, fareMat, 'thresholdFareLine');
+  const farePos = fareGeo.getAttribute('position') as THREE.BufferAttribute;
+  const fareNor = fareGeo.getAttribute('normal') as THREE.BufferAttribute;
+  const fareCol = fareGeo.getAttribute('color') as THREE.BufferAttribute;
+  const faceBasePos = (farePos.array as Float32Array).slice(fare.edgeFrom * 3, fare.edgeTo * 3);
+  const faceBaseNor = (fareNor.array as Float32Array).slice(fare.edgeFrom * 3, fare.edgeTo * 3);
+  const colArr = fareCol.array as Float32Array;
 
   // Rotating sheaves inside the two lift machinery heads (reuses metalMat: +1 void call)
   const sheaveMesh = new THREE.InstancedMesh(tint(sheaveInstGeo, [0.78, 0.84, 0.96]), metalMat, LIFTS.positions.length);
@@ -278,20 +265,39 @@ export function buildThresholdFixtures(
 
   const statG = glassStatic.merge()!;
   const panelG = glassPanels.merge()!;
+  if (panelG.getAttribute('position').count !== leafCursor) throw new Error('gates: animated glass vertex count does not match the leaf bookkeeping');
   const glassGeo = mergeGeometries([statG, panelG], false)!;
-  const panelBase = statG.getAttribute('position').count; // panel vertices come last
+  const panelBase = statG.getAttribute('position').count; // animated-leaf vertices come last
   const pos = glassGeo.getAttribute('position') as THREE.BufferAttribute;
+  const nrm = glassGeo.getAttribute('normal') as THREE.BufferAttribute;
   const base = Float32Array.from(pos.array);
+  const baseN = Float32Array.from(nrm.array);
   mk(glassGeo, kit.glass, 'thresholdGlass', 2);
   glassGeo.computeBoundingSphere();
-  glassGeo.boundingSphere!.radius += SG.cabinetLength; // panels slide on the CPU: the bound stays valid
+  glassGeo.boundingSphere!.radius += 1; // leaves swing on the CPU: the bound stays valid
 
   // ---- runtime ------------------------------------------------------------------------------------------------------
   const phase = new Float32Array(lanes.length);   // 0 closed .. 1 open
   const glow = new Float32Array(lanes.length);    // 0 idle .. 1 brightest
   const wasNear = new Uint8Array(lanes.length);
-  const cabAdj = cabinets.map((c) => lanes.map((l, li) => (l.side === c.side && (l.index === c.index || l.index === c.index - 1) ? li : -1)).filter((v) => v >= 0));
-  const posDirty = (): void => { pos.needsUpdate = true; };
+  let prevX = 0, prevZ = 0, hasPrev = false;
+
+  /** Rotates a leaf's vertices (glass or edge) about its vertical hinge axis by phi, positions and normals together. */
+  const swing = (
+    p: THREE.BufferAttribute, n: THREE.BufferAttribute, bp: Float32Array, bn: Float32Array, bOff: number, v0: number, count: number,
+    hx: number, hz: number, phi: number,
+  ): void => {
+    const c = Math.cos(phi), s = Math.sin(phi);
+    for (let k = 0; k < count; k++) {
+      const j = (v0 - bOff + k) * 3;
+      const bx = bp[j]! - hx, bz = bp[j + 2]! - hz;
+      p.setX(v0 + k, hx + bx * c + bz * s);
+      p.setZ(v0 + k, hz - bx * s + bz * c);
+      const nx = bn[j]!, nz = bn[j + 2]!;
+      n.setX(v0 + k, nx * c + nz * s);
+      n.setZ(v0 + k, -nx * s + nz * c);
+    }
+  };
 
   const syncLiftMachinery = (): boolean => {
     let sheaveMoved = false;
@@ -313,15 +319,8 @@ export function buildThresholdFixtures(
         for (let di = 0; di < liftDoorLeaves.length; di++) {
           const lf = liftDoorLeaves[di]!;
           if (lf.lift !== li) continue;
-          const rot = lf.sign * open01 * DOOR_HALF * 0.96;
-          const c = Math.cos(rot), s = Math.sin(rot);
-          const v0 = panelBase + lf.start;
-          for (let k = 0; k < lf.count; k++) {
-            const bx = base[(v0 + k) * 3]! - lf.lx;
-            const bz = base[(v0 + k) * 3 + 2]! - lf.lz;
-            pos.setX(v0 + k, lf.lx + bx * c - bz * s);
-            pos.setZ(v0 + k, lf.lz + bx * s + bz * c);
-          }
+          // swing(): rotation by -rot about the lift axis (same convention as before: x' = x c - z s)
+          swing(pos, nrm, base, baseN, 0, panelBase + lf.start, lf.count, lf.lx, lf.lz, -lf.sign * open01 * DOOR_HALF * 0.96);
         }
         doorsMoved = true;
       }
@@ -331,19 +330,42 @@ export function buildThresholdFixtures(
   };
   syncLiftMachinery();
 
+  const chevSet = (i: number, v: number): void => {
+    // closed: dark graphite inlay (below the glow threshold); open: soft white emitter
+    const g = v > 0.45 ? LED.chevron * v : 0.03;
+    for (let k = 0; k < fare.chevVerts; k++) { const q = (fare.chevStart[i]! + k) * 3; colArr[q] = g; colArr[q + 1] = g * 0.99; colArr[q + 2] = g * 0.96; }
+  };
+  lanes.forEach((_, i) => chevSet(i, 0));
+  const ledTri = (o: number, v: number): void => { for (let k = 0; k < fare.ledVerts; k++) { const q = (o + k) * 3; colArr[q] = v; colArr[q + 1] = v * 0.98; colArr[q + 2] = v * 0.94; } };
+
   return {
     group,
     stats: {
-      calls: 3,
-      triangles: (metalGeo.getAttribute('position').count + glassGeo.getAttribute('position').count + sheaveInstGeo.getAttribute('position').count * LIFTS.positions.length) / 3,
+      calls: 4 + hall.stats.calls,
+      triangles: (metalGeo.getAttribute('position').count + fareGeo.getAttribute('position').count + glassGeo.getAttribute('position').count + sheaveInstGeo.getAttribute('position').count * LIFTS.positions.length) / 3 + hall.stats.triangles,
     },
     update(dt: number, feet: { x: number; y: number; z: number }): void {
       const onLevel = Math.abs(feet.y - Y0) < 1.6;
-      let panelsMoved = false, lightsMoved = false;
+      // player velocity for the look-ahead (ignored across teleports and on the first frame)
+      let vx = 0, vz = 0;
+      if (hasPrev && dt > 1e-4) {
+        vx = (feet.x - prevX) / dt; vz = (feet.z - prevZ) / dt;
+        if (Math.hypot(vx, vz) > 14) { vx = 0; vz = 0; }
+      }
+      prevX = feet.x; prevZ = feet.z; hasPrev = true;
+      const ax = feet.x + vx * SG.lookAheadSec, az = feet.z + vz * SG.lookAheadSec;
+      const sx = ax - feet.x, sz = az - feet.z, sl2 = sx * sx + sz * sz;
+      let leavesMoved = false, lightsMoved = false, chevMoved = false;
       for (let i = 0; i < lanes.length; i++) {
         const l = lanes[i]!;
         const d = Math.hypot(feet.x - l.x, feet.z - l.z);
-        const near = onLevel && d < (wasNear[i] ? SG.approachR + 0.35 : SG.approachR); // a little hysteresis, it closes behind you
+        // distance from the lane centre to the player's path over the next lookAheadSec (segment feet -> ahead)
+        let dPath = d;
+        if (sl2 > 1e-4) {
+          const t = Math.min(1, Math.max(0, ((l.x - feet.x) * sx + (l.z - feet.z) * sz) / sl2));
+          dPath = Math.hypot(feet.x + sx * t - l.x, feet.z + sz * t - l.z);
+        }
+        const near = onLevel && dPath < (wasNear[i] ? SG.approachR + SG.closeExtra : SG.approachR); // hysteresis: it closes behind you
         const prevNear = wasNear[i]!;
         wasNear[i] = near ? 1 : 0;
         if ((near ? 1 : 0) !== prevNear) options.onSpeedGate?.(l.x, Y0 + 0.9, l.z, near);
@@ -353,34 +375,30 @@ export function buildThresholdFixtures(
           let p = phase[i]! + dir * (dt / SG.panelSeconds); // REAL seconds
           if ((dir > 0 && p >= 1) || (dir < 0 && p <= 0)) p = tgt;
           phase[i] = p;
-          panelsMoved = true;
+          const e = smooth(p);
+          for (const lf of leavesByLane[i]!) {
+            swing(pos, nrm, base, baseN, 0, panelBase + lf.glassStart, lf.glassCount, lf.hingeX, lf.hingeZ, lf.phiOpen * e);
+            swing(farePos, fareNor, faceBasePos, faceBaseNor, fare.edgeFrom, lf.edgeStart, lf.edgeCount, lf.hingeX, lf.hingeZ, lf.phiOpen * e);
+          }
+          chevSet(i, e); chevMoved = true;
+          leavesMoved = true;
         }
         const gt = onLevel ? 1 - smooth((d - SG.approachR) / (SG.glowR - SG.approachR)) : 0;
-        if (Math.abs(glow[i]! - gt) > 1e-3) { glow[i] = glow[i]! + (gt - glow[i]!) * Math.min(1, dt * 8); lightsMoved = true; }
-      }
-      if (panelsMoved) {
-        for (let pi = 0; pi < panels.length; pi++) {
-          const p = panels[pi]!;
-          const s = smooth(phase[p.lane]!);
-          const v0 = panelBase + p.start;
-          for (let k = 0; k < 36; k++) {
-            const z = base[(v0 + k) * 3 + 2]!, t = (z - p.z0) / panelW;
-            const zOpen = p.cabZ + (t - 0.5) * 0.09; // narrows to fit inside the 0.18 blade
-            pos.setZ(v0 + k, z + (zOpen - z) * s);
-            pos.setY(v0 + k, base[(v0 + k) * 3 + 1]! - sink * s);
-          }
+        if (Math.abs(glow[i]! - gt) > 1e-3) {
+          glow[i] = glow[i]! + (gt - glow[i]!) * Math.min(1, dt * 8);
+          const v = LED.idle + (LED.peak - LED.idle) * glow[i]!;
+          ledTri(fare.ledStart[i]!, v); ledTri(fare.ledStart[i]! + fare.ledVerts, v);
+          lightsMoved = true;
         }
       }
-      if (syncLiftMachinery() || panelsMoved) posDirty();
-      if (lightsMoved) {
-        for (let ci = 0; ci < cabinets.length; ci++) {
-          let g = 0;
-          for (const li of cabAdj[ci]!) if (glow[li]! > g) g = glow[li]!;
-          setStrip(ci, IDLE + (PEAK - IDLE) * g);
-        }
-        colAttr.clearUpdateRanges();
-        colAttr.addUpdateRange(stripOff * 3, cabinets.length * perStrip * 3);
-        colAttr.needsUpdate = true;
+      if (syncLiftMachinery() || leavesMoved) { pos.needsUpdate = true; nrm.needsUpdate = true; }
+      if (leavesMoved) {
+        for (const a of [farePos, fareNor]) { a.clearUpdateRanges(); a.addUpdateRange(fare.edgeFrom * 3, (fare.edgeTo - fare.edgeFrom) * 3); a.needsUpdate = true; }
+      }
+      if (lightsMoved || chevMoved) {
+        fareCol.clearUpdateRanges();
+        fareCol.addUpdateRange(fare.ledFrom * 3, (fare.ledTo - fare.ledFrom) * 3);
+        fareCol.needsUpdate = true;
       }
     },
   };

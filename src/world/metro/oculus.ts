@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
-import { DISC, GANGWAY, OCULUS, OCULUS_DETAIL as OD, THROAT, voidRadiusAt } from '../../layoutMetro';
+import { DISC, ESCALATOR, FLIGHTS, GANGWAY, OCULUS, OCULUS_DETAIL as OD, THROAT, voidRadiusAt } from '../../layoutMetro';
 import { GeoBag, at, boxMM, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import type { MetroMaterials } from './materials';
 
@@ -18,6 +18,8 @@ const SOUTH = Math.PI * 1.5; // angle whose point is (CX, CZ - r)
 const UP = v3(0, 1, 0);
 const CURB_TOP = OCULUS.curbHeight;
 const GATE_Z = CZ - OCULUS.balustradeR;
+/** Dome ribs/rings keep clear of F1: across-band pad, and the vertical envelope below / above its step line (metres). */
+const DOME_F1_PAD = 0.35, DOME_F1_BELOW = 1.6, DOME_F1_ABOVE = 2.6;
 const RAIL_TOP = OD.handrailTopY;
 const SLAB = OCULUS.slabUnderY;
 const COLLAR_BOTTOM = SLAB - OD.collarDepth;
@@ -426,6 +428,25 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
       const L = Math.hypot(dr, 1);
       return { r: voidRadiusAt(y), radial: -1 / L, up: -dr / L };
     };
+    // F1 dives through the dome on the outer bands: ribs and rings stop short of its swept volume (truss underside to rider
+    // headroom), otherwise they read as beams crossing the flight seen from the throat.
+    const f1 = FLIGHTS.find((f) => f.id === 'F1')!;
+    const tan30 = Math.tan((ESCALATOR.angleDeg * Math.PI) / 180);
+    const inF1 = (p: THREE.Vector3): boolean => {
+      if (!f1.bands.some(([a, b]) => p.x > a - DOME_F1_PAD && p.x < b + DOME_F1_PAD)) return false;
+      const line = f1.yFrom - Math.max(0, p.z - f1.from) * tan30;
+      return p.z > f1.from - DOME_F1_PAD - 2 && p.y > line - DOME_F1_BELOW && p.y < line + DOME_F1_ABOVE;
+    };
+    const sweepClear = (fr: Frame[], caps: boolean): void => {
+      let run: Frame[] = [];
+      const flush = (): void => { if (run.length >= 2) voidStone.add(sweep(RIB, run, { closed: true, caps: true })); run = []; };
+      let cut = false;
+      for (const f of fr) {
+        if (inF1(f.o)) { cut = true; flush(); } else run.push(f);
+      }
+      if (!cut && run.length >= 2) { voidStone.add(sweep(RIB, run, { closed: true, caps })); return; }
+      flush();
+    };
     const ys: number[] = [];
     for (let y = OD.ribYTop; y >= OD.ribYBottom - 1e-6; y -= 0.25) ys.push(y);
     for (let k = 0; k < OD.ribCount; k++) {
@@ -435,7 +456,7 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
         const m = meridian(y);
         return { o: v3(CX + m.r * rad.x, y, CZ + m.r * rad.z), a: tan.clone(), b: rad.clone().multiplyScalar(m.radial).add(v3(0, m.up, 0)).normalize() };
       });
-      voidStone.add(sweep(RIB, fr, { closed: true, caps: true }));
+      sweepClear(fr, true);
     }
     const nRing = OD.ringSegments * 2;
     for (const y of OD.ribRingYs) {
@@ -450,7 +471,7 @@ export function buildOculus(lib: MaterialLibrary, kit: MetroMaterials, startOpen
         const bvec = rad.clone().multiplyScalar(m.radial).add(v3(0, m.up, 0)).normalize();
         fr.push({ o: v3(CX + m.r * rad.x, y, CZ + m.r * rad.z), a: alongM.clone(), b: bvec });
       }
-      voidStone.add(sweep(RIB, fr, { closed: true }));
+      sweepClear(fr, false);
     }
   }
 

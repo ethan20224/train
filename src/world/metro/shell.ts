@@ -38,11 +38,11 @@ const SHELL_DETAIL = {
   /** Terrazzo pit floor under the Sinking Floor disc well at (0, 74). */
   discPitR: DISC.wellR + 0.3,
   /** Subtle Ando stone tone variation and vertex shading for recessed joints/plinths. */
-  panelToneMin: 0.965,
-  panelToneSpan: 0.04,
-  bevelShade: 0.85,
+  panelToneMin: 0.93,
+  panelToneSpan: 0.09,
+  bevelShade: 0.93,
   returnShade: 0.45,
-  backingShade: 0.22,
+  backingShade: 0.6,
   plinthShade: 0.72,
   revealWallShade: 0.38,
   /** Map-wall architectural recess depth on the south end wall. */

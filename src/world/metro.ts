@@ -28,6 +28,7 @@ import { updateSensingHalo } from './metro/halo';
 import { createTrainsView } from './metro/trainsView';
 import { buildDroplets } from './metro/droplets';
 import { buildMapWall } from './metro/mapWall';
+import { buildForest } from './metro/forest';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Monolith & Machine cavern complete. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -60,10 +61,11 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const trainsView = createTrainsView(kit);
   const droplets = buildDroplets(kit);
   const mapWall = buildMapWall(ctx.materials, kit, ctx.renderer);
+  const forest = buildForest(ctx.renderer);
   voidGroup.add(liftsView.voidGroup, funicularView.voidGroup);
   deepGroup.add(
     shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group,
-    waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group, mapWall.group,
+    waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group, mapWall.group, forest.group,
   );
   // 6 PSD row controllers ordered identically to TRACKS [meridian0, meridian1, vesper0, vesper1, halcyon0, halcyon1]
   const psdRows = [
@@ -144,6 +146,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     droplets.updateReal(realClock);
     mapWall.updateReal(realClock);
     waterWall.update(realClock);
+    forest.update(realClock);
     updateSensingHalo(dt, feet);
   });
 
@@ -152,7 +155,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     ...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...meridian.deepMaterials,
     ...crossing.deepMaterials, ...halcyon.deepMaterials, ...portals.deepMaterials,
     ...waterWall.deepMaterials, ...onyxWall.deepMaterials, ...liftsView.deepMaterials, ...funicularView.deepMaterials,
-    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials, ...mapWall.deepMaterials,
+    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials, ...mapWall.deepMaterials, ...forest.deepMaterials,
   ];
   root.userData.bothZoneMaterials = [...liftsView.bothZoneMaterials, ...funicularView.bothZoneMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
