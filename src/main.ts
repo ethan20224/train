@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { applyPreset, parsePreset } from './core/presets';
+import { dayNight } from './metro/dayNight';
 import { PostFX } from './core/postfx';
 import { QualityController, parseQualityTier } from './core/quality';
 import type { BuildContext, FrameInfo, WorldModule } from './core/types';
@@ -94,6 +95,11 @@ const setProgress = (p: number): void => {
 };
 // Texture loads (THREE.DefaultLoadingManager) cover the first ~80 %; build / compile / finalize the rest.
 THREE.DefaultLoadingManager.onProgress = (_url, loaded, total) => setProgress((loaded / Math.max(1, total)) * 0.8);
+
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyN' || e.repeat || (e.target as HTMLElement | null)?.closest?.('input, textarea')) return;
+  dayNight.toggle();
+});
 
 async function boot(): Promise<void> {
   const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -253,6 +259,7 @@ async function boot(): Promise<void> {
     window.__meridian.time = frame.time;
     audio.update(frame);
 
+    dayNight.update(dt);
     depthLook.update(camera.position.y);
     if (!notifiedDeep && depthLook.airlock.zone === 'deep') {
       notifiedDeep = true;

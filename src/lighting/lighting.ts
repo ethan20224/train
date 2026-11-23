@@ -90,6 +90,12 @@ export function setSunMode(sun: THREE.DirectionalLight, mode: SunMode): void {
   }
 }
 
+/** Day/night: re-aim the deep light (sun or moon) toward unit direction `dir` and refit its static shadow camera. Caller sets
+ *  renderer.shadowMap.needsUpdate. */
+export function setDeepSunDirection(sun: THREE.DirectionalLight, dir: THREE.Vector3): void {
+  fitSunShadowPoints(sun, dir, DEEP_POINTS);
+}
+
 /** Floor-level upward spots that fake the warm bounce of the sun pools onto vault, walls and column undersides. */
 function addBounceLights(root: THREE.Object3D): void {
   const d = SUN_DIR.clone().negate(); // direction the light travels

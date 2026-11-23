@@ -40,3 +40,21 @@ This overrides `02-DESIGN-BIBLE.md` rule 10 ("emptiness is a feature") and the p
 ## Verification
 `npm run build && npm run metro-test && npm run nav-test`, real-GPU shots of every touched preset, perf-presets headed
 on the touched presets, route test. Nothing is called done without a shot I looked at.
+
+## Round 2 decisions (2026-11-23, AskUserQuestion)
+
+| Item | Choice |
+|---|---|
+| Sky | Drifting procedural clouds; sun dims as clouds cross it; sunbeams through mist |
+| Night | Toggle on **N**; rich golden-hour transition; night = stars + moon, fireflies, bioluminescent moss/fungi, warm station glow |
+| East wall | **Root wall**: colossal strangler fig, roots pouring down and wrapping the Vesper bores; replaces the onyx |
+| Forest extras | Canopy walk off the Meridian bridge, forest boardwalk (footbridge over a Vesper track), orchids/bromeliads + morpho butterflies + birdsong/drips, stream + koi pond fed by the waterfall |
+| PSDs | **Smart glass**: frameless, line-tinted frosted when idle → clear on arrival, black-glass header with next-train countdown, door-edge status light strips |
+| Platform life | Oak-and-stone benches in fern planters + leaning rails; live info screens (countdown, per-car crowding, map, line status); amenities (kiosk pod, water refill, charging pillars, glass waiting lounge); real station kit (tactile edge strips, help points, CCTV, speakers, fire cabinets, stop markers, driverless monitors, end gates/signals) |
+| Tracks | **Detailed modern slab**: real rail profiles, fastenings, covered power rail, drainage channel, cable trays, trackside lights |
+| Halcyon | Warm slatted oak ceiling, planted central island with benches, moving dappled-light art wall, + all platform kit |
+
+## Status
+- Committed ef7f484: forest, living walls, warm stone, waterfall, sealed fare line, satin trains, F1 dome-rib fix.
+- In progress (builders paused by rate limit until 20:00 SGT, resume via SendMessage): escalators, gates round 2 (cabinet tint, chevrons), canopy walk + boardwalk, root wall.
+- Opus: sky clouds + day/night (src/metro/dayNight.ts written), then sunbeams, fireflies/glow, void-wall tile + gold band fix, crown polish, PSD/platform/track/Halcyon packages, perf pass.

@@ -3,7 +3,9 @@ import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerat
 import type { PostFX } from '../core/postfx';
 import { Airlock, lookFactor, sunWeights, type Zone } from '../core/zones';
 import { DEEP_LOOK, DEEP_SUN, VOID_LOOK } from '../layoutMetro';
-import { setSunMode } from './lighting';
+import { setDeepSunDirection, setSunMode } from './lighting';
+import { dayNight } from '../metro/dayNight';
+import { skyDynamic } from '../world/metro/sky';
 
 interface Look {
   fog: THREE.Color; fogDensity: number; background: THREE.Color; exposure: number; bloom: number; threshold: number;
@@ -122,6 +124,55 @@ export class DepthLook {
     this.d.postfx.godRays.intensity = this.godRayBase * w.surface;
     this.d.postfx.setGodRaysEnabled(this.godRaysAllowed && this.airlock.zone === 'surface' && w.surface > 0);
     for (const { light, base } of this.dimmable) light.intensity = base * (1 - this.factor);
+    this.applyDayNight();
+  }
+
+  private lastLightDir = new THREE.Vector3();
+  private lastRefit = -1;
+  private envGain = 1;
+  private readonly nightFog = new THREE.Color(0.018, 0.024, 0.04);
+  private readonly goldFog = new THREE.Color(0.78, 0.6, 0.48);
+  private readonly nightHemi = new THREE.Color(0.25, 0.33, 0.55);
+  private readonly goldHemi = new THREE.Color(1.0, 0.68, 0.42);
+  private readonly _dir = new THREE.Vector3();
+
+  /** Day/night (src/metro/dayNight.ts) on top of the depth blend: deep light, ambient, exposure, fog, env and the sky shader. */
+  private applyDayNight(): void {
+    const dn = dayNight.state;
+    const t = dayNight.realTime;
+    skyDynamic.uTime.value = t;
+    skyDynamic.uGolden.value = dn.golden;
+    skyDynamic.uNight.value = dn.night;
+    skyDynamic.uSunOcc.value = dn.sunOcclusion;
+    if (this.airlock.zone !== 'deep') return;
+    const f = this.factor;
+    const { postfx, scene, renderer } = this.d;
+    this._dir.set(dn.lightDir[0], dn.lightDir[1], dn.lightDir[2]).normalize();
+    if (!dn.moon) skyDynamic.uSunDir.value.copy(this._dir);
+    this.sun.intensity *= dn.lightGain;
+    this.sun.color.setRGB(dn.lightColor[0], dn.lightColor[1], dn.lightColor[2]);
+    // Refit the static shadow only when the light has visibly moved, at most 5x a second (the map is not re-rendered per frame).
+    if (this._dir.angleTo(this.lastLightDir) > 0.006 && t - this.lastRefit > 0.2) {
+      this.lastLightDir.copy(this._dir);
+      this.lastRefit = t;
+      setDeepSunDirection(this.sun, this._dir);
+      renderer.shadowMap.needsUpdate = true;
+    }
+    const amb = THREE.MathUtils.lerp(1, dn.ambientGain, f);
+    this.fill.intensity *= amb;
+    this.probe.intensity *= amb;
+    this.fill.color.lerp(this.goldHemi, dn.golden * 0.75 * f).lerp(this.nightHemi, dn.night * f);
+    postfx.exposure.exposure *= THREE.MathUtils.lerp(1, dn.exposureGain, f);
+    const fog = scene.fog as THREE.FogExp2;
+    fog.color.lerp(this.goldFog, dn.golden * 0.5 * f).lerp(this.nightFog, dn.night * f);
+    if (Math.abs(amb - this.envGain) > 0.01) {
+      this.envGain = amb;
+      for (const m of (this.d.metroRoot.userData.deepMaterials ?? []) as THREE.MeshStandardMaterial[]) {
+        if (!m.isMeshStandardMaterial) continue;
+        const base = (m.userData.baseEnvIntensity ??= m.envMapIntensity) as number;
+        m.envMapIntensity = base * amb;
+      }
+    }
   }
 
   private applyBothZoneEnv(z: Zone, markNeedsUpdate: boolean): void {
@@ -144,6 +195,8 @@ export class DepthLook {
     for (const m of this.voidCasters) m.castShadow = !deep; // the deep sun is emitted at the sky plane: nothing above it casts
     this.applyBothZoneEnv(z, false);
     setSunMode(this.sun, z);
+    this.lastLightDir.set(0, 0, 0);
+    this.lastRefit = -1;
     this.d.renderer.shadowMap.needsUpdate = true;
     this.d.postfx.setGodRaysEnabled(this.godRaysAllowed && !deep);
   }

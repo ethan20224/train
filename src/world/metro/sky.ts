@@ -88,9 +88,21 @@ function rectHoleCW(x0: number, z0: number, x1: number, z1: number): THREE.Path 
   return p;
 }
 
+/**
+ * Live sky state (day/night + clouds, user ruling 2026-11-23), driven every displayed frame by src/lighting/looks.ts from
+ * src/metro/dayNight.ts. Shared by reference with the sky shader.
+ */
+export const skyDynamic = {
+  uTime: { value: 0 },
+  uGolden: { value: 0 },
+  uNight: { value: 0 },
+  uSunOcc: { value: 0 },
+  uMoonDir: { value: new THREE.Vector3(0, 1, 0) },
+  uSunDir: { value: new THREE.Vector3(...DEEP_SUN.direction).normalize() },
+};
+
 function createSkyMaterial(): THREE.ShaderMaterial {
   const L = SKY_LOOK;
-  const sunDir = new THREE.Vector3(...DEEP_SUN.direction).normalize();
   // Chord length |d - uSunDir| = 2*sin(theta/2) gives full float32 precision near dot = 1 (avoids cos() quantization).
   const chord = (deg: number): number => 2 * Math.sin(((deg * Math.PI) / 180) * 0.5);
   return new THREE.ShaderMaterial({
@@ -99,7 +111,6 @@ function createSkyMaterial(): THREE.ShaderMaterial {
     fog: false,
     depthWrite: true,
     uniforms: {
-      uSunDir: { value: sunDir },
       uSunColor: { value: new THREE.Vector3(...DEEP_SUN.color) },
       uZenith: { value: new THREE.Vector3(...L.zenithColor).multiplyScalar(L.zenithGain) },
       uHorizon: { value: new THREE.Vector3(...L.horizonColor).multiplyScalar(L.horizonGain) },
@@ -118,6 +129,7 @@ function createSkyMaterial(): THREE.ShaderMaterial {
       uAureoleWideGain: { value: L.sunAureoleWideGain },
       uAureoleWidePow: { value: L.sunAureoleWidePow },
       uDither: { value: L.ditherStrength },
+      ...skyDynamic,
     },
     vertexShader: /* glsl */ `
       varying vec3 vWorldPos;
@@ -147,7 +159,23 @@ function createSkyMaterial(): THREE.ShaderMaterial {
       uniform float uAureoleWideGain;
       uniform float uAureoleWidePow;
       uniform float uDither;
+      uniform float uTime;
+      uniform float uGolden;
+      uniform float uNight;
+      uniform float uSunOcc;
+      uniform vec3 uMoonDir;
       varying vec3 vWorldPos;
+
+      float vhash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p) {
+        vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(vhash(i), vhash(i + vec2(1.0, 0.0)), f.x), mix(vhash(i + vec2(0.0, 1.0)), vhash(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
+      float fbm(vec2 p) {
+        float a = 0.5, s = 0.0;
+        for (int i = 0; i < 5; i++) { s += a * vnoise(p); p = p * 2.03 + vec2(17.1, 9.3); a *= 0.5; }
+        return s;
+      }
 
       float hash12(vec2 p) {
         vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -163,6 +191,11 @@ function createSkyMaterial(): THREE.ShaderMaterial {
 
         // CoeLux-style Rayleigh noon gradient: grazing pale haze -> deep noon zenith blue
         vec3 col = mix(uHorizon, uZenith, pow(up, uHorizonPow));
+        // Golden hour: warm low horizon, softened zenith. Night: deep indigo.
+        vec3 gold = mix(vec3(1.7, 0.78, 0.36), vec3(0.62, 0.55, 0.62), pow(up, 0.7));
+        col = mix(col, gold, uGolden);
+        vec3 nightCol = mix(vec3(0.020, 0.028, 0.060), vec3(0.003, 0.006, 0.020), pow(up, 0.6));
+        col = mix(col, nightCol, uNight);
         // Luminous atmospheric band near grazing angles sells infinite sky depth
         col += uGrazing * pow(1.0 - up, uGrazingPow);
 
@@ -174,7 +207,36 @@ function createSkyMaterial(): THREE.ShaderMaterial {
         float disc = 1.0 - smoothstep(uSunInnerChord, uSunOuterChord, ang);
         float corona = uSunCoronaGain * exp(-ang * uSunCoronaFalloff);
         float aureole = uAureoleTightGain * pow(s, uAureoleTightPow) + uAureoleWideGain * pow(s, uAureoleWidePow);
-        col += uSunColor * (uSunDiscGain * disc + corona + aureole);
+        float sunVis = 1.0 - smoothstep(0.55, 0.7, uNight + uGolden * 0.0);
+        vec3 sunTint = mix(uSunColor, vec3(1.0, 0.55, 0.25), uGolden);
+
+        // Stars (night): sparse cells on a direction grid, gentle twinkle.
+        vec2 sd = d.xz / (d.y + 0.35) * 260.0;
+        vec2 cell = floor(sd);
+        float sh = vhash(cell);
+        float star = step(0.9965, sh) * smoothstep(0.5, 0.0, length(fract(sd) - 0.5)) * (0.6 + 0.4 * sin(uTime * (1.5 + sh * 3.0) + sh * 40.0));
+        // Moon: crisp disc + soft halo.
+        float mAng = length(d - uMoonDir);
+        float moon = 1.0 - smoothstep(0.0085, 0.0105, mAng);
+        vec3 nightAdd = vec3(0.85, 0.9, 1.0) * star * 2.2 + vec3(0.9, 0.94, 1.0) * (moon * 7.0 + 0.25 * exp(-mAng * 9.0));
+
+        // Drifting clouds: a virtual cloud deck seen through the window to infinity, thickening in front of the sun when a
+        // cloud passes (uSunOcc, in step with the sun dimming on the CPU).
+        vec2 cuv = d.xz / max(d.y, 0.08) * 1.1 + vec2(uTime * 0.0045, uTime * 0.0021);
+        float f = fbm(cuv);
+        float sunPass = uSunOcc * exp(-ang * 2.6) * 0.55;
+        float dens = smoothstep(0.36, 0.66, f + sunPass) * smoothstep(0.04, 0.3, d.y);
+        float shade = fbm(cuv + normalize(uSunDir.xz + 1e-4) * 0.06);
+        float lit = clamp(0.55 + (f - shade) * 4.0 + 0.35 * pow(s, 4.0), 0.0, 1.3);
+        vec3 cDay = mix(vec3(0.62, 0.68, 0.78), vec3(1.55, 1.55, 1.52), lit);
+        vec3 cGold = mix(vec3(0.40, 0.26, 0.36), vec3(1.6, 0.78, 0.48), lit);
+        vec3 cNight = mix(vec3(0.010, 0.013, 0.025), vec3(0.09, 0.10, 0.14), lit) + vec3(0.25, 0.27, 0.32) * exp(-mAng * 5.0) * lit;
+        vec3 cloudCol = mix(mix(cDay, cGold, uGolden), cNight, uNight);
+        float cover = dens * 0.92;
+
+        col += sunTint * (uSunDiscGain * disc + corona + aureole) * sunVis * (1.0 - cover);
+        col += nightAdd * uNight * (1.0 - cover);
+        col = mix(col, cloudCol, cover);
 
         // Triangular dither against 8-bit banding after tone mapping
         float n = hash12(gl_FragCoord.xy) - hash12(gl_FragCoord.xy + vec2(17.13, 41.71));

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CAVERN, FOREST, VESPER, TRENCH } from '../../layoutMetro';
 import { crownBottomLimit, crownTopLimit, planForest, type ForestTree } from '../../metro/forestLayout';
+import { dayNight } from '../../metro/dayNight';
 
 /**
  * The cloud forest (user ruling 2026-11-23, docs/meridian-deep-handoff/CLOUD-FOREST-PLAN.md): buttressed canopy trees draped
@@ -82,7 +83,7 @@ export function forestGroundY(x: number, z: number): number {
 
 // ---- geometry accumulator -----------------------------------------------------------------------------------------
 
-class Mesher {
+export class Mesher {
   pos: number[] = []; nor: number[] = []; uv: number[] = []; col: number[] = []; wind: number[] = []; idx: number[] = [];
   vert(p: THREE.Vector3, u: number, v: number, c: readonly [number, number, number], n?: THREE.Vector3, w = 0, ph = 0): number {
     this.pos.push(p.x, p.y, p.z);
@@ -163,15 +164,15 @@ function bezier(p0: THREE.Vector3, p1: THREE.Vector3, p2: THREE.Vector3, n: numb
 }
 
 // Atlas cells (u0, v0, u1, v1) in the 2048² foliage atlas (canvas y down; CanvasTexture flipY maps canvas top to v = 1).
-const CELL = {
+export const CELL = {
   leafA: [0, 0.5, 0.5, 1], leafB: [0.5, 0.5, 1, 1],
   frondA: [0, 0, 0.25, 0.5], frondB: [0.25, 0, 0.5, 0.5],
   mossA: [0.5, 0, 0.75, 0.5], mossB: [0.75, 0, 1, 0.5],
 } as const;
-type Cell = readonly [number, number, number, number];
+export type Cell = readonly [number, number, number, number];
 
 /** One foliage card: centre c, axes a (width/2) and b (height/2), cell uv; normal per corner supplied by `nrm`. */
-function card(
+export function card(
   m: Mesher, c: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, cell: Cell, tint: readonly [number, number, number],
   nrm: (p: THREE.Vector3) => THREE.Vector3, w0: number, w1: number, ph: number,
 ): void {
@@ -185,7 +186,7 @@ function card(
 }
 
 /** A bending strip (fern frond): starts at `base`, azimuth `az`, elevation eased from e0 to e1 (rad), `len` long. */
-function frond(
+export function frond(
   m: Mesher, base: THREE.Vector3, az: number, e0: number, e1: number, len: number, width: number, segs: number, cell: Cell,
   tint: readonly [number, number, number], wBase: number, ph: number,
 ): void {
@@ -320,6 +321,12 @@ function makeFoliageAtlas(renderer: THREE.WebGLRenderer): THREE.CanvasTexture {
   return t;
 }
 
+let _atlas: THREE.CanvasTexture | null = null;
+/** The foliage atlas is painted once and shared by the forest and the Root Wall (src/world/metro/rootWall.ts). */
+export function sharedFoliageAtlas(renderer: THREE.WebGLRenderer): THREE.CanvasTexture {
+  return (_atlas ??= makeFoliageAtlas(renderer));
+}
+
 /** Tileable greyscale detail (bark furrows or forest-floor litter); colour comes from vertex colours. */
 function makeDetail(renderer: THREE.WebGLRenderer, kind: 'bark' | 'ground'): THREE.CanvasTexture {
   const S = 512;
@@ -359,8 +366,13 @@ function makeDetail(renderer: THREE.WebGLRenderer, kind: 'bark' | 'ground'): THR
 // ---- shader patches -------------------------------------------------------------------------------------------------
 
 const uTime = { value: 0 };
+/** Day/night (src/metro/dayNight.ts): night weight, and the mist colour already scaled to the light level. */
+const uNight = { value: 0 };
+const uMistCol = { value: new THREE.Vector3(...FOREST.mist.color).multiplyScalar(0.9) };
 const MIST_GLSL = `
 uniform float uForestTime;
+uniform float uForestNight;
+uniform vec3 uForestMist;
 varying vec3 vForestWorld;
 float fHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float fNoise(vec2 p) {
@@ -369,10 +381,11 @@ float fNoise(vec2 p) {
 }`;
 
 /** Ground mist (height fog with drifting noise) + optional wind sway and two-sided foliage normals, chained onto `mat`. */
-function patchForest(mat: THREE.MeshStandardMaterial, key: string, opts: { wind?: boolean; foliage?: boolean }): void {
-  const [mr, mg, mb] = FOREST.mist.color;
+export function patchForest(mat: THREE.MeshStandardMaterial, key: string, opts: { wind?: boolean; foliage?: boolean; glow?: boolean }): void {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uForestTime = uTime;
+    sh.uniforms.uForestNight = uNight;
+    sh.uniforms.uForestMist = uMistCol;
     let vs = sh.vertexShader.replace('#include <common>', `#include <common>\nuniform float uForestTime;\nvarying vec3 vForestWorld;${opts.wind ? '\nattribute vec2 aWind;' : ''}`);
     if (opts.wind) {
       vs = vs.replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -387,6 +400,20 @@ function patchForest(mat: THREE.MeshStandardMaterial, key: string, opts: { wind?
     vs = vs.replace('#include <project_vertex>', '#include <project_vertex>\n  vForestWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.vertexShader = vs;
     let fs = sh.fragmentShader.replace('#include <common>', `#include <common>\n${MIST_GLSL}`);
+    if (opts.glow) {
+      // Night: bioluminescent fungi and moss patches low on roots, trunks and boulders (blue-green, cold light).
+      fs = fs.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  if (uForestNight > 0.01) {
+    vec3 gp = vForestWorld;
+    float low = 1.0 - smoothstep(${(Y0 + 1.5).toFixed(2)}, ${(Y0 + 6.0).toFixed(2)}, gp.y);
+    // tiny caps and specks (5-15 cm), clustered in a few colonies; no large painted areas
+    float colony = smoothstep(0.58, 0.75, fNoise(gp.xz * 0.17 + gp.y * 0.11));
+    float spots = smoothstep(0.86, 0.93, fNoise(gp.xz * 9.0 + gp.y * 7.0)) * colony;
+    float sheen = smoothstep(0.7, 0.95, fNoise(gp.xz * 1.3 + gp.y * 0.9)) * colony * 0.04;
+    float pulse = 0.8 + 0.2 * sin(uForestTime * 0.7 + gp.x * 0.3 + gp.z * 0.2);
+    totalEmissiveRadiance += vec3(0.12, 0.9, 0.7) * (spots * 1.2 + sheen) * low * pulse * uForestNight;
+  }`);
+    }
     if (opts.foliage) {
       // Crown-sphere normals are authored for both faces: never flip them on back faces. A faint translucency keeps undersides alive.
       fs = fs.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize( vNormal );')
@@ -399,7 +426,7 @@ function patchForest(mat: THREE.MeshStandardMaterial, key: string, opts: { wind?
     float n = fNoise(q * 0.055 + vec2(uForestTime * 0.011, uForestTime * 0.006)) * 0.62 + fNoise(q * 0.16 - vec2(uForestTime * 0.019, -uForestTime * 0.013)) * 0.38;
     float dF = 1.0 - exp(-length(vForestWorld - cameraPosition) * 0.03);
     float mist = clamp(${FOREST.mist.strength.toFixed(3)} * hF * (0.35 + 0.85 * n) * dF, 0.0, 0.6);
-    gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(${mr.toFixed(3)}, ${mg.toFixed(3)}, ${mb.toFixed(3)}) * 0.9, mist);
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, uForestMist, mist);
   }`);
     sh.fragmentShader = fs;
   };
@@ -408,10 +435,10 @@ function patchForest(mat: THREE.MeshStandardMaterial, key: string, opts: { wind?
 
 // ---- builders -----------------------------------------------------------------------------------------------------
 
-type RGB = readonly [number, number, number];
+export type RGB = readonly [number, number, number];
 const BARK: RGB = [0.30, 0.24, 0.19];
-const MOSS: RGB = [0.16, 0.27, 0.07];
-const mixc = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+export const MOSS: RGB = [0.16, 0.27, 0.07];
+export const mixc = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
 function buildTree(t: ForestTree, bark: Mesher, fol: Mesher): void {
   const rnd = mulberry32(t.seed);
@@ -607,6 +634,53 @@ function buildLivingWalls(fol: Mesher, ground: Mesher, rnd: () => number): void 
   }
 }
 
+/** Night fireflies: soft additive points drifting low through the forest beds, each pulsing on its own rhythm. 1 draw call, hidden by day. */
+function buildFireflies(count: number): THREE.Points {
+  const rnd = mulberry32(FOREST.seed + 31);
+  const pos = new Float32Array(count * 3), ph = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const b = FOREST.beds[Math.floor(rnd() * FOREST.beds.length)]!;
+    const x = b.xMin + rnd() * (b.xMax - b.xMin), z = b.zMin + rnd() * (b.zMax - b.zMin);
+    pos[i * 3] = x; pos[i * 3 + 1] = forestGroundY(x, z) + 0.4 + Math.pow(rnd(), 1.6) * 7.5; pos[i * 3 + 2] = z;
+    ph[i] = rnd() * 100;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aPhase', new THREE.BufferAttribute(ph, 1));
+  g.computeBoundingSphere();
+  const mat = new THREE.ShaderMaterial({
+    name: 'metroForestFireflies', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    uniforms: { uForestTime: uTime, uForestNight: uNight, uScale: { value: 380 } },
+    vertexShader: /* glsl */ `
+      uniform float uForestTime; uniform float uScale;
+      attribute float aPhase; varying float vGlow;
+      void main() {
+        vec3 p = position;
+        float t = uForestTime * 0.35 + aPhase;
+        p += vec3(sin(t * 1.3) * 0.9 + sin(t * 0.37) * 1.6, sin(t * 0.9) * 0.45, cos(t * 1.1) * 0.9 + cos(t * 0.29) * 1.6);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        float blink = pow(max(0.0, sin(uForestTime * (0.9 + fract(aPhase) * 1.4) + aPhase * 7.0)), 6.0);
+        vGlow = blink;
+        gl_PointSize = (0.09 + 0.14 * blink) * uScale / max(1.0, -mv.z);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uForestNight; varying float vGlow;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float a = smoothstep(0.5, 0.0, length(c));
+        gl_FragColor = vec4(vec3(1.0, 0.92, 0.42) * (0.4 + 3.2 * vGlow) * a * uForestNight, 1.0);
+      }`,
+  });
+  const pts = new THREE.Points(g, mat);
+  pts.name = 'forestFireflies';
+  pts.frustumCulled = false;
+  pts.userData.noShadow = true;
+  pts.visible = false;
+  pts.renderOrder = 4;
+  return pts;
+}
+
 export interface ForestBuild {
   group: THREE.Group;
   deepMaterials: THREE.Material[];
@@ -698,15 +772,15 @@ export function buildForest(renderer: THREE.WebGLRenderer): ForestBuild {
 
   const barkTex = makeDetail(renderer, 'bark');
   const groundTex = makeDetail(renderer, 'ground');
-  const atlas = makeFoliageAtlas(renderer);
+  const atlas = sharedFoliageAtlas(renderer);
 
   const barkMat = new THREE.MeshStandardMaterial({ name: 'metroForestBark', map: barkTex, vertexColors: true, roughness: 0.92, metalness: 0 });
   const groundMat = new THREE.MeshStandardMaterial({ name: 'metroForestFloor', map: groundTex, vertexColors: true, roughness: 0.96, metalness: 0 });
   const folMat = new THREE.MeshStandardMaterial({
     name: 'metroForestFoliage', map: atlas, vertexColors: true, roughness: 0.62, metalness: 0, alphaTest: 0.42, side: THREE.DoubleSide,
   });
-  patchForest(barkMat, 'bark', {});
-  patchForest(groundMat, 'ground', {});
+  patchForest(barkMat, 'bark', { glow: true });
+  patchForest(groundMat, 'ground', { glow: true });
   patchForest(folMat, 'foliage', { wind: true, foliage: true });
 
   const barkGeo = bark.build(false, false);
@@ -720,11 +794,22 @@ export function buildForest(renderer: THREE.WebGLRenderer): ForestBuild {
     m.frustumCulled = true;
     group.add(m);
   }
+  const fireflies = buildFireflies(plan.trees.length * 26);
+  group.add(fireflies);
   const tris = (barkGeo.index!.count + groundGeo.index!.count + folGeo.index!.count) / 3;
   return {
     group,
     deepMaterials: [barkMat, groundMat, folMat],
-    update(realTimeSec: number): void { uTime.value = realTimeSec; },
-    stats: { calls: meshes.length, triangles: tris },
+    update(realTimeSec: number): void {
+      uTime.value = realTimeSec;
+      const dn = dayNight.state;
+      uNight.value = dn.night;
+      // Mist follows the light: full at noon, warm at golden hour, a faint cold veil at night.
+      const k = 0.9 * (1 - 0.9 * dn.night);
+      const [mr, mg, mb] = FOREST.mist.color;
+      uMistCol.value.set(mr * k * (1 + 0.25 * dn.golden), mg * k * (1 + 0.02 * dn.golden), mb * k * (1 - 0.2 * dn.golden));
+      fireflies.visible = dn.night > 0.01;
+    },
+    stats: { calls: meshes.length + 1, triangles: tris },
   };
 }

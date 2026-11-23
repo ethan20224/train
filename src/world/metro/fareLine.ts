@@ -47,7 +47,7 @@ export interface FareGeometry {
  *  below 1 to let the metal read as dark reflective steel instead of a pale painted slab. */
 export const FARE_TINT = { body: [0.80, 0.76, 0.70], bodyLow: [0.15, 0.135, 0.12], plinth: [0.05, 0.05, 0.055], smoked: [0.012, 0.013, 0.016], post: [0.76, 0.73, 0.68] } as const satisfies Record<string, RGB>;
 /** LED line: idle and peak HDR (any channel above 1.2 renders as an unlit emitter, see vertexGlow). */
-export const LED = { idle: 1.3, peak: 3.4, chevron: 2.6 } as const;
+export const LED = { idle: 1.3, peak: 3.4, chevron: 1.15 } as const;
 const RING_GLOW: RGB = [2.5, 2.45, 2.3];
 
 const UP = v3(0, 1, 0);
@@ -196,7 +196,7 @@ export function buildFareGeometry(glass: GlassSink, extra: readonly TintedPart[]
   });
   // lane-mouth chevrons: flush floor inlays at both ends of every lane, pointing into the lane; emissive only when the lane is open
   const chevGeos: THREE.BufferGeometry[] = [];
-  const CH = { len: 0.17, w: 0.03, half: 0.15, back: 0.3, y: 0.003 };
+  const CH = { len: 0.11, w: 0.016, half: 0.1, back: 0.3, y: 0.003 };
   lanes.forEach((lane) => {
     for (const e of [-1, 1] as const) {
       // tip toward the lane centre: arms sweep back (away from the lane) by +-half across
