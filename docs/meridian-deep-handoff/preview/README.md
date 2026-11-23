@@ -2,6 +2,15 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P3-6 — Twelve Tunnel Bores & Darkened Horseshoe Tunnels (`p3-6/`)
+
+All twelve single-track bores (Meridian north/south, Vesper west/east, Halcyon SW/NE) in 4 draw calls: precision 0.30 m brushed-stainless reveals with 30 mm shadow gaps, 341.5 m (`TIMING.spawnClearance + METRO_TRAIN.length + 10`) horseshoe dark charcoal linings distance-darkened in shader (no fog washout, black end caps), modern slab tracks extending cleanly into the bores, and 684 instanced 6 m arch light-rib fixtures driven by one HalfFloat `DataTexture` (2 % idle shimmer now; arrival waves & departure wakes in Phase 4).
+
+- **Portal (new hero preset — Meridian north arrival bore, slab rails & recessed arch ribs into darkness)** — ![portal](p3-6/portal.jpg)
+- **Water wall (Vesper west bores piercing polished black granite with crisp stainless reveals)** — ![waterwall](p3-6/waterwall.jpg)
+- **Meridian (north portal pair aligned behind the disc well)** — ![meridian](p3-6/meridian.jpg)
+- **Deep (Halcyon NE portal pair terminating the diagonal hall)** — ![deep](p3-6/deep.jpg)
+
 ## P3-5 — Halcyon Deep Hall & Daylight Shaft (`p3-5/`)
 
 Enclosed 110 m × 20 m diagonal hall 82 m underground: stack-bond honed limestone walls with two continuous horizontal 4000 K cool light slots (2.4 m & 6.0 m), 3 × 3 m axis-aligned coffered pale ceiling at −73.5 m, rectangular limestone light well rising to the glass floor with two lit diagonal corner light shelves, lined honed-limestone F6 escalator cutting piercing the NW wall (≥ 2.5 m headroom + stainless frame), dark terrazzo island with flush oxblood satin enamel inlays, centre-facing stainless lift landing aprons, Halcyon PSDs (with clean low-headroom step-down under F6), and modern slab tracks — all in 10 draw calls.

@@ -416,11 +416,11 @@ export function buildMeridianBridge(lib: MaterialLibrary, kit: MetroMaterials): 
     { name: 'meridianPsd', extraFixedGlass: balGlassGeos },
   );
 
-  // ---- 6. Modern slab tracks (both 108 m nave tracks running straight into all 4 Meridian bores) ----
+  // ---- 6. Modern slab tracks (entering all 4 Meridian bores cleanly and receding 24 m into the dark tunnels) ----
   const tracks = buildSlabTracks(
     [
-      { track: t0, sMin: -54.5, sMax: 54.5 },
-      { track: t1, sMin: -54.5, sMax: 54.5 },
+      { track: t0, sMin: -78, sMax: 78 },
+      { track: t1, sMin: -78, sMax: 78 },
     ],
     lib,
     kit,

@@ -417,7 +417,21 @@ export const SHELL = {
 } as const;
 
 /** Portal openings in the end walls (clear size). Bottom at track bed (railY - bedBelowRail). */
-export const PORTAL = { w: 5.0, h: 5.5, bedBelowRail: 0.6 } as const;
+export const PORTAL = { w: 5.0, h: 5.5, bedBelowRail: 0.6, frameDepth: 0.3, ringPitch: 6.0 } as const;
+
+export interface PortalBoreSpec {
+  readonly index: number;
+  readonly line: 'meridian' | 'vesper' | 'halcyon';
+  readonly track: 0 | 1;
+  /** 'in' = track's portalIn end (arrivals); 'out' = track's portalOut end (departures). */
+  readonly role: 'in' | 'out';
+  /** World [x, y, z] of the bore opening centre at the wall mouth plane (y = bedY + PORTAL.h / 2). */
+  readonly centre: readonly [number, number, number];
+  /** World y of the tunnel track bed (railY - PORTAL.bedBelowRail). */
+  readonly bedY: number;
+  /** Unit horizontal [fx, fz] pointing OUT of the tunnel into the station (tunnel extends along -facing). */
+  readonly facing: readonly [number, number];
+}
 
 /** Cross plan outline (x, z), counter-clockwise seen from above. */
 export const CROSS_OUTLINE: ReadonlyArray<readonly [number, number]> = [
@@ -553,6 +567,51 @@ export const HALCYON = {
 } as const;
 
 export const GLASS_FLOOR = { xMin: -30, xMax: -10, zMin: 65, zMax: 83 } as const;
+
+/** All 12 single-track tunnel bores (in pairs on Meridian, Vesper, and Halcyon end walls), aligned to src/metro/tracks.ts. */
+export const PORTALS: readonly PortalBoreSpec[] = (() => {
+  const mk = (
+    index: number,
+    line: PortalBoreSpec['line'],
+    track: 0 | 1,
+    role: 'in' | 'out',
+    x: number,
+    railY: number,
+    z: number,
+    fx: number,
+    fz: number,
+  ): PortalBoreSpec => {
+    const bedY = railY - PORTAL.bedBelowRail;
+    return { index, line, track, role, centre: [x, bedY + PORTAL.h / 2, z], bedY, facing: [fx, fz] };
+  };
+  const hp = HALCYON.halfLength + HALCYON.portalExtra; // 55
+  const [hx, hz] = HALCYON.centre;
+  const [ux, uz] = HALCYON.dir;
+  const px = -uz, pz = ux;
+  const hPos = (s: number, t: number): [number, number] => [hx + s * ux + t * px, hz + s * uz + t * pz];
+  const [h0InX, h0InZ] = hPos(-hp, +HALCYON.trackOffset);
+  const [h0OutX, h0OutZ] = hPos(+hp, +HALCYON.trackOffset);
+  const [h1InX, h1InZ] = hPos(+hp, -HALCYON.trackOffset);
+  const [h1OutX, h1OutZ] = hPos(-hp, -HALCYON.trackOffset);
+
+  return [
+    // Meridian (z = 20 south, z = 128 north): track 0 (x -10.55) runs +z, track 1 (x +10.55) runs -z
+    mk(0, 'meridian', 0, 'in', MERIDIAN.trackX[0], MERIDIAN.railY, CAVERN.nave.zMin, 0, +1),
+    mk(1, 'meridian', 0, 'out', MERIDIAN.trackX[0], MERIDIAN.railY, CAVERN.nave.zMax, 0, -1),
+    mk(2, 'meridian', 1, 'in', MERIDIAN.trackX[1], MERIDIAN.railY, CAVERN.nave.zMax, 0, -1),
+    mk(3, 'meridian', 1, 'out', MERIDIAN.trackX[1], MERIDIAN.railY, CAVERN.nave.zMin, 0, +1),
+    // Vesper (x = -60 west, x = +60 east): track 0 (z 62.45) runs +x, track 1 (z 85.55) runs -x
+    mk(4, 'vesper', 0, 'in', CAVERN.transept.xMin, VESPER.railY, VESPER.trackZ[0], +1, 0),
+    mk(5, 'vesper', 0, 'out', CAVERN.transept.xMax, VESPER.railY, VESPER.trackZ[0], -1, 0),
+    mk(6, 'vesper', 1, 'in', CAVERN.transept.xMax, VESPER.railY, VESPER.trackZ[1], -1, 0),
+    mk(7, 'vesper', 1, 'out', CAVERN.transept.xMin, VESPER.railY, VESPER.trackZ[1], +1, 0),
+    // Halcyon (s = ±55 diagonal): track 0 (t +6.55) runs +u, track 1 (t -6.55) runs -u
+    mk(8, 'halcyon', 0, 'in', h0InX, HALCYON.railY, h0InZ, +ux, +uz),
+    mk(9, 'halcyon', 0, 'out', h0OutX, HALCYON.railY, h0OutZ, -ux, -uz),
+    mk(10, 'halcyon', 1, 'in', h1InX, HALCYON.railY, h1InZ, -ux, -uz),
+    mk(11, 'halcyon', 1, 'out', h1OutX, HALCYON.railY, h1OutZ, +ux, +uz),
+  ];
+})();
 
 const DEEP_ELEV = (70 * Math.PI) / 180;
 const DEEP_AZ: readonly [number, number] = [Math.sin(Math.PI / 8), -Math.cos(Math.PI / 8)]; // toward SSE in (x, z)

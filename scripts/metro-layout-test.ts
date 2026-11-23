@@ -1,9 +1,10 @@
 // Geometry invariants of the Meridian Deep layout (spec §2). Run: npm run metro-layout-test
 import assert from 'node:assert/strict';
 import {
-  CAVERN, DISC, ESCALATOR, FLIGHTS, FUNICULAR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, METRO_TRAIN, OCULUS, PORTAL, PSD, SHELL, SKY,
+  CAVERN, DISC, ESCALATOR, FLIGHTS, FUNICULAR, HALCYON, LANDINGS, LIFTS, MAP_WALL, MERIDIAN, METRO_TRAIN, OCULUS, PORTAL, PORTALS, PSD, SHELL, SKY,
   THRESHOLD, THROAT, VESPER, escalatorUnits, voidRadiusAt,
 } from '../src/layoutMetro';
+import { TRACKS as METRO_TRACKS, trackPoint } from '../src/metro/tracks';
 import { GATES, KIOSK } from '../src/layout';
 
 let passed = 0;
@@ -142,6 +143,22 @@ test('monolith shell courses and portal bores fit cleanly', () => {
   assert.ok(vesperBot >= plinthTop + 0.2, 'Vesper bores sit above plinth top');
   assert.ok(VESPER.trackZ[0] - PORTAL.w / 2 >= CAVERN.transept.zMin + 4, 'Vesper south bore inside transept');
   assert.ok(VESPER.trackZ[1] + PORTAL.w / 2 <= CAVERN.transept.zMax - 4, 'Vesper north bore inside transept');
+});
+
+test('twelve PORTALS entries align with all 6 metro tracks (portalIn and portalOut)', () => {
+  assert.equal(PORTALS.length, 12);
+  for (const tr of METRO_TRACKS) {
+    for (const role of ['in', 'out'] as const) {
+      const p = PORTALS.find((b) => b.line === tr.line && b.track === tr.track && b.role === role);
+      assert.ok(p, `missing portal ${tr.line} T${tr.track} ${role}`);
+      const s = role === 'in' ? -tr.portalIn : tr.portalOut;
+      const [tx, ty, tz] = trackPoint(tr, s);
+      assert.ok(Math.hypot(p!.centre[0] - tx, p!.centre[2] - tz) < 1e-6, `${tr.line} T${tr.track} ${role} xz`);
+      assert.ok(Math.abs(p!.bedY - (ty - PORTAL.bedBelowRail)) < 1e-6, `${tr.line} T${tr.track} ${role} bedY`);
+      const sgn = role === 'in' ? 1 : -1;
+      assert.ok(Math.hypot(p!.facing[0] - tr.dir[0] * sgn, p!.facing[1] - tr.dir[1] * sgn) < 1e-6, `${tr.line} T${tr.track} ${role} facing`);
+    }
+  }
 });
 
 console.log(`\n${passed} metro layout checks passed`);

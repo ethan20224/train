@@ -683,11 +683,11 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
     { name: 'halcyonPsd', extraFixedGlass: extraGlassParts },
   );
 
-  // ---- 7. Modern slab tracks (`track.ts` geometries merged into halcyonInlayPlinths + halcyonSteel -> 0 extra calls!) ----
+  // ---- 7. Modern slab tracks (continuing 23 m into all 4 diagonal bores; merged into matte + steel -> 0 extra calls) ----
   const trackGeos = buildSlabTrackGeos(
     [
-      { track: t0, sMin: -L_HALL - 0.5, sMax: L_HALL + 0.5 },
-      { track: t1, sMin: -L_HALL - 0.5, sMax: L_HALL + 0.5 },
+      { track: t0, sMin: -L_HALL - 23, sMax: L_HALL + 23 },
+      { track: t1, sMin: -L_HALL - 23, sMax: L_HALL + 23 },
     ],
     lib,
   );

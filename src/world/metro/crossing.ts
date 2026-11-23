@@ -711,11 +711,11 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
     { name: 'vesperPsd', extraFixedGlass: balGlassGeos },
   );
 
-  // ---- 7. Vesper modern slab tracks + thin cool 4000 K trench-edge light lines (4 calls) ----
+  // ---- 7. Vesper modern slab tracks (continuing 24 m inside all 4 bores) + thin cool 4000 K trench-edge light lines ----
   const tracks = buildSlabTracks(
     [
       {
-        track: t0, sMin: CAVERN.transept.xMin - 0.5, sMax: CAVERN.transept.xMax + 0.5,
+        track: t0, sMin: CAVERN.transept.xMin - 24, sMax: CAVERN.transept.xMax + 24,
         edgeLights: [
           // Under the north Crossing platform overhang (z = 64.0) facing into the trench
           { perpOffset: +1.53, y: yTop - 0.16, facing: [0, -0.35, -0.94], sMin: fl.xMin, sMax: fl.xMax },
@@ -724,7 +724,7 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
         ],
       },
       {
-        track: t1, sMin: CAVERN.transept.xMin - 0.5, sMax: CAVERN.transept.xMax + 0.5,
+        track: t1, sMin: CAVERN.transept.xMin - 24, sMax: CAVERN.transept.xMax + 24,
         edgeLights: [
           // Under the south Crossing platform overhang (z = 84.0) facing into the trench
           { perpOffset: +1.53, y: yTop - 0.16, facing: [0, -0.35, +0.94], sMin: fl.xMin, sMax: fl.xMax },
