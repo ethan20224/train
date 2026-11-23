@@ -2,6 +2,19 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P4-5 — Live Map Wall & The Running Clock (`p4-5/`)
+
+Backlit 40 × 7 m architectural transit map wall and the one living clock in the station (`src/metro/mapLayout.ts`, `src/world/metro/mapWall.ts`, **4 draw calls total**):
+- **Backlit glass transit diagram (`2048×512`, drawn once):** deep obsidian architectural glass with slim brushed-stainless perimeter frame & glazing seams placed cleanly between stations, Meridian (ink blue), Vesper (jade), and Halcyon (oxblood) lines meeting symmetrically at `Meridian Deep`, aspect-corrected circular station nodes and unstretched Swiss typography across all 25 stations (including all 8 canonical names).
+- **Live instanced train dots (≤ 4):** mapped from `timetable` `s` to exact UV (`2.84e-13 px` roundtrip accuracy, verified in `metro-map-test`), routing cleanly along the luminous `r = 1.44 m` interchange halo around the clock so stopped trains stay 100 % visible and pulse softly while dwelling.
+- **2.4 m running white onyx clock:** backlit veined alabaster dial (no numerals), machined brushed-stainless bezel, 12 dark satin steel baton indices, hairline hour/minute hands, and a **continuous sweeping second hand** driven every displayed frame by `new Date()` (shares nothing with the frozen 6:47 brass clock upstairs).
+
+- **Mapwall closeup t = 0 s (2.4 m backlit white onyx clock, Swiss station rings, 4 live train dots gliding & pulsing)** — ![mapwall-closeup-t0](p4-5/mapwall-closeup-t0.jpg)
+- **Mapwall closeup t = +3 s (3.1 s later — continuous sweeping second hand advanced + live train dots gliding onto the interchange ring)** — ![mapwall-closeup-t1](p4-5/mapwall-closeup-t1.jpg)
+- **Mapwall (framed symmetrically from the Meridian island between the F4 escalators)** — ![mapwall](p4-5/mapwall.jpg)
+- **Skyride (descending F4 out of the sky rim flanked by golden droplet wings toward the live map wall & clock)** — ![skyride](p4-5/skyride.jpg)
+- **Floor (Crossing floor looking west toward twin lifts, water wall & sunlit droplet canopy above)** — ![floor](p4-5/floor.jpg)
+
 ## P4-4 — Kinetic Droplet Ceiling (`p4-4/`)
 
 Sculptural Changi "Kinetic Rain" canopy suspended beneath the buried noon sky in **2 draw calls** (`src/world/metro/droplets.ts`, Ruling 35):

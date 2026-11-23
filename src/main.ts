@@ -199,6 +199,7 @@ async function boot(): Promise<void> {
   if (camPreset) (metroRoot.userData.stageTrainsForPreset as ((p: typeof camPreset) => void) | undefined)?.(camPreset);
   const getMetroTrains = (metroRoot.userData.getTrains as (() => readonly unknown[]) | undefined) ?? (() => []);
   const getMetroPsds = (metroRoot.userData.getPsdState as (() => readonly unknown[]) | undefined) ?? (() => []);
+  const getMetroMap = (metroRoot.userData.getMapState as (() => unknown) | undefined) ?? (() => null);
   const onEnterDeep = metroRoot.userData.onEnterDeep as (() => void) | undefined;
   let notifiedDeep = false;
   window.__meridian.metro = () => ({
@@ -209,6 +210,7 @@ async function boot(): Promise<void> {
     funicular: funicular.snapshot(),
     trains: getMetroTrains(),
     psd: getMetroPsds(),
+    map: getMetroMap(),
     feet: controls.feet.toArray(),
   });
   // Guarantee: the static sun shadow map is rendered once, then never again (autoUpdate = false).

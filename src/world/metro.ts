@@ -27,6 +27,7 @@ import { buildFunicularView } from './metro/funicularView';
 import { updateSensingHalo } from './metro/halo';
 import { createTrainsView } from './metro/trainsView';
 import { buildDroplets } from './metro/droplets';
+import { buildMapWall } from './metro/mapWall';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Monolith & Machine cavern complete. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -57,10 +58,11 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const timetable = createTimetable({ seed: 42 });
   const trainsView = createTrainsView(kit);
   const droplets = buildDroplets(kit);
+  const mapWall = buildMapWall(ctx.materials, kit, ctx.renderer);
   voidGroup.add(liftsView.voidGroup, funicularView.voidGroup);
   deepGroup.add(
     shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group,
-    waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group,
+    waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group, mapWall.group,
   );
   // 6 PSD row controllers ordered identically to TRACKS [meridian0, meridian1, vesper0, vesper1, halcyon0, halcyon1]
   const psdRows = [
@@ -137,6 +139,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     funicularView.update();
     syncPortalWaves(timetable.trains(), realClock);
     droplets.updateReal(realClock);
+    mapWall.updateReal(realClock);
     waterWall.update(realClock);
     updateSensingHalo(dt, feet);
   });
@@ -146,7 +149,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     ...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...meridian.deepMaterials,
     ...crossing.deepMaterials, ...halcyon.deepMaterials, ...portals.deepMaterials,
     ...waterWall.deepMaterials, ...onyxWall.deepMaterials, ...liftsView.deepMaterials, ...funicularView.deepMaterials,
-    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials,
+    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials, ...mapWall.deepMaterials,
   ];
   root.userData.bothZoneMaterials = [...liftsView.bothZoneMaterials, ...funicularView.bothZoneMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
@@ -172,18 +175,30 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
       maxOpen: psdRows[i]!.maxOpen(),
       display: psdRows[i]!.getDisplay(),
     }));
+  root.userData.getMapState = () => mapWall.snapshot();
   root.userData.stageTrainsForPreset = (preset: PresetName): void => {
-    if (preset !== 'train') return;
-    // Fast-forward the real deterministic timetable until a Vesper track-0 train is stopped with doors open.
-    for (let i = 0; i < 6000; i++) {
-      timetable.update(0.05);
-      const ready = timetable.trains().some((t) => t.line === 'vesper' && t.track === 0 && t.phase === 'stopped' && t.doors01 >= 0.999);
-      if (ready) break;
+    if (preset === 'train') {
+      // Fast-forward the real deterministic timetable until a Vesper track-0 train is stopped with doors open.
+      for (let i = 0; i < 6000; i++) {
+        timetable.update(0.05);
+        const ready = timetable.trains().some((t) => t.line === 'vesper' && t.track === 0 && t.phase === 'stopped' && t.doors01 >= 0.999);
+        if (ready) break;
+      }
+    } else if (preset === 'mapwall') {
+      // Fast-forward until 3–4 trains are live across lines (at least one stopped) so the live map shows active dots immediately.
+      for (let i = 0; i < 6000; i++) {
+        timetable.update(0.05);
+        const ts = timetable.trains();
+        if (ts.length >= 3 && ts.some((t) => t.phase === 'stopped')) break;
+      }
+    } else {
+      return;
     }
     const ts = timetable.trains();
     trainsView.update(ts, ctx.camera.position);
     syncPsds(ts);
     syncPortalWaves(ts, realClock);
+    mapWall.updateTrains(ts);
   };
 
   return {
@@ -194,6 +209,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
       const ts = timetable.trains();
       trainsView.update(ts, f.camera.position);
       syncPsds(ts);
+      mapWall.updateTrains(ts);
       droplets.updateSim(timetable.time);
       for (let k = 0; k < ts.length; k++) {
         const t = ts[k]!;
