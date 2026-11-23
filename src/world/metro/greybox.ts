@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
-  CAVERN, CROSS_OUTLINE, DISC, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
-  THRESHOLD, TRENCH, VESPER, DEEP_SUN,
+  CAVERN, DISC, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, MERIDIAN, OCULUS, SKY,
+  THRESHOLD, TRENCH, VESPER,
 } from '../../layoutMetro';
 
 export interface Greybox {
@@ -63,24 +63,7 @@ export function buildGreybox(): Greybox {
 
   // --- deep (drawn below the airlock) ----------------------------------------------------------------
   const D = new THREE.Group(); D.name = 'metroDeep';
-  const cross = CROSS_OUTLINE.map(([x, z]) => [x, z] as [number, number]);
-  const skyHoles = [circle(cx, cz, SKY.holeR), ...LIFTS.positions.map(([x, z]) => circle(x, z, LIFTS.tubeR + 0.2, 32)), rectPts(FUNICULAR.skySlot.xMin, FUNICULAR.z - FUNICULAR.skySlot.halfZ, FUNICULAR.skySlot.xMax, FUNICULAR.z + FUNICULAR.skySlot.halfZ)];
-  const skyMat = new THREE.ShaderMaterial({
-    side: THREE.DoubleSide, fog: false,
-    uniforms: { uSunDir: { value: new THREE.Vector3(...DEEP_SUN.direction).normalize() } },
-    vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-    fragmentShader: `uniform vec3 uSunDir; varying vec3 vW;
-      void main(){ vec3 d = normalize(vW - cameraPosition); float up = max(d.y, 0.0);
-        vec3 col = mix(vec3(0.75,0.85,1.0)*2.6, vec3(0.16,0.36,0.9)*2.2, pow(up, 0.6));
-        float s = max(dot(d, uSunDir), 0.0); col += vec3(1.0,0.97,0.9) * (60.0*smoothstep(0.9995,0.9998,s) + 1.5*pow(s,40.0));
-        gl_FragColor = vec4(col, 1.0); }`,
-  });
-  const sky = new THREE.Mesh(slab(cross, skyHoles, SKY.y + 0.02, 0.02), skyMat);
-  sky.userData.noShadow = true;
-  const holeCaster = new THREE.Mesh(new THREE.CircleGeometry(SKY.holeR, 64), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
-  holeCaster.rotation.x = -Math.PI / 2; holeCaster.position.set(cx, SKY.y - 0.2, cz); holeCaster.castShadow = true; holeCaster.userData.noCapture = true;
-  D.add(sky, holeCaster);
-  // Cavern walls, base floor field, and west black-granite wall are built by shell.ts (P3-1).
+  // Buried sky, slot rims & casters are built by sky.ts (P3-2); cavern walls & base floor by shell.ts (P3-1).
   for (const tz of VESPER.trackZ) D.add(box(trench, CAVERN.transept.xMin, CAVERN.baseFloorY, tz - TRENCH.halfWidth, CAVERN.transept.xMax, VESPER.railY, tz + TRENCH.halfWidth));
   const fl = VESPER.floor;
   D.add(new THREE.Mesh(slab(rectPts(fl.xMin, fl.zMin, fl.xMax, fl.zMax), [

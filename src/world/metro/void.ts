@@ -613,6 +613,19 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
       }
       stainless.add(sweep(ccw(LIP), fr, { closed: true }));
     }
+    // Bottom stainless aperture lip sealing the 10 cm offset between fasciaBottom (-31.9) and SKY.y (-32.0):
+    // clean machined ring with zero coplanar overlap against the flat sky plane.
+    {
+      const BOT_LIP: P2[] = [[0, 0], [0.11, 0], [0.11, -0.05], [0.02, -0.05], [0, -0.03]];
+      const fr: Frame[] = [];
+      const n = 192;
+      for (let i = 0; i <= n; i++) {
+        const phi = (i / n) * TAU;
+        const rad = v3(Math.cos(phi), 0, Math.sin(phi));
+        fr.push({ o: v3(CX + rH * rad.x, D.rim.fasciaBottom, CZ + rH * rad.z), a: v3(0, -1, 0), b: rad.clone().negate() });
+      }
+      stainless.add(sweep(ccw(BOT_LIP), fr, { closed: true }));
+    }
     // rim cove: a warm slot around the hole, glowing against the sky seen from below
     channel(D.rim.coveY, rH, -1, 0, 'cove', false);
     rimSrc.push({ y: D.rim.coveY, r: rH - 0.03, color: washCol(stripCol.cove, WASH.cove * 1.2) });

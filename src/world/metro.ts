@@ -11,6 +11,7 @@ import { buildVoidShell } from './metro/void';
 import { buildDisc } from './metro/disc';
 import { buildThresholdFixtures } from './metro/gates';
 import { buildCavernShell } from './metro/shell';
+import { buildBuriedSky } from './metro/sky';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Phase 3: replacing deep greybox with Monolith & Machine. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -24,7 +25,8 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   gb.voidGroup.add(esc.voidGroup);
   gb.deepGroup.add(esc.deepGroup);
   const shell = buildCavernShell(ctx.materials, kit);
-  gb.deepGroup.add(shell.group);
+  const sky = buildBuriedSky(ctx.materials, kit);
+  gb.deepGroup.add(shell.group, sky.group);
   const sinking = buildDisc(ctx.materials, kit, VESPER.topY);
   sinking.group.position.y = disc.y;
   gb.voidGroup.add(sinking.group);
@@ -38,7 +40,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     fixtures.update(dt, feet);
   });
   root.add(gb.voidGroup, gb.deepGroup, gb.deepImpostor, gb.surfaceImpostor);
-  root.userData.deepMaterials = [...kit.deepList, ...shell.deepMaterials, ...gb.deepMaterials, ...esc.deepMaterials];
+  root.userData.deepMaterials = [...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...gb.deepMaterials, ...esc.deepMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
   gb.voidGroup.traverse((o) => {
     const mat = (o as THREE.Mesh).material;

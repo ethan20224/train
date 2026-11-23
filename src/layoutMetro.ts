@@ -161,7 +161,47 @@ export const LANDINGS = {
 
 export const THRESHOLD = { y: -30, rInner: 10, rOuter: 20, deckThickness: 2, gateX: 8.1, lanesPerSide: 3 } as const;
 
-export const SKY = { y: -32, holeR: 10 } as const;
+export const SKY = {
+  y: -32, holeR: 10,
+  /** Clearance added to LIFTS.tubeR for each circular lift-tube slot in the sky plane. */
+  liftSlotPad: 0.2,
+  /** Depth of the polished stainless rims hanging below the sky plane around lift and funicular slots. */
+  slotRimDepth: 0.3,
+  /** Offset below SKY.y for the invisible eclipse/slot shadow casters (inside deep shadow frustum, clear of sky plane). */
+  casterOffsetY: -0.15,
+} as const;
+
+/** CoeLux-like "window to infinity" buried noon sky shader parameters (src/world/metro/sky.ts). Linear RGB + gains. */
+export const SKY_LOOK = {
+  /** Deep noon sapphire zenith kept below bloom threshold so ACES preserves rich sky saturation. */
+  zenithColor: [0.05, 0.21, 0.84] as readonly [number, number, number],
+  zenithGain: 1.38,
+  /** Luminous pale atmospheric haze at grazing angles. */
+  horizonColor: [0.68, 0.82, 1.0] as readonly [number, number, number],
+  horizonGain: 1.55,
+  horizonPow: 0.42,
+  /** Faint luminous atmospheric band near grazing angles (sells infinite depth). */
+  grazingBandColor: [0.80, 0.89, 1.0] as readonly [number, number, number],
+  grazingBandGain: 0.22,
+  grazingBandPow: 5.5,
+  /** Subtle broad Rayleigh forward scatter toward the SSE sun side. */
+  forwardScatterColor: [0.76, 0.88, 1.0] as readonly [number, number, number],
+  forwardScatterGain: 0.14,
+  forwardScatterPow: 3.0,
+  /** Crisp solar disc angular radii (degrees) and HDR intensity. */
+  sunDiscInnerDeg: 0.28,
+  sunDiscOuterDeg: 0.36,
+  sunDiscGain: 48.0,
+  /** Tight inner solar glare + Mie aureole (never blows out the surrounding sky blue). */
+  sunCoronaGain: 0.95,
+  sunCoronaFalloff: 55.0,
+  sunAureoleTightGain: 0.85,
+  sunAureoleTightPow: 64.0,
+  sunAureoleWideGain: 0.14,
+  sunAureoleWidePow: 8.0,
+  /** Triangular dither amplitude against 8-bit gradient banding. */
+  ditherStrength: 0.5 / 255,
+} as const;
 
 export const DISC = {
   r: 3.5, topY: 0, bottomY: -70, vmax: 3, accel: 0.6, minSpeed: 0.05,

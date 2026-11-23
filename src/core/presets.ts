@@ -57,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'wellgate',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'wellgate',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -202,7 +202,9 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   void: { position: [-14, LANDINGS.L1.y + EYE, 81.8], target: [6, -24, 66], fov: 68, intent: 'On L1: era bands, light rings, flights crossing the void.' },
   strata: { position: [5.0, -15 + EYE, 71.2], target: [-19, -17.5, 70], fov: 70, intent: 'On F2 mid-flight looking across the void at the raw strata band: beds, overhangs, machined ring cuts.' },
   threshold: { position: [-9.5, THRESHOLD.y + EYE, 82.6], target: [5, -42, 58], fov: 66, intent: 'Threshold: speed gates, F4 dropping through the sky hole.' },
-  skyhole: { position: [12, VESPER.topY + EYE, 66], target: [0, SKY.y, OCULUS.cz], fov: 70, intent: 'From the Crossing floor looking up at the eclipse, flights and disc descending out of the sky.' },
+  skyhole: { position: [42, VESPER.topY + EYE, 68], target: [0, SKY.y - 1, OCULUS.cz], fov: 68, intent: 'From the Crossing floor east of the bridge looking up at the unobstructed eclipse, F4 flights and disc descending out of the buried sky.' },
+  sun: { position: [-24, VESPER.topY + EYE, 74], target: [-18, SKY.y, 60], fov: 64, intent: 'From the Crossing floor looking up into the buried noon sky with the sharp SSE solar disc in frame.' },
+  skyride: { position: [5.0, SKY.y - 1.1, 71.5], target: [-1, MERIDIAN.topY + 4, 34], fov: 70, intent: 'Riding F4 just as you emerge down through the sky hole: noon blue sky overhead, curved rim behind, Meridian bridge and map wall ahead.' },
   crossing: { position: [-40, VESPER.topY + EYE, 70], target: [20, -52, 78], fov: 66, intent: 'Along the transept: Meridian bridge crossing overhead, sky, funicular beyond.' },
   meridian: { position: [3, MERIDIAN.topY + EYE, 40], target: [0, MERIDIAN.topY - 2, 110], intent: 'On the floating Meridian island looking north along the bridge.' },
   glassfloor: { position: [-24, VESPER.topY + EYE, 66], target: [-16, HALCYON.topY, 80], intent: 'Standing on the glass panel looking down at the Halcyon platform.' },

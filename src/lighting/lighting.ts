@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import type { BuildContext, WorldModule } from '../core/types';
-import { BAYS, CAVERN, CONCOURSE, DEEP_SUN, LOUNGE_ROOM, SHED, SKY, VAULT } from '../layout';
+import { BAYS, CAVERN, CONCOURSE, CROSS_OUTLINE, DEEP_SUN, LOUNGE_ROOM, SHED, SKY, VAULT } from '../layout';
 import { SUN_COLOR, SUN_DIR, lookShared } from './shared';
 
 /**
@@ -20,8 +20,11 @@ const SHADOW_TEXELS = 4096 * 4096;
 // z reaches the first-class lounge behind the south wall (and its terrace), so the low sun is shadow-mapped there too
 const SURFACE_MIN = new THREE.Vector3(CONCOURSE.xMin - 3, -3, LOUNGE_ROOM.zMin - LOUNGE_ROOM.wallThickness - 1.2);
 const SURFACE_MAX = new THREE.Vector3(SHED.xMax + 3, VAULT.crownY + 2, SHED.zMax + 2);
-const DEEP_MIN = new THREE.Vector3(CAVERN.transept.xMin, CAVERN.yBottom, CAVERN.nave.zMin);
-const DEEP_MAX = new THREE.Vector3(CAVERN.transept.xMax, SKY.y, CAVERN.nave.zMax);
+// Tight 24-vertex cross prism (cavern walls + floor down to Halcyon -84): ~3.08 cm/texel on the fixed 4096^2 map.
+const DEEP_POINTS: readonly THREE.Vector3[] = CROSS_OUTLINE.flatMap(([x, z]) => [
+  new THREE.Vector3(x, CAVERN.yBottom, z),
+  new THREE.Vector3(x, SKY.y, z),
+]);
 const DEEP_DIR = new THREE.Vector3(...DEEP_SUN.direction).normalize();
 const DEEP_COLOR = new THREE.Color(...DEEP_SUN.color);
 
@@ -30,12 +33,14 @@ function floorPow2(n: number): number {
 }
 
 /**
- * Fit the sun's orthographic shadow frustum tightly (in light space) around the world that matters:
- * concourse + shed. The corners of the world AABB are projected onto the light's axes programmatically.
- * Returns the extents so the map resolution can follow the box aspect.
+ * Fit the sun's orthographic shadow frustum tightly (in light space) around a set of world points.
+ * Returns the light-space extents so the map resolution (or texel density check) can read them.
  */
-function fitSunShadow(sun: THREE.DirectionalLight, dir: THREE.Vector3, min: THREE.Vector3, max: THREE.Vector3): { w: number; h: number } {
-  const centre = min.clone().add(max).multiplyScalar(0.5);
+function fitSunShadowPoints(sun: THREE.DirectionalLight, dir: THREE.Vector3, pts: readonly THREE.Vector3[]): { w: number; h: number } {
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  for (const q of pts) { min.min(q); max.max(q); }
+  const centre = min.add(max).multiplyScalar(0.5);
 
   const zAxis = dir.clone(); // light looks along -z (camera convention): from the sun toward the centre
   const xAxis = new THREE.Vector3(0, 1, 0).cross(zAxis).normalize();
@@ -43,8 +48,8 @@ function fitSunShadow(sun: THREE.DirectionalLight, dir: THREE.Vector3, min: THRE
 
   let lx0 = Infinity, lx1 = -Infinity, ly0 = Infinity, ly1 = -Infinity, lz0 = Infinity, lz1 = -Infinity;
   const p = new THREE.Vector3();
-  for (let i = 0; i < 8; i++) {
-    p.set(i & 1 ? max.x : min.x, i & 2 ? max.y : min.y, i & 4 ? max.z : min.z).sub(centre);
+  for (const q of pts) {
+    p.copy(q).sub(centre);
     const x = p.dot(xAxis), y = p.dot(yAxis), z = p.dot(zAxis);
     lx0 = Math.min(lx0, x); lx1 = Math.max(lx1, x);
     ly0 = Math.min(ly0, y); ly1 = Math.max(ly1, y);
@@ -67,6 +72,12 @@ function fitSunShadow(sun: THREE.DirectionalLight, dir: THREE.Vector3, min: THRE
   return { w: lx1 - lx0, h: ly1 - ly0 };
 }
 
+function fitSunShadow(sun: THREE.DirectionalLight, dir: THREE.Vector3, min: THREE.Vector3, max: THREE.Vector3): { w: number; h: number } {
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i < 8; i++) pts.push(new THREE.Vector3(i & 1 ? max.x : min.x, i & 2 ? max.y : min.y, i & 4 ? max.z : min.z));
+  return fitSunShadowPoints(sun, dir, pts);
+}
+
 export type SunMode = 'surface' | 'deep';
 /** Re-aims the single sun and refits its static shadow camera. Caller sets renderer.shadowMap.needsUpdate. */
 export function setSunMode(sun: THREE.DirectionalLight, mode: SunMode): void {
@@ -75,7 +86,7 @@ export function setSunMode(sun: THREE.DirectionalLight, mode: SunMode): void {
     fitSunShadow(sun, SUN_DIR, SURFACE_MIN, SURFACE_MAX);
   } else {
     sun.color.copy(DEEP_COLOR);
-    fitSunShadow(sun, DEEP_DIR, DEEP_MIN, DEEP_MAX);
+    fitSunShadowPoints(sun, DEEP_DIR, DEEP_POINTS);
   }
 }
 

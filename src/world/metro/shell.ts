@@ -273,10 +273,9 @@ function computeVerticalJoints(len: number, openings: readonly WallOpening[]): n
   return dedup;
 }
 
-/** Vertical light slot centres along a wall segment (every 4th joint from centre = 12 m pitch, walls >= 30 m). */
+/** Vertical light slot centres along the long arm walls only (Ruling 38: no slots on the four 40 m end walls). */
 function computeLightSlots(seg: WallSeg, openings: readonly WallOpening[]): number[] {
-  if (seg.len < SHELL.slotMinWallLen) return [];
-  if (seg.role === 'south' || seg.role === 'west' || seg.role === 'east') return [];
+  if (seg.role !== 'arm' || seg.len < SHELL.slotMinWallLen) return [];
   const half = seg.len / 2;
   const pitch = SHELL.panelW * SHELL.slotJointStride; // 12 m
   const kMax = Math.floor((half - SHELL.minSlotOpeningClear) / pitch);
