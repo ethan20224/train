@@ -134,6 +134,12 @@ export interface AudioEngine {
   ticket(): void;
   /** Phase 4: gate paddles opening (true) or closing (false) at a world position. */
   gate(position: THREE.Vector3, open: boolean): void;
+  /** Phase 5 (P5-1): Threshold speed-gate soft pneumatic glass slide at world (x, y, z). */
+  speedGate?(x: number, y: number, z: number, open: boolean): void;
+  /** Phase 5 (P5-1): register live metro train state reader for positional metro train voices. */
+  setMetroTrainsProvider?(fn: () => readonly import('../metro/timetable').TrainState[]): void;
+  /** Debug/test: currently audible metro positional voice count (always <= 12). */
+  metroActiveVoices?(): number;
 }
 
 // ---------------------------------------------------------------------------

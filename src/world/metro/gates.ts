@@ -31,7 +31,16 @@ export interface ThresholdFixtures {
   stats: { calls: number; triangles: number };
 }
 
-export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials): ThresholdFixtures {
+export interface ThresholdFixturesOptions {
+  /** Fired once whenever a speed-gate lane switches between closed and open. */
+  onSpeedGate?: (x: number, y: number, z: number, open: boolean) => void;
+}
+
+export function buildThresholdFixtures(
+  lib: MaterialLibrary,
+  kit: MetroMaterials,
+  options: ThresholdFixturesOptions = {},
+): ThresholdFixtures {
   const group = new THREE.Group();
   group.name = 'metroThresholdFixtures';
 
@@ -335,7 +344,9 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
         const l = lanes[i]!;
         const d = Math.hypot(feet.x - l.x, feet.z - l.z);
         const near = onLevel && d < (wasNear[i] ? SG.approachR + 0.35 : SG.approachR); // a little hysteresis, it closes behind you
+        const prevNear = wasNear[i]!;
         wasNear[i] = near ? 1 : 0;
+        if ((near ? 1 : 0) !== prevNear) options.onSpeedGate?.(l.x, Y0 + 0.9, l.z, near);
         const tgt = near ? 1 : 0;
         if (phase[i] !== tgt) {
           const dir = Math.sign(tgt - phase[i]!);

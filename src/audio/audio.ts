@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import type { AudioEngine, FrameInfo, TrainVoice } from '../core/types';
 import { CONCIERGE, CROSS_PLATFORM, KIOSK } from '../layout';
+import { GLASS_FLOOR, VESPER } from '../layoutMetro';
+import { lookFactor } from '../core/zones';
+import type { TrainState } from '../metro/timetable';
+import { makeDeepImpulse, MetroAudio } from './metroAudio';
 
 /**
  * Fully procedural Web Audio for Grand Meridian Terminal. No sound files, nothing plays before start().
@@ -130,7 +134,9 @@ function pluck(g: GainNode, t: number, peak: number, decay: number, attack = 0.0
 interface Bus {
   ctx: Ctx;
   dry: GainNode;
+  hallDry: GainNode;
   send: GainNode;
+  hallSend: GainNode;
   white: AudioBuffer;
   brown: AudioBuffer;
 }
@@ -147,6 +153,7 @@ class Voice implements TrainVoice {
   private departed = false;
   private jointPhase = 0;
   private prevPos = new THREE.Vector3();
+  private readonly tmpPos = new THREE.Vector3();
   private havePrev = false;
   private wantBrakeHiss = false;
   private wantDepartPuff = false;
@@ -271,11 +278,11 @@ class Voice implements TrainVoice {
 
     this.lp.connect(this.panner);
     this.panner.connect(this.out);
-    this.out.connect(bus.dry);
+    this.out.connect(bus.hallDry);
     const send = track(ctx.createGain());
     send.gain.value = 0.35;
     this.out.connect(send);
-    send.connect(bus.send);
+    send.connect(bus.hallSend);
 
     const t0 = ctx.currentTime;
     const r = rng((Math.random() * 1e9) | 0);
@@ -287,13 +294,13 @@ class Voice implements TrainVoice {
     this.out.gain.setTargetAtTime(1, t0, 0.5);
   }
 
-  update(dt: number, listener: THREE.Vector3): void {
+  update(dt: number, listener: THREE.Vector3, spawnOneShots = true): void {
     const bus = this.bus;
     if (!bus || this.disposed || !this.panner || !this.lp) return;
     const { ctx } = bus;
     const now = ctx.currentTime;
 
-    const p = this.obj.getWorldPosition(new THREE.Vector3());
+    const p = this.obj.getWorldPosition(this.tmpPos);
     const dist = p.distanceTo(listener);
     const pn = this.panner;
     if (pn.positionX) {
@@ -346,10 +353,12 @@ class Voice implements TrainVoice {
       this.jointPhase += (v * dt) / JOINT_SPACING;
       while (this.jointPhase >= 1) {
         this.jointPhase -= 1;
-        const lead = this.jointPhase * (JOINT_SPACING / v); // how long ago the joint was crossed
-        const when = Math.max(now, now - lead);
-        this.clack(when, clamp01(v / 12));
-        this.clack(when + BOGIE_SPACING / v, clamp01(v / 12) * 0.8);
+        if (spawnOneShots) {
+          const lead = this.jointPhase * (JOINT_SPACING / v); // how long ago the joint was crossed
+          const when = Math.max(now, now - lead);
+          this.clack(when, clamp01(v / 12));
+          this.clack(when + BOGIE_SPACING / v, clamp01(v / 12) * 0.8);
+        }
       }
     }
 
@@ -357,16 +366,16 @@ class Voice implements TrainVoice {
     if (v > 1.2) this.wasMoving = true;
     if (this.braking && this.wasMoving && v < 0.25 && !this.releaseDone) {
       this.releaseDone = true;
-      this.hiss(now, 1.4, 0.16, 3200);
+      if (spawnOneShots) this.hiss(now, 1.4, 0.16, 3200);
     }
 
     if (this.wantBrakeHiss) {
       this.wantBrakeHiss = false;
-      this.hiss(now + 0.05, 4.2, 0.22, 4800); // long pneumatic hiss
+      if (spawnOneShots) this.hiss(now + 0.05, 4.2, 0.22, 4800); // long pneumatic hiss
     }
     if (this.wantDepartPuff) {
       this.wantDepartPuff = false;
-      this.hiss(now + 0.05, 1.6, 0.18, 2600); // air release puff
+      if (spawnOneShots) this.hiss(now + 0.05, 1.6, 0.18, 2600); // air release puff
     }
   }
 
@@ -470,6 +479,13 @@ class Engine implements AudioEngine {
 
   private master: GainNode | null = null;
   private bus: Bus | null = null;
+  private hallAmbientGain: GainNode | null = null;
+  private hallDryGain: GainNode | null = null;
+  private hallSendGain: GainNode | null = null;
+  private hallReverbReturn: GainNode | null = null;
+  private deepReverbReturn: GainNode | null = null;
+  private metroAudio: MetroAudio | null = null;
+  private trainsProvider: (() => readonly TrainState[]) | null = null;
   private started = false;
 
   private readonly voices = new Set<Voice>();
@@ -524,16 +540,38 @@ class Engine implements AudioEngine {
     const dry = ctx.createGain();
     dry.connect(this.master);
 
-    const send = ctx.createGain();
-    const convolver = ctx.createConvolver();
-    convolver.buffer = makeHallImpulse(ctx);
-    const ret = ctx.createGain();
-    ret.gain.value = 0.85;
-    send.connect(convolver).connect(ret).connect(this.master);
+    // Upstairs hall-specific dry/send sub-buses attenuate smoothly as the player descends into Meridian Deep.
+    const hallDry = ctx.createGain();
+    hallDry.gain.value = 1;
+    hallDry.connect(dry);
+    this.hallDryGain = hallDry;
 
-    this.bus = { ctx, dry, send, white: makeNoise(ctx, 3, 'white', 11), brown: makeNoise(ctx, 9, 'brown', 23) };
+    const send = ctx.createGain();
+    const hallSend = ctx.createGain();
+    hallSend.gain.value = 1;
+    hallSend.connect(send);
+    this.hallSendGain = hallSend;
+
+    // Crossfaded zone reverbs: warm 5.5 s Grand Hall IR <-> crisp 2.2 s honed-limestone deep IR.
+    const hallConv = ctx.createConvolver();
+    hallConv.buffer = makeHallImpulse(ctx);
+    const hallRet = ctx.createGain();
+    hallRet.gain.value = 0.85;
+    send.connect(hallConv).connect(hallRet).connect(this.master);
+    this.hallReverbReturn = hallRet;
+
+    const deepConv = ctx.createConvolver();
+    deepConv.buffer = makeDeepImpulse(ctx);
+    const deepRet = ctx.createGain();
+    deepRet.gain.value = 0;
+    send.connect(deepConv).connect(deepRet).connect(this.master);
+    this.deepReverbReturn = deepRet;
+
+    this.bus = { ctx, dry, hallDry, send, hallSend, white: makeNoise(ctx, 3, 'white', 11), brown: makeNoise(ctx, 9, 'brown', 23) };
     this.buildAmbient(this.bus);
     this.buildClock(this.bus);
+    this.metroAudio = new MetroAudio(this.bus);
+    if (this.trainsProvider) this.metroAudio.setTrainsProvider(this.trainsProvider);
   }
 
   /** Room tone: the sound of a huge empty space. Very low level, slowly breathing. */
@@ -541,6 +579,15 @@ class Engine implements AudioEngine {
     const { ctx } = bus;
     const t0 = ctx.currentTime;
     const rand = rng(77);
+
+    // Group all surface hall room-tone layers so they crossfade cleanly out as depth increases.
+    const ambRoot = ctx.createGain();
+    ambRoot.gain.value = 1;
+    ambRoot.connect(bus.dry);
+    const gs = ctx.createGain();
+    gs.gain.value = 0.7;
+    ambRoot.connect(gs).connect(bus.send);
+    this.hallAmbientGain = ambRoot;
 
     const air = ctx.createBufferSource();
     air.buffer = bus.brown;
@@ -552,10 +599,7 @@ class Engine implements AudioEngine {
     const g = ctx.createGain();
     g.gain.value = 0.085;
     air.connect(lp).connect(g);
-    g.connect(bus.dry);
-    const gs = ctx.createGain();
-    gs.gain.value = 0.7;
-    g.connect(gs).connect(bus.send);
+    g.connect(ambRoot);
     air.start(t0, rand() * 5);
 
     // Slow breathing: LFO on the cutoff and level.
@@ -579,8 +623,7 @@ class Engine implements AudioEngine {
     hbp.Q.value = 0.5;
     const hg = ctx.createGain();
     hg.gain.value = 0.0018;
-    hiss.connect(hbp).connect(hg).connect(bus.dry);
-    hg.connect(bus.send);
+    hiss.connect(hbp).connect(hg).connect(ambRoot);
     hiss.start(t0, rand() * 2);
     const lfo2 = ctx.createOscillator();
     lfo2.frequency.value = 0.031;
@@ -605,8 +648,7 @@ class Engine implements AudioEngine {
       lg.gain.value = lvl * 0.6;
       l.connect(lg).connect(og.gain);
       o.connect(og);
-      og.connect(bus.dry);
-      og.connect(bus.send);
+      og.connect(ambRoot);
       o.start(t0);
       l.start(t0);
     }
@@ -630,10 +672,10 @@ class Engine implements AudioEngine {
     const out = ctx.createGain();
     out.gain.value = 1;
     out.connect(p);
-    p.connect(bus.dry);
+    p.connect(bus.hallDry);
     const send = ctx.createGain();
     send.gain.value = 0.5;
-    p.connect(send).connect(bus.send);
+    p.connect(send).connect(bus.hallSend);
     this.clockOut = out;
   }
 
@@ -647,9 +689,15 @@ class Engine implements AudioEngine {
     if (!bus || !this.started) return;
     const { ctx } = bus;
     const t = when ?? ctx.currentTime;
-    const onPlatform = this.listenerPos.z > CROSS_PLATFORM.zMin;
+    const py = this.listenerPos.y;
+    const inMetro = py < -5;
+    const onGlassFloor =
+      inMetro && Math.abs(py - (VESPER.topY + 1.7)) < 2.2 &&
+      this.listenerPos.x >= GLASS_FLOOR.xMin && this.listenerPos.x <= GLASS_FLOOR.xMax &&
+      this.listenerPos.z >= GLASS_FLOOR.zMin && this.listenerPos.z <= GLASS_FLOOR.zMax;
+    const onPlatform = !inMetro && this.listenerPos.z > CROSS_PLATFORM.zMin;
     const r = Math.random;
-    const level = (0.72 + r() * 0.28) * (onPlatform ? 0.62 : 1);
+    const level = (0.72 + r() * 0.28) * (onPlatform ? 0.62 : inMetro ? 0.82 : 1);
     const pitch = 0.9 + r() * 0.22;
     this.footSide = -this.footSide;
 
@@ -660,21 +708,22 @@ class Engine implements AudioEngine {
     pan.connect(mix);
     mix.connect(bus.dry);
     const sendG = ctx.createGain();
-    sendG.gain.value = onPlatform ? 0.75 : 1.15; // polished marble throws the step into the hall
+    // Surface acoustics: polished hall marble throws longest; deep terrazzo/glass feed the crisp deep reverb.
+    sendG.gain.value = onPlatform ? 0.75 : inMetro ? 0.92 : 1.15;
     mix.connect(sendG).connect(bus.send);
 
-    // Click: short bandpassed noise transient (the leather/hard sole hitting stone).
+    // Click: short bandpassed noise transient (marble bright, terrazzo crisp/tight, glass glassy-high, platform dull).
     const click = ctx.createBufferSource();
     click.buffer = bus.white;
     const hp = ctx.createBiquadFilter();
     hp.type = 'highpass';
-    hp.frequency.value = onPlatform ? 500 : 1400;
+    hp.frequency.value = onPlatform ? 500 : onGlassFloor ? 2600 : inMetro ? 1200 : 1400;
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
-    bp.frequency.value = (onPlatform ? 1500 : 3300) * pitch;
-    bp.Q.value = onPlatform ? 0.8 : 1.3;
+    bp.frequency.value = (onPlatform ? 1500 : onGlassFloor ? 4800 : inMetro ? 2550 : 3300) * pitch;
+    bp.Q.value = onPlatform ? 0.8 : onGlassFloor ? 2.5 : inMetro ? 1.5 : 1.3;
     const cg = ctx.createGain();
-    pluck(cg, t, 0.55 * level, onPlatform ? 0.03 : 0.022);
+    pluck(cg, t, (onGlassFloor ? 0.72 : 0.55) * level, onPlatform ? 0.03 : inMetro ? 0.017 : 0.022);
     click.connect(hp).connect(bp).connect(cg).connect(pan);
     click.start(t, r() * 2, 0.08);
 
@@ -683,21 +732,21 @@ class Engine implements AudioEngine {
     knock.buffer = bus.white;
     const kb = ctx.createBiquadFilter();
     kb.type = 'bandpass';
-    kb.frequency.value = (onPlatform ? 520 : 780) * pitch;
-    kb.Q.value = 2.2;
+    kb.frequency.value = (onPlatform ? 520 : onGlassFloor ? 1350 : inMetro ? 680 : 780) * pitch;
+    kb.Q.value = onGlassFloor ? 3.4 : 2.2;
     const kg = ctx.createGain();
-    pluck(kg, t + 0.002, 0.5 * level, 0.055);
+    pluck(kg, t + 0.002, (onGlassFloor ? 0.28 : 0.5) * level, inMetro ? 0.042 : 0.055);
     knock.connect(kb).connect(kg).connect(pan);
     knock.start(t, r() * 2, 0.1);
 
-    // Body thump: low sine dropping in pitch (the step through the floor / chest).
+    // Body thump: low sine dropping in pitch (tighter solid-slab thump on terrazzo, lighter resonant tap on glass).
     const thump = ctx.createOscillator();
     thump.type = 'sine';
-    const f0 = (onPlatform ? 85 : 118) * pitch;
+    const f0 = (onPlatform ? 85 : onGlassFloor ? 195 : inMetro ? 136 : 118) * pitch;
     thump.frequency.setValueAtTime(f0, t);
-    thump.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.09);
+    thump.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.08);
     const tg = ctx.createGain();
-    pluck(tg, t, 0.42 * level, 0.13, 0.002);
+    pluck(tg, t, (onGlassFloor ? 0.16 : 0.42) * level, inMetro ? 0.095 : 0.13, 0.002);
     thump.connect(tg).connect(pan);
     thump.start(t);
     thump.stop(t + 0.25);
@@ -771,7 +820,7 @@ class Engine implements AudioEngine {
   }
 
   /** Called every frame with the visual time: tick at every integer second, tock at +0.5 s. Never drifts. */
-  private scheduleClock(time: number): void {
+  private scheduleClock(time: number, audible: boolean): void {
     const bus = this.bus;
     if (!bus || !this.started) return;
     const now = bus.ctx.currentTime;
@@ -781,10 +830,12 @@ class Engine implements AudioEngine {
       return;
     }
     // Fire every half-second boundary that this frame crossed (normally 0 or 1), aligned to the visual time.
-    for (let i = this.lastSecondHalf + 1; i <= idxNow; i++) {
-      const eventTime = i / 2;
-      const when = now + Math.max(0, eventTime - time);
-      this.clockTick(when, i % 2 === 1);
+    if (audible) {
+      for (let i = this.lastSecondHalf + 1; i <= idxNow; i++) {
+        const eventTime = i / 2;
+        const when = now + Math.max(0, eventTime - time);
+        this.clockTick(when, i % 2 === 1);
+      }
     }
     this.lastSecondHalf = idxNow;
   }
@@ -960,6 +1011,20 @@ class Engine implements AudioEngine {
   // Trains, listener, update
   // -------------------------------------------------------------------------------------------------------------------
 
+  speedGate(x: number, y: number, z: number, open: boolean): void {
+    if (!this.started || !this.metroAudio) return;
+    this.metroAudio.pneumaticSlide(x, y, z, open, 0.35, 0.085);
+  }
+
+  setMetroTrainsProvider(fn: () => readonly TrainState[]): void {
+    this.trainsProvider = fn;
+    this.metroAudio?.setTrainsProvider(fn);
+  }
+
+  metroActiveVoices(): number {
+    return this.metroAudio ? this.metroAudio.activeVoiceCount() : 0;
+  }
+
   createTrainVoice(obj: THREE.Object3D): TrainVoice {
     const v = new Voice(this, obj);
     this.voices.add(v);
@@ -975,6 +1040,7 @@ class Engine implements AudioEngine {
     const bus = this.bus;
     if (!bus || !this.started) return;
     const ctx = bus.ctx;
+    const now = ctx.currentTime;
     const cam = f.camera;
     cam.updateMatrixWorld();
     cam.getWorldPosition(this.listenerPos);
@@ -1002,11 +1068,21 @@ class Engine implements AudioEngine {
       lg.setOrientation(this.fwd.x, this.fwd.y, this.fwd.z, this.up.x, this.up.y, this.up.z);
     }
 
-    this.scheduleClock(f.time);
+    // Crossfade hall <-> deep zone acoustics using exact same depth curve as DepthLook (lookFactor).
+    const depth = lookFactor(p.y);
+    const hallKeep = 1 - smooth(0.12, 0.92, depth);
+    this.hallReverbReturn?.gain.setTargetAtTime(0.85 * (1 - depth), now, 0.16);
+    this.deepReverbReturn?.gain.setTargetAtTime(0.68 * depth, now, 0.16);
+    this.hallAmbientGain?.gain.setTargetAtTime(1 - depth, now, 0.18);
+    this.hallDryGain?.gain.setTargetAtTime(hallKeep, now, 0.18);
+    this.hallSendGain?.gain.setTargetAtTime(hallKeep, now, 0.18);
+
+    this.scheduleClock(f.time, hallKeep > 0.005);
     for (const v of this.voices) {
       v.attach(bus);
-      v.update(f.dt, this.listenerPos);
+      v.update(f.dt, this.listenerPos, hallKeep > 0.005);
     }
+    this.metroAudio?.update(f.dt, this.listenerPos, depth);
   }
 }
 

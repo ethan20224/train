@@ -56,6 +56,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const liftsView = buildLiftsView(ctx.materials, kit, ctx.renderer);
   const funicularView = buildFunicularView(ctx.materials, kit);
   const timetable = createTimetable({ seed: 42 });
+  ctx.audio.setMetroTrainsProvider?.(() => timetable.trains());
   const trainsView = createTrainsView(kit);
   const droplets = buildDroplets(kit);
   const mapWall = buildMapWall(ctx.materials, kit, ctx.renderer);
@@ -125,7 +126,9 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   sinking.group.position.y = disc.y;
   voidGroup.add(sinking.group);
   deepGroup.add(sinking.wellGate);
-  const fixtures = buildThresholdFixtures(ctx.materials, kit);
+  const fixtures = buildThresholdFixtures(ctx.materials, kit, {
+    onSpeedGate: (x, y, z, open) => ctx.audio.speedGate?.(x, y, z, open),
+  });
   voidGroup.add(fixtures.group);
 
   // Real-time visuals: they follow the runtime every displayed frame, also at ?timescale=0 (the module update below only runs with simulation time).

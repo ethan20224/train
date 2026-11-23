@@ -68,6 +68,7 @@ declare global {
       /** Phase 4 debug: ticket UI state. */
       ticketUi?: () => { card: string; badge: boolean; prompt: string };
       metro?: () => unknown;
+      startAudio?: () => Promise<void>;
     };
   }
 }
@@ -202,6 +203,7 @@ async function boot(): Promise<void> {
   const getMetroMap = (metroRoot.userData.getMapState as (() => unknown) | undefined) ?? (() => null);
   const onEnterDeep = metroRoot.userData.onEnterDeep as (() => void) | undefined;
   let notifiedDeep = false;
+  window.__meridian.startAudio = () => audio.start();
   window.__meridian.metro = () => ({
     zone: depthLook.airlock.zone,
     look: depthLook.factor,
@@ -211,6 +213,7 @@ async function boot(): Promise<void> {
     trains: getMetroTrains(),
     psd: getMetroPsds(),
     map: getMetroMap(),
+    audioVoices: audio.metroActiveVoices?.() ?? 0,
     feet: controls.feet.toArray(),
   });
   // Guarantee: the static sun shadow map is rendered once, then never again (autoUpdate = false).
