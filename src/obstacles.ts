@@ -5,7 +5,7 @@ import { shedObstacles } from './world/shed/layoutData';
 import { hotelObstacles } from './world/hotel/layoutData';
 import { platformObstacles } from './world/platformEnds/data';
 import { shopObstacles } from './world/shops/layoutData';
-import { THRESHOLD, speedGateObstacleCircles } from './layoutMetro';
+import { THRESHOLD, VESPER, crossingBenchObstacleCircles, speedGateObstacleCircles } from './layoutMetro';
 
 /**
  * Collidable props that are not part of the spec layout (benches, lamp posts, signs, ...).
@@ -44,5 +44,8 @@ export const PLATFORM_OBSTACLES: readonly PropObstacle[] = platformObstacles();
 /** Owned by world/shops.ts (Phase 5B: shopfronts, conveniences, cross-platform kiosk, level 0). */
 export const SHOP_OBSTACLES: readonly PropObstacle[] = shopObstacles();
 
-/** Owned by world/metro/gates.ts (Meridian Deep: Threshold speed-gate cabinets, level -30; the lanes between them always pass). */
-export const METRO_OBSTACLES: readonly PropObstacle[] = speedGateObstacleCircles().map((c) => ({ ...c, level: THRESHOLD.y }));
+/** Owned by world/metro/gates.ts & crossing.ts (Threshold speed-gate cabinets at -30; Crossing monolith benches at -70). */
+export const METRO_OBSTACLES: readonly PropObstacle[] = [
+  ...speedGateObstacleCircles().map((c) => ({ ...c, level: THRESHOLD.y })),
+  ...crossingBenchObstacleCircles().map((c) => ({ ...c, level: VESPER.topY })),
+];

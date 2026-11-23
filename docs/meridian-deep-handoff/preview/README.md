@@ -2,6 +2,18 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P3-4 — Crossing Floor, Vesper Tracks, Glass Panel & 2035 Well Gate (`p3-4/`)
+
+116 m × 20 m dark terrazzo Crossing floor with flush 1.5 m brushed-stainless division grid (zero brass in cavern) and flush satin enamel wayfinding inlays (jade along Vesper PSDs, ink-blue from F5, oxblood to F6 & glass panel), full-height Vesper screen doors + fixed end screens, dark Vesper rail trenches with modern slab track and cool edge lights, walkable laminated structural glass floor on a 1.5 m stainless T-grid with 0.10 m ceramic frit borders & lift-tube collars, cantilevered honed-limestone monolith benches with warm 3200 K under-lights, 2035 Monolith circular glass balustrade well ring with curved sliding glass leaves (zero bronze/brass), and bottom newel/combplate height fix across F1–F6.
+
+- **Floor (new preset — benches, well gate, inlays, Vesper PSDs & floating bridge overhead)** — ![floor](p3-4/floor.jpg)
+- **Well gate (2035 curved sliding glass ring replacing 1910 bronze gate + flush F5 combplates)** — ![wellgate](p3-4/wellgate.jpg)
+- **Glass floor (laminated structural panes, 0.10 m ceramic frit borders, stainless T-grid, view to Halcyon)** — ![glassfloor](p3-4/glassfloor.jpg)
+- **Crossing (full transept, glass panel, oxblood/jade inlays, floating Meridian bridge)** — ![crossing](p3-4/crossing.jpg)
+- **Meridian (cleaned up — F4 bottom newels/combplates flush, phantom F5 piers removed)** — ![meridian](p3-4/meridian.jpg)
+- **Funicular view (bridge coves + hangers + sky)** — ![funicular](p3-4/funicular.jpg)
+- **Water wall bay (Vesper west bores + black granite backing)** — ![waterwall](p3-4/waterwall.jpg)
+
 ## P3-3 — Floating Meridian Bridge, Platform Screen Doors & Slab Track (`p3-3/`)
 
 Chamfered white-steel box-girder bridge spanning the 108 m nave with 50 mm wall expansion gaps, warm 3200 K soffit coves along both outer edges, 6 m fascia splices & underside ribs, 22 hairline stainless tension hangers anchored flush into the buried sky, dark polished terrazzo island with flush ink-blue satin enamel inlays, ultra-clear 1.1 m glass balustrades, reusable champagne-framed full-height screen doors (`psd.ts`, white dot-matrix transoms + non-emissive line bar), and modern concrete slab tracks (`track.ts`).

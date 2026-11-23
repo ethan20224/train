@@ -1,10 +1,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
-import { DISC, DISC_DETAIL as DD, GANGWAY, OCULUS } from '../../layoutMetro';
-import { GeoBag, boxMM, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
+import { CROSSING, DISC, DISC_DETAIL as DD, GANGWAY, OCULUS } from '../../layoutMetro';
+import { GeoBag, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import { vertexGlow } from './glow';
-import { buildGate, addGatePilasters, type Gate } from './oculus';
 import type { MetroMaterials } from './materials';
 
 /**
@@ -79,13 +78,60 @@ const bowlY = (r: number): number => {
 export interface DiscVisuals {
   /** Everything that moves with the disc (world y = disc.y). */
   group: THREE.Group;
-  /** Hall-lit brass/bronze/marble, and the well gate in the Crossing-floor level. */
+  /** 2035 Monolith curved sliding glass well-gate leaves at the Crossing-floor level (no bronze/brass). */
   wellGate: THREE.Group;
+  /** Deep-environment materials owned by wellGate (for metro.userData.deepMaterials). */
+  wellDeepMaterials: THREE.Material[];
   /** Per displayed frame, real time. */
   update(y: number, wellGateOpen: boolean): void;
 }
 
-export function buildDisc(lib: MaterialLibrary, _kit: MetroMaterials, wellY: number): DiscVisuals {
+/** Curved horizontal arc-strip solid in local space around (0, 0, 0), spanning angles [a0, a1] at radius r, thickness t, y0..y1. */
+function curvedArcStrip(r: number, t: number, y0: number, y1: number, a0: number, a1: number, segs: number): THREE.BufferGeometry {
+  const prof: P2[] = [[-t / 2, y0], [t / 2, y0], [t / 2, y1], [-t / 2, y1]];
+  const frames: Frame[] = [];
+  for (let i = 0; i <= segs; i++) {
+    const a = a0 + ((a1 - a0) * i) / segs;
+    const rad = v3(Math.cos(a), 0, Math.sin(a));
+    frames.push({ o: v3(r * rad.x, 0, r * rad.z), a: rad, b: UP.clone() });
+  }
+  return sweep(prof, frames, { closed: true, caps: true });
+}
+
+/** Single curved Monolith sliding leaf prototype centred around SOUTH (-pi/2), spanning [-halfArc, +halfArc]. */
+function buildCurvedWellLeaf(rLeaf: number, halfArc: number): { frame: THREE.BufferGeometry; glass: THREE.BufferGeometry } {
+  const h = 1.08;
+  const topH = 0.044, botH = 0.060, frameT = 0.028, glassT = 0.012;
+  const stileArc = 0.032 / rLeaf; // 32 mm slim stainless end stiles
+  const gapArc = 0.004 / rLeaf;   // 4 mm hairline meeting clearance
+  const a0 = SOUTH - halfArc + gapArc;
+  const a1 = SOUTH + halfArc - gapArc;
+  const segs = 12;
+
+  const norm = (g: THREE.BufferGeometry): THREE.BufferGeometry => {
+    const out = g.index ? g.toNonIndexed() : g;
+    for (const k of Object.keys(out.attributes)) if (k !== 'position' && k !== 'normal') out.deleteAttribute(k);
+    if (!out.getAttribute('normal')) out.computeVertexNormals();
+    return out;
+  };
+  const fParts = [
+    norm(curvedArcStrip(rLeaf, frameT, 0.012, 0.012 + botH, a0, a1, segs)),
+    norm(curvedArcStrip(rLeaf, frameT, h - topH, h, a0, a1, segs)),
+    norm(curvedArcStrip(rLeaf, frameT, 0.012 + botH, h - topH, a0, a0 + stileArc, 2)),
+    norm(curvedArcStrip(rLeaf, frameT, 0.012 + botH, h - topH, a1 - stileArc, a1, 2)),
+  ];
+  const frame = mergeGeometries(fParts, false)!;
+  for (const p of fParts) p.dispose();
+  frame.computeBoundingSphere();
+
+  const glass = norm(curvedArcStrip(rLeaf, glassT, 0.012 + botH - 0.005, h - topH + 0.005, a0 + stileArc - 0.002, a1 - stileArc + 0.002, segs));
+  glass.computeBoundingSphere();
+  return { frame, glass };
+}
+
+const _leafMat = new THREE.Matrix4();
+
+export function buildDisc(lib: MaterialLibrary, kit: MetroMaterials, wellY: number): DiscVisuals {
   const group = new THREE.Group();
   group.name = 'metroDisc';
 
@@ -94,10 +140,6 @@ export function buildDisc(lib: MaterialLibrary, _kit: MetroMaterials, wellY: num
   hallBrass.name = 'discBrass';
   vertexGlow(hallBrass); // polished brass rail, darker bronze bowl and the emissive downlight ring: one draw call
   hallBrass.side = THREE.DoubleSide;
-  const hallBronze = new THREE.MeshStandardMaterial({ name: 'gateBronze', color: 0x5b4126, metalness: 0.88, roughness: 0.4 });
-  const gateGlass = new THREE.MeshPhysicalMaterial({
-    name: 'wellGateGlass', color: 0xe4f2ee, metalness: 0, roughness: 0.03, transparent: true, opacity: 0.14, depthWrite: false, envMapIntensity: 1.4,
-  });
 
   const marble = new GeoBag(lib, 'floorMarble');
   const dark = new GeoBag(lib, 'darkMarble');
@@ -170,25 +212,57 @@ export function buildDisc(lib: MaterialLibrary, _kit: MetroMaterials, wellY: num
   const parts = [tinted(brass.merge(), [1, 1, 1])!, tinted(bronze.merge(), [0.5, 0.36, 0.24])!];
   add(mergeGeometries([...parts, lightG], false), hallBrass, 'discBrass');
 
-  // ---- Crossing-floor well gate: the hall gangway's leaves and pilasters at the well rim ------------------------
+  // ---- Crossing-floor well gate (2035 Monolith, P3-4): two curved sliding glass leaves in slim stainless frames ----
+  // Slides concentrically just inside the r = 4.06 static glass balustrade ring built by crossing.ts. Zero bronze/brass.
   const wellGate = new THREE.Group();
   wellGate.name = 'metroWellGate';
-  const gz = CZ - DISC.wellR;
-  const gate: Gate = buildGate(lib, hallBronze, gateGlass, gz);
-  gate.bronze.position.y = wellY; gate.glass.position.y = wellY;
-  const gb = new GeoBag(lib, 'castIron', 1), gbr = new GeoBag(lib, 'brass');
-  addGatePilasters(gb, gbr, gz, wellY);
-  gb.add(boxMM(-GANGWAY.halfWidth - 0.1, wellY - 0.02, gz - 0.3, GANGWAY.halfWidth + 0.1, wellY, gz + 0.3));
-  add(gb.merge(), hallBronze, 'wellGateBronze', wellGate);
-  add(tinted(gbr.merge(), [1, 1, 1]), hallBrass, 'wellGateBrass', wellGate); // hallBrass uses vertex colours: needs a colour attribute
-  gate.bronze.name = 'wellGateLeaves'; gate.glass.name = 'wellGateGlass'; gate.glass.renderOrder = 2;
-  wellGate.add(gate.bronze, gate.glass);
+  wellGate.position.set(CX, wellY, CZ);
+
+  const gapHalf = CROSSING.wellGateHalfAngle; // 17.5 deg each side of SOUTH -> 2.44 m clear gangway
+  const leafHalf = gapHalf / 2;
+  const rLeaf = DISC.wellR + 0.022;           // 38 mm radially inside the r = 4.06 fixed ring glass (clean clearance)
+  const leafProto = buildCurvedWellLeaf(rLeaf, leafHalf);
+
+  const wellStainless = new THREE.MeshStandardMaterial({
+    name: 'metroDeepWellGateStainless',
+    color: 0xd0d6dc,
+    metalness: 1.0,
+    roughness: 0.22,
+    envMapIntensity: 1.25,
+  });
+  const leafFrames = new THREE.InstancedMesh(leafProto.frame, wellStainless, 2);
+  leafFrames.name = 'wellGateLeafFrames';
+  leafFrames.userData.noShadow = true;
+  const leafGlass = new THREE.InstancedMesh(leafProto.glass, kit.deep.glass, 2);
+  leafGlass.name = 'wellGateLeafGlass';
+  leafGlass.renderOrder = (kit.deep.glass.userData.renderOrder as number) ?? 2;
+  leafGlass.userData.noShadow = true;
+  // Bounding sphere covering the full ring diameter so sliding leaves never frustum-cull early
+  const ringSphere = new THREE.Sphere(new THREE.Vector3(0, 0.55, 0), rLeaf + 0.5);
+  leafFrames.boundingSphere = ringSphere.clone();
+  leafGlass.boundingSphere = ringSphere.clone();
+  wellGate.add(leafFrames, leafGlass);
+
+  const setWellLeaves = (open01: number): void => {
+    const t = open01 * open01 * (3 - 2 * open01); // smooth ease in-out matching GANGWAY.gateSeconds
+    const travel = gapHalf * 1.02 * t;
+    // Positive rotateY swings SOUTH toward WEST (-x); negative rotateY swings SOUTH toward EAST (+x).
+    _leafMat.makeRotationY(+(leafHalf + travel));
+    leafFrames.setMatrixAt(0, _leafMat);
+    leafGlass.setMatrixAt(0, _leafMat);
+    _leafMat.makeRotationY(-(leafHalf + travel));
+    leafFrames.setMatrixAt(1, _leafMat);
+    leafGlass.setMatrixAt(1, _leafMat);
+    leafFrames.instanceMatrix.needsUpdate = true;
+    leafGlass.instanceMatrix.needsUpdate = true;
+  };
 
   let phase = 0;
-  gate.setOpen(0);
+  setWellLeaves(0);
   let lastS = performance.now() / 1000;
   return {
     group, wellGate,
+    wellDeepMaterials: [wellStainless],
     update(y: number, open: boolean): void {
       group.position.y = y;
       const nowS = performance.now() / 1000;
@@ -199,7 +273,7 @@ export function buildDisc(lib: MaterialLibrary, _kit: MetroMaterials, wellY: num
       const dir = Math.sign(target - phase);
       phase += dir * (dt / GANGWAY.gateSeconds);
       if ((dir > 0 && phase >= target) || (dir < 0 && phase <= target)) phase = target;
-      gate.setOpen(phase);
+      setWellLeaves(phase);
     },
   };
 }

@@ -190,9 +190,9 @@ const RUBBER: RGB = [0.035, 0.035, 0.04];
 /** Lip height of the bottom-end combplate at distance d beyond the end (0 at the outer edge). */
 const lipAt = (d: number): number => V.combLip * (1 - (d + D.lipRampInset) / (V.combBody + D.lipRampInset));
 
-/** Champagne combplate: body outside the end, teeth reaching into the steps. `end`: 0 top, 1 bottom (lipped, sloping to the landing). */
+/** Champagne combplate: body outside the end, teeth reaching into the steps. `end`: 0 top, 1 bottom (lipped, sloping to the landing at y = -H). */
 function combplate(linc: number, end: 0 | 1): THREE.BufferGeometry {
-  const hw = V.stepHalfWidth, L = breaks(linc).run;
+  const hw = V.stepHalfWidth, b = breaks(linc), L = b.run, vOff = end === 1 ? -b.drop : 0;
   const shape = new THREE.Shape();
   // outline in (x, d): d = distance from the end plane, positive outward (away from the incline); teeth at negative d
   const body = V.combBody, teeth = V.combTeeth;
@@ -211,7 +211,7 @@ function combplate(linc: number, end: 0 | 1): THREE.BufferGeometry {
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), d = p.getY(i), t = p.getZ(i);
     const u = end === 0 ? -d : L + d;
-    p.setXYZ(i, x, t - V.combThickness + D.plateTop + (end === 1 ? lipAt(d) : 0), u);
+    p.setXYZ(i, x, vOff + t - V.combThickness + D.plateTop + (end === 1 ? lipAt(d) : 0), u);
     uv[i * 2] = x; uv[i * 2 + 1] = u;
   }
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
@@ -222,11 +222,11 @@ function combplate(linc: number, end: 0 | 1): THREE.BufferGeometry {
 }
 
 function combGrooves(linc: number, end: 0 | 1): THREE.BufferGeometry[] {
-  const L = breaks(linc).run, out: THREE.BufferGeometry[] = [];
+  const b = breaks(linc), L = b.run, vOff = end === 1 ? -b.drop : 0, out: THREE.BufferGeometry[] = [];
   for (let i = -D.grooveCount; i <= D.grooveCount; i++) {
     const x = i * D.groovePitch;
     const d0 = D.grooveStartInset, d1 = V.combBody - D.grooveEndInset;
-    const at = (d: number): { u: number; v: number } => ({ u: end === 0 ? -d : L + d, v: D.plateTop + D.grooveRaise + (end === 1 ? lipAt(d) : 0) });
+    const at = (d: number): { u: number; v: number } => ({ u: end === 0 ? -d : L + d, v: vOff + D.plateTop + D.grooveRaise + (end === 1 ? lipAt(d) : 0) });
     const pts = end === 0 ? [at(d1), at(d0)] : [at(d0), at(d1)];
     out.push(sweep(pts, rect(x - D.grooveHalfW, x + D.grooveHalfW, 0, D.grooveRaise)));
   }
@@ -247,17 +247,17 @@ function buildUnit(u: EscalatorUnit): UnitGeo {
     const [bx0, bx1] = x(V.skirtX, V.baseOuterX);
     // base / skirt deck, running out to the newels at both ends
     metal.add(sweep(samples(-V.newelLength, run + V.newelLength, linc), rect(bx0, bx1, V.baseBottom, V.baseTop)), STAINLESS);
-    // newel piers: brushed stainless, rounded section, the outer end stepped into a rounded nose
-    for (const [a, b, nose] of [[-V.newelLength, -D.newelGap, -1], [run + D.newelGap, run + V.newelLength, 1]] as const) {
+    // newel piers: brushed stainless, rounded section, the outer end stepped into a rounded nose (v = 0 top, v = -H bottom)
+    for (const [a, b, nose, vEnd] of [[-V.newelLength, -D.newelGap, -1, 0], [run + D.newelGap, run + V.newelLength, 1, -H]] as const) {
       const top = V.railProfileBottom + 0.005;
-      const body = nose < 0 ? flat(a + 0.06, b) : flat(a, b - 0.06);
+      const body = nose < 0 ? flat(a + 0.06, b, vEnd) : flat(a, b - 0.06, vEnd);
       metal.add(sweep(body, roundRect(bx0, bx1, V.baseBottom, top, 0.045), true), NEWEL);
       const steps = [[0.0, 0.012], [0.03, 0.026], [0.05, 0.048]] as const; // [distance toward the end, inset]
       for (let k = 0; k < steps.length; k++) {
         const [d0, inset] = steps[k]!;
         const dn = k + 1 < steps.length ? steps[k + 1]![0] : 0.06;
         const u0 = nose < 0 ? a + 0.06 - dn : b - 0.06 + d0, u1 = nose < 0 ? a + 0.06 - d0 : b - 0.06 + dn;
-        metal.add(sweep(flat(Math.min(u0, u1), Math.max(u0, u1)), roundRect(bx0 + inset, bx1 - inset, V.baseBottom + inset, top - inset, Math.max(0.02, 0.045 - inset * 0.5)), true), NEWEL);
+        metal.add(sweep(flat(Math.min(u0, u1), Math.max(u0, u1), vEnd), roundRect(bx0 + inset, bx1 - inset, V.baseBottom + inset, top - inset, Math.max(0.02, 0.045 - inset * 0.5)), true), NEWEL);
       }
     }
     // glass

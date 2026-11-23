@@ -473,6 +473,63 @@ export const VESPER = {
   f6OpeningZ: VESPER_F6_OPENING_Z,
 } as const;
 
+export interface CrossingBenchSpec {
+  readonly x: number;
+  readonly z: number;
+  /** Long axis of the 2.4 m bench ('x' = east-west, 'z' = north-south). */
+  readonly axis: 'x' | 'z';
+}
+
+/** Crossing floor detailing (P3-4): 1.5 m stainless terrazzo grid, enamel wayfinding inlays, glass panel T-grid, benches, well gate. */
+export const CROSSING = {
+  floorGrid: 1.5,
+  stripW: 0.028,
+  inlayWidth: 0.08,
+  inlayOffset: 0.5,
+  /** Glass floor T-grid: 13 × 12 panes (~1.54 × 1.50 m) with 0.10 m ceramic frit border on each pane. */
+  glassPanesX: 13,
+  glassPanesZ: 12,
+  glassFritWidth: 0.10,
+  /** Monolith honed-limestone bench dimensions (metres). */
+  bench: { length: 2.4, depth: 0.5, height: 0.45 },
+  /** Three groups of 2–3 benches facing the water wall, the onyx wall, and the open floor under the bridge. */
+  benches: [
+    // Group 1: west end facing the water wall (clear of F6 mouth z 66..69.6 and waterwall preset x -40)
+    { x: -51.5, z: 74.0, axis: 'z' },
+    { x: -51.5, z: 78.2, axis: 'z' },
+    // Group 2: east end facing the onyx wall (flanking the funicular approach z 74, ahead of skyhole/funicular presets)
+    { x: 46.5, z: 68.5, axis: 'z' },
+    { x: 46.5, z: 79.5, axis: 'z' },
+    // Group 3: open floor east of the bridge shadow (facing the open Crossing / disc well, clear of (20,74))
+    { x: 14.5, z: 69.0, axis: 'x' },
+    { x: 18.5, z: 69.0, axis: 'x' },
+    { x: 16.5, z: 79.0, axis: 'x' },
+  ] as readonly CrossingBenchSpec[],
+  /** Half-angle (rad) of the south gangway opening in the r = 4.06 Crossing well balustrade ring (clear >= 2.4 m). */
+  wellGateHalfAngle: 0.3054, // 17.5 deg -> 2 * 4.06 * sin(17.5°) = 2.44 m
+  /** Gap left in the east (x = +58) glass balustrade for the funicular bottom station (P3-8b). */
+  funicularEdgeGapZ: [71.8, 76.2] as readonly [number, number],
+} as const;
+
+/** Collision circles for every Crossing monolith bench (level VESPER.topY), spaced <= r apart for src/obstacles.ts. */
+export function crossingBenchObstacleCircles(): Array<{ x: number; z: number; r: number }> {
+  const out: Array<{ x: number; z: number; r: number }> = [];
+  const r = CROSSING.bench.depth / 2; // 0.25 m
+  const span = CROSSING.bench.length - 2 * r; // 1.9 m
+  const steps = Math.ceil(span / r); // 8 segments -> 9 circles spaced 0.2375 m <= r
+  for (const b of CROSSING.benches) {
+    for (let k = 0; k <= steps; k++) {
+      const off = -span / 2 + (span * k) / steps;
+      out.push({
+        x: b.axis === 'x' ? b.x + off : b.x,
+        z: b.axis === 'z' ? b.z + off : b.z,
+        r,
+      });
+    }
+  }
+  return out;
+}
+
 const SQRT1_2 = Math.SQRT1_2;
 export const HALCYON = {
   centre: [-20, 74] as readonly [number, number],

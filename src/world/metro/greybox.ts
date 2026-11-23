@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
-  CAVERN, DISC, FUNICULAR, GLASS_FLOOR, HALCYON, LIFTS, MAP_WALL, OCULUS, SKY,
-  THRESHOLD, TRENCH, VESPER,
+  CAVERN, FUNICULAR, HALCYON, LIFTS, MAP_WALL, OCULUS, SKY,
+  THRESHOLD, VESPER,
 } from '../../layoutMetro';
 
 export interface Greybox {
@@ -17,19 +17,6 @@ function box(m: THREE.Material, x0: number, y0: number, z0: number, x1: number, 
   g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
   return new THREE.Mesh(g, m);
 }
-
-/** Flat slab in the XZ plane with holes, top at yTop (shape y = -z, extruded down by `t`). */
-function slab(outer: Array<[number, number]>, holes: Array<Array<[number, number]>>, yTop: number, t: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape(outer.map(([x, z]) => new THREE.Vector2(x, -z)));
-  shape.holes = holes.map((h) => new THREE.Path(h.map(([x, z]) => new THREE.Vector2(x, -z))));
-  const g = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 48 });
-  g.rotateX(-Math.PI / 2);
-  g.translate(0, yTop - t, 0);
-  return g;
-}
-const circle = (cx: number, cz: number, r: number, n = 64): Array<[number, number]> =>
-  Array.from({ length: n }, (_, i) => [cx + r * Math.cos((i / n) * Math.PI * 2), cz - r * Math.sin((i / n) * Math.PI * 2)] as [number, number]);
-const rectPts = (x0: number, z0: number, x1: number, z1: number): Array<[number, number]> => [[x0, z0], [x0, z1], [x1, z1], [x1, z0]];
 
 /** Sloped slab under one flight band (top surface on the step line). */
 function flightSlab(m: THREE.Material, axis: 'x' | 'z', a: number, b: number, from: number, to: number, yFrom: number, yTo: number): THREE.Mesh {
@@ -47,12 +34,10 @@ function flightSlab(m: THREE.Material, axis: 'x' | 'z', a: number, b: number, fr
 
 export function buildGreybox(): Greybox {
   const { cx, cz } = OCULUS;
-  const darkFloor = std(0x26292d, 0.35);  // terrazzo stand-in
-  const trench = std(0x15171a, 0.9);
   const glass = new THREE.MeshStandardMaterial({ color: 0xcfe3ee, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false });
   // independent materials (not clones): the void ones are sun-excluded, deep surfaces must receive the deep sun.
   const deepStone = std(0xd8d2c6, 0.6); const deepSteel = std(0xb9c0c6, 0.35, 0.7);
-  const deepMaterials = [deepStone, darkFloor, deepSteel, trench];
+  const deepMaterials = [deepStone, deepSteel];
 
   // --- void (always drawn) ---------------------------------------------------------------------------
   const V = new THREE.Group(); V.name = 'metroVoid';
@@ -63,15 +48,7 @@ export function buildGreybox(): Greybox {
 
   // --- deep (drawn below the airlock) ----------------------------------------------------------------
   const D = new THREE.Group(); D.name = 'metroDeep';
-  // Buried sky, slot rims & casters are built by sky.ts (P3-2); cavern walls & base floor by shell.ts (P3-1).
-  for (const tz of VESPER.trackZ) D.add(box(trench, CAVERN.transept.xMin, CAVERN.baseFloorY, tz - TRENCH.halfWidth, CAVERN.transept.xMax, VESPER.railY, tz + TRENCH.halfWidth));
-  const fl = VESPER.floor;
-  D.add(new THREE.Mesh(slab(rectPts(fl.xMin, fl.zMin, fl.xMax, fl.zMax), [
-    circle(cx, cz, DISC.wellR), rectPts(VESPER.f6OpeningX[0], VESPER.f6OpeningZ[0], VESPER.f6OpeningX[1], VESPER.f6OpeningZ[1]),
-    rectPts(GLASS_FLOOR.xMin, GLASS_FLOOR.zMin, GLASS_FLOOR.xMax, GLASS_FLOOR.zMax),
-  ], VESPER.topY, VESPER.slabThickness), darkFloor));
-  D.add(new THREE.Mesh(slab(rectPts(GLASS_FLOOR.xMin, GLASS_FLOOR.zMin, GLASS_FLOOR.xMax, GLASS_FLOOR.zMax), LIFTS.positions.map(([x, z]) => circle(x, z, LIFTS.tubeR, 32)), VESPER.topY, 0.08), glass));
-  // Floating Meridian bridge, hangers, PSDs & tracks are built by meridian.ts (P3-3).
+  // Cavern shell (P3-1), buried sky (P3-2), floating Meridian bridge (P3-3), Crossing floor/Vesper/glass (P3-4) are real.
   const deepIsland = new THREE.Mesh(new THREE.BoxGeometry(HALCYON.halfLength * 2, 1.2, HALCYON.halfWidth * 2), deepStone);
   deepIsland.rotation.y = -Math.atan2(HALCYON.dir[1], HALCYON.dir[0]); deepIsland.position.set(HALCYON.centre[0], HALCYON.topY - 0.6, HALCYON.centre[1]);
   D.add(deepIsland);

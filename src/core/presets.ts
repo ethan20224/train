@@ -57,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'wellgate',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'wellgate',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -206,6 +206,7 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   sun: { position: [-24, VESPER.topY + EYE, 74], target: [-18, SKY.y, 60], fov: 64, intent: 'From the Crossing floor looking up into the buried noon sky with the sharp SSE solar disc in frame.' },
   skyride: { position: [5.0, SKY.y - 1.1, 71.5], target: [-1, MERIDIAN.topY + 4, 34], fov: 70, intent: 'Riding F4 just as you emerge down through the sky hole: noon blue sky overhead, curved rim behind, Meridian bridge and map wall ahead.' },
   crossing: { position: [-40, VESPER.topY + EYE, 70], target: [20, -52, 78], fov: 66, intent: 'Along the transept: Meridian bridge crossing overhead, sky, funicular beyond.' },
+  floor: { position: [21.5, VESPER.topY + EYE, 70.5], target: [-18, -57, 74.5], fov: 66, intent: 'Standing east of the disc landing looking west along the transept: monolith limestone benches, 2035 well gate, terrazzo & satin enamel inlays, glass panel, Vesper PSDs and the floating Meridian bridge overhead.' },
   meridian: { position: [3, MERIDIAN.topY + EYE, 40], target: [0, MERIDIAN.topY - 2, 110], intent: 'On the floating Meridian island looking north along the bridge.' },
   glassfloor: { position: [-24, VESPER.topY + EYE, 66], target: [-16, HALCYON.topY, 80], intent: 'Standing on the glass panel looking down at the Halcyon platform.' },
   glassup: { position: [HALCYON.centre[0], HALCYON.topY + EYE, HALCYON.centre[1]], target: [-10, -40, 80], fov: 72, intent: 'From the Halcyon platform looking up through the glass: bridge, droplets, sky.' },
@@ -216,7 +217,7 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   speedgates: { position: [10.6, THRESHOLD.y + EYE, 80.6], target: [7.2, THRESHOLD.y + 0.9, 82.4], fov: 60, intent: 'Threshold: the east speed-gate bank seen from the F3 side, champagne cabinets, glass panels, light lines.' },
   disc: { position: [OCULUS.cx, DISC.topY + EYE, OCULUS.cz + 2.9], target: [OCULUS.cx, DISC.topY - 0.4, OCULUS.cz - 2.4], fov: 72, intent: 'Standing on the Sinking Floor at the top: the inlaid medallion, the brass rail, the open gangway behind.' },
   lifts: { position: [-11.2, THRESHOLD.y + EYE, 71.5], target: [-17, -25.6, 77], fov: 62, intent: 'Threshold: the two glass lift tubes rising to their stainless-and-glass machinery lanterns, sheaves visible.' },
-  wellgate: { position: [0, VESPER.topY + EYE, OCULUS.cz - 12], target: [0, VESPER.topY + 0.8, OCULUS.cz - 4], fov: 62, intent: 'Crossing floor: the well gate at the rim, slim bronze pilasters with brass capitals, leaves closed while the disc is docked above.' },
+  wellgate: { position: [-3.2, VESPER.topY + EYE, 65.5], target: [0, VESPER.topY + 0.75, OCULUS.cz - 3.2], fov: 62, intent: 'Crossing floor: 2035 Monolith circular ultra-clear glass well ring and curved sliding glass leaves in slim stainless frames (closed while the disc is docked above).' },
   deep: { position: [-35, HALCYON.topY + EYE, 59], target: [0, HALCYON.topY + 1, 94], intent: 'Along the Halcyon platform diagonal.' },
 };
 

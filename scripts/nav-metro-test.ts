@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { heightAt, resolve } from '../src/player/navigation';
 import { FLIGHTS, HALCYON, LANDINGS, MERIDIAN, OCULUS, PLAYER, THRESHOLD, VESPER, escalatorUnits } from '../src/layout';
-import { SPEED_GATES, speedGateCabinets, speedGateLanes } from '../src/layoutMetro';
+import { CROSSING, DISC, SPEED_GATES, speedGateCabinets, speedGateLanes } from '../src/layoutMetro';
 
 let passed = 0;
 const test = (n: string, fn: () => void): void => { fn(); passed++; console.log(`ok   ${n}`); };
@@ -101,6 +101,33 @@ test('edges hold: void, Meridian island, Crossing floor tracks, Halcyon island, 
   assert.equal(heightAt(-20 + 8 * Math.SQRT1_2, 74 - 8 * Math.SQRT1_2, HALCYON.topY), null, 'Halcyon track side');
   assert.equal(heightAt(0, OCULUS.cz, THRESHOLD.y), null, 'sky hole at the Threshold');
   assert.notEqual(heightAt(0, 81.8, THRESHOLD.y), null, 'Threshold bridge across the hole');
+});
+
+test('Crossing floor (P3-4): monolith benches block, well ring blocks all round when closed, Vesper edge screens and floor ends hold', () => {
+  // Every bench centre is blocked and walking directly into a bench stops outside it
+  for (const b of CROSSING.benches) {
+    assert.equal(heightAt(b.x, b.z, VESPER.topY), null, `bench (${b.x}, ${b.z}) centre blocked`);
+    const approach = b.axis === 'x' ? at(b.x, b.z - 2.0, VESPER.topY) : at(b.x - 2.0, b.z, VESPER.topY);
+    const p = walk(approach, new Vector3(b.x, 0, b.z));
+    const dist = Math.hypot(p.x - b.x, p.z - b.z);
+    assert.ok(dist > CROSSING.bench.depth / 2 + PLAYER.wallClearance - 0.05, `bench (${b.x}, ${b.z}) stopped player at dist ${dist.toFixed(2)}`);
+  }
+  // Well ring blocks from every compass angle when disc is docked above (no open gangway)
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const start = at(OCULUS.cx + (DISC.wellR + 1.4) * Math.cos(a), OCULUS.cz + (DISC.wellR + 1.4) * Math.sin(a), VESPER.topY);
+    if (Number.isNaN(start.y)) continue; // skip angles behind F5 footprint
+    const p = walk(start, new Vector3(OCULUS.cx, 0, OCULUS.cz));
+    const r = Math.hypot(p.x - OCULUS.cx, p.z - OCULUS.cz);
+    assert.ok(r >= DISC.wellR + PLAYER.wallClearance - 0.02, `well ring held at angle ${a.toFixed(2)} (r=${r.toFixed(2)})`);
+  }
+  // Vesper edge screens beyond the ±45 boarding zone (x = ±50) and east/west floor ends (x = ±58) hold
+  for (const x of [-50, 50]) {
+    assert.ok(resolve(at(x, 74, VESPER.topY), new Vector3(x, 0, 58)).z >= VESPER.floor.zMin + 0.35, `north edge screen at x=${x}`);
+    assert.ok(resolve(at(x, 74, VESPER.topY), new Vector3(x, 0, 90)).z <= VESPER.floor.zMax - 0.35, `south edge screen at x=${x}`);
+  }
+  assert.ok(resolve(at(-50, 74, VESPER.topY), new Vector3(-70, 0, 74)).x >= VESPER.floor.xMin, 'west floor end holds');
+  assert.ok(resolve(at(50, 74, VESPER.topY), new Vector3(70, 0, 74)).x <= VESPER.floor.xMax, 'east floor end holds');
 });
 
 test('fuzz: 100k random moves on every metro level never leave the walkable set', () => {
