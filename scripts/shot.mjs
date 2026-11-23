@@ -26,6 +26,7 @@ const wanted = positional.length === 0 || positional.includes('all') ? names : p
 for (const w of wanted) if (!names.includes(w)) throw new Error(`unknown preset "${w}". Known: ${names.join(', ')}`);
 const quality = opt('q', 'high');
 const settleMs = Number(opt('wait', '3000'));
+const extra = opt('extra', '');
 
 async function serverUp() {
   try {
@@ -101,7 +102,8 @@ try {
     });
     page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
 
-    await page.goto(`${BASE}/?cam=${name}&autostart=1&debug=1&q=${quality}`, { waitUntil: 'load' });
+    const qs = extra ? `&${extra}` : '';
+    await page.goto(`${BASE}/?cam=${name}&autostart=1&debug=1&q=${quality}${qs}`, { waitUntil: 'load' });
     await page.waitForFunction(() => window.__meridian?.ready === true, undefined, { timeout: 180000 });
     await page.waitForTimeout(settleMs);
 

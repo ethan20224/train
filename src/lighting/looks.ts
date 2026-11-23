@@ -324,7 +324,14 @@ export class DepthLook {
     const savedQuat = camera.quaternion.clone();
     const savedAutoClear = renderer.autoClear;
     const savedCulled: Array<{ o: THREE.Object3D; c: boolean }> = [];
+    const savedVisible: Array<{ o: THREE.Object3D; v: boolean }> = [];
     try {
+      scene.traverse((o) => {
+        if (o.userData.warmupVisible && !o.visible) {
+          savedVisible.push({ o, v: o.visible });
+          o.visible = true;
+        }
+      });
       renderer.setRenderTarget(postfx.composer.inputBuffer);
       await renderer.compileAsync(scene, camera);
       renderer.setRenderTarget(savedRT, savedFace, savedMip);
@@ -362,6 +369,7 @@ export class DepthLook {
       postfx.render(0);
     } finally {
       for (const { o, c } of savedCulled) o.frustumCulled = c;
+      for (const { o, v } of savedVisible) o.visible = v;
       camera.position.copy(savedPos);
       camera.quaternion.copy(savedQuat);
       camera.updateMatrixWorld(true);

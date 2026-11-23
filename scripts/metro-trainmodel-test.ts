@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { doorOffsets } from '../src/metro/tracks';
 import { createSharedMaterials, createTrainRig, getTrainGeometry, LINE_COLORS } from '../src/metro/trainModel';
-import { createTrainsView } from '../src/world/metro/trainsView';
+import { createTrainsView, POOL_SIZE, TUNNEL_DARK_DIST, tunnelVisibilityFactor } from '../src/world/metro/trainsView';
+import { METRO_TRAIN } from '../src/layoutMetro';
 import type { TrainState } from '../src/metro/timetable';
 
 let passed = 0;
@@ -89,11 +90,32 @@ test('view pool: churn over several updates (leave + arrive in the same update),
   assert.equal(visibleIds().length, 0);
 });
 
-test('pbrMaterials are all MeshStandardMaterial and exclude unlit materials', () => {
+test('pbrMaterials are all MeshStandardMaterial, cloned per slot (32 PBR), and exclude unlit materials', () => {
   const view = createTrainsView(null, {});
-  assert.ok(view.pbrMaterials.length >= 6);
+  assert.equal(view.pbrMaterials.length, POOL_SIZE * 8);
+  assert.equal(view.allMaterials.length, POOL_SIZE * 10);
   for (const m of view.pbrMaterials) assert.ok(m.isMeshStandardMaterial);
-  assert.ok(view.allMaterials.length > view.pbrMaterials.length);
+  for (const m of view.allMaterials) assert.ok(m.customProgramCacheKey().includes('metroTunnelDark'));
+  // Every door material keeps BOTH metroDoorSlide and metroTunnelDark in its program cache key
+  const doorKeys = view.allMaterials.filter((m) => m.customProgramCacheKey().includes('metroDoorSlide'));
+  assert.equal(doorKeys.length, POOL_SIZE * 2);
+});
+
+test('tunnelVisibilityFactor: 1 in cavern/at mouth, smooth falloff inside bore, 0 at >= 120 m', () => {
+  const half = METRO_TRAIN.length / 2;
+  const pIn = 60, pOut = 60;
+  // Stopped at platform and straddling either portal mouth -> 1
+  assert.equal(tunnelVisibilityFactor(0, pIn, pOut), 1);
+  assert.equal(tunnelVisibilityFactor(-pIn - half, pIn, pOut), 1);
+  assert.equal(tunnelVisibilityFactor(pOut + half, pIn, pOut), 1);
+  // 40 m inside entry bore: smooth intermediate value
+  const v40 = tunnelVisibilityFactor(-pIn - half - 40, pIn, pOut);
+  assert.ok(v40 > 0.5 && v40 < 0.9, `v40=${v40}`);
+  // 120 m and 150 m inside entry or exit bore -> exact 0
+  assert.equal(tunnelVisibilityFactor(-pIn - half - TUNNEL_DARK_DIST, pIn, pOut), 0);
+  assert.equal(tunnelVisibilityFactor(-pIn - half - 150, pIn, pOut), 0);
+  assert.equal(tunnelVisibilityFactor(pOut + half + TUNNEL_DARK_DIST, pIn, pOut), 0);
+  assert.equal(tunnelVisibilityFactor(pOut + half + 150, pIn, pOut), 0);
 });
 
 console.log(`\n${passed} passed`);

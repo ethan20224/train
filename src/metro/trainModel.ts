@@ -434,6 +434,73 @@ export interface TrainPerTrainMaterials {
   doorUniform: { value: number };
 }
 
+export interface TunnelUniforms {
+  /** 1 when any part of the train is in the cavern or at the mouth -> 0 at >= 120 m inside a bore. */
+  uTunnel: { value: number };
+  /** (train centre s, entry portal distance portalIn, exit portal distance portalOut). */
+  uTrackRange: { value: THREE.Vector3 };
+}
+
+/**
+ * Chain tunnel-darkness attenuation onto a train material (P4-W, Ruling 32):
+ * scales cavern env reflection, direct lighting, emissive interior and headlights smoothly from 1 at the bore
+ * mouth down to 0 by 120 m inside, and suppresses pale deep fog while inside the bore so trains emerge out of
+ * true darkness without ever popping as a pale silhouette. Same program cache key across all 4 pool slots.
+ */
+export function applyTunnelDarkness(mat: THREE.Material, tu: TunnelUniforms): void {
+  if (mat.userData._metroTunnelDark) return;
+  mat.userData._metroTunnelDark = true;
+  const prevCompile = mat.onBeforeCompile.bind(mat);
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  const isPbr = (mat as THREE.MeshStandardMaterial).isMeshStandardMaterial === true;
+  mat.onBeforeCompile = (sh, renderer) => {
+    prevCompile(sh, renderer);
+    sh.uniforms.uTunnel = tu.uTunnel;
+    sh.uniforms.uTrackRange = tu.uTrackRange;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uTrackRange;\nvarying float vTunnelDepth;')
+      .replace(
+        '#include <project_vertex>',
+        'float _fragS = uTrackRange.x + transformed.x;\nvTunnelDepth = max(max(0.0, -uTrackRange.y - _fragS), max(0.0, _fragS - uTrackRange.z));\n#include <project_vertex>',
+      );
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <common>',
+      '#include <common>\nuniform float uTunnel;\nvarying float vTunnelDepth;',
+    );
+    if (isPbr) {
+      sh.fragmentShader = sh.fragmentShader.replace(
+        'vec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;',
+        `float _td = max(0.0, vTunnelDepth);
+        float _tStep = smoothstep(120.0, 0.0, _td);
+        float _envVis = min(uTunnel, exp(-_td * 0.038) * smoothstep(120.0, 35.0, _td));
+        float _emitVis = min(uTunnel, _tStep * _tStep);
+        vec3 outgoingLight = (totalDiffuse + totalSpecular) * _envVis + totalEmissiveRadiance * _emitVis;`,
+      );
+    } else {
+      sh.fragmentShader = sh.fragmentShader.replace(
+        'vec3 outgoingLight = reflectedLight.indirectDiffuse;',
+        `float _td = max(0.0, vTunnelDepth);
+        float _tStep = smoothstep(120.0, 0.0, _td);
+        float _emitVis = min(uTunnel, _tStep * _tStep);
+        vec3 outgoingLight = reflectedLight.indirectDiffuse * _emitVis;`,
+      );
+    }
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <fog_fragment>',
+      `#ifdef USE_FOG
+        #ifdef FOG_EXP2
+          float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+        #else
+          float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+        #endif
+        float _fogMask = smoothstep(14.0, 0.0, max(0.0, vTunnelDepth));
+        gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor * _fogMask );
+      #endif`,
+    );
+  };
+  mat.customProgramCacheKey = () => `${prevKey()}|metroTunnelDark`;
+}
+
 export function createSharedMaterials(champagneBase?: THREE.MeshStandardMaterial): TrainSharedMaterials {
   const body = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.84, 0.86, 0.9), metalness: 1, roughness: 0.06, envMapIntensity: 1.25 });
   const glass = glassMaterial();
@@ -487,6 +554,10 @@ export interface TrainRig {
   materials: THREE.Material[];
   setLine(line: LineId): void;
   setDoors(open01: number): void;
+  /** Update per-slot tunnel darkness uniforms (factor 0..1, train centre s, entry/exit portal distances). */
+  setTunnel(factor: number, s: number, portalIn: number, portalOut: number): void;
+  /** Current per-slot uTunnel value (for inspection/tests). */
+  readonly tunnelUniform: { value: number };
   /** true = full interior detail; false = simplified emissive interior card. */
   setInteriorDetail(on: boolean): void;
   readonly interior: readonly THREE.Mesh[];
@@ -496,6 +567,13 @@ export interface TrainRig {
 export function createTrainRig(shared: TrainSharedMaterials, line: LineId): TrainRig {
   const geo = getTrainGeometry();
   const per = createPerTrainMaterials(shared, line);
+  const tu: TunnelUniforms = { uTunnel: { value: 1 }, uTrackRange: { value: new THREE.Vector3(0, 1e6, 1e6) } };
+  const materials: THREE.Material[] = [
+    shared.body, shared.glass, shared.lights, shared.underframe, shared.upholstery, shared.champagne, shared.card,
+    per.doorFrame, per.doorGlass, per.stripe,
+  ];
+  for (const m of materials) applyTunnelDarkness(m, tu);
+
   const group = new THREE.Group();
   group.name = 'metroTrain';
   const mk = (g: THREE.BufferGeometry, m: THREE.Material, order = 0): THREE.Mesh => {
@@ -509,14 +587,18 @@ export function createTrainRig(shared: TrainSharedMaterials, line: LineId): Trai
   mk(geo.stripe, per.stripe); mk(geo.lights, shared.lights);
   const interior = [mk(geo.upholstery, shared.upholstery), mk(geo.champagne, shared.champagne)];
   const card = mk(geo.card, shared.card); card.visible = false;
-  mk(geo.glass, shared.glass, 10); mk(geo.doorGlass, per.doorGlass, 10);
+  // renderOrder 1: draws after opaque train interior (0), before PSD glass (2) and Crossing glass floor (3).
+  mk(geo.glass, shared.glass, 1); mk(geo.doorGlass, per.doorGlass, 1);
   // door leaves slide outside the geometry's bounding sphere by < 1 m: the sphere (r ~ 41) already has slack; none needed
-  const materials: THREE.Material[] = [shared.body, shared.glass, shared.lights, shared.underframe, shared.upholstery, shared.champagne, shared.card,
-    per.doorFrame, per.doorGlass, per.stripe];
   return {
     group, materials, interior, card,
+    tunnelUniform: tu.uTunnel,
     setLine: (l) => setLine(per, l),
     setDoors: (v) => { per.doorUniform.value = v; },
+    setTunnel: (factor, s, portalIn, portalOut) => {
+      tu.uTunnel.value = factor;
+      tu.uTrackRange.value.set(s, portalIn, portalOut);
+    },
     setInteriorDetail: (on) => { for (const m of interior) m.visible = on; card.visible = !on; },
   };
 }

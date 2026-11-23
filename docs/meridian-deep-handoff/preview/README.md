@@ -2,6 +2,18 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P4-W — Driverless Mirror Metro Trains Wired Live (`p4-w/`)
+
+Live timetable-driven driverless mirror trains (`seed: 42`, ≤ 4 present across all 6 tracks, 9 calls near / 8 far) wired into `metroDeep` with per-slot cloned PBR/basic materials (`32` PBR + `8` basic sharing the same compiled programs), chained `uTunnel` + per-fragment tunnel-darkness shader (smooth falloff from bore mouth to 120 m inside, fog suppressed inside bores so trains emerge from pure darkness with zero silhouette pop), `renderOrder = 1` clean transparent layering behind PSD glass (`2`) and glass floor (`3`), boot Metal PSO warmup (`warmupVisible` on slot 0), `enteredDeep()` on first deep crossing, `window.__meridian.metro().trains`, both train test suites added to `metro-test` (`72/72`), and the new `train` preset.
+
+- **Train (new preset — Vesper mirror train dwelling with doors open, flush glass nose, warm empty saloon, jade stripe & water wall beyond)** — ![train](p4-w/train.jpg)
+- **Crossing (floating mirror Meridian train gliding 24 m overhead against the buried sky & eclipse — 4 trains live, 189 calls)** — ![crossing](p4-w/crossing.jpg)
+- **Meridian (twin mirror trains flanking the F4 escalators & eclipse — 4 trains live, 190 calls)** — ![meridian](p4-w/meridian.jpg)
+- **Deep (Halcyon oxblood-striped mirror train gliding silently past the low-headroom glass screen — 141 calls)** — ![deep](p4-w/deep.jpg)
+- **Tunnel emergence — 150 m inside bore (pitch black, zero pale fog silhouette)** — ![tunnel-150m](p4-w/tunnel-150m.jpg)
+- **Tunnel emergence — 40 m inside bore (soft headlights & edge halo waking up inside the dark horseshoe arch)** — ![tunnel-40m](p4-w/tunnel-40m.jpg)
+- **Tunnel emergence — bore mouth (curved flush glass nose gliding cleanly out of darkness into sunlit cavern reflections)** — ![tunnel-mouth](p4-w/tunnel-mouth.jpg)
+
 ## P3-9 — Phase 3 Cavern Complete (Sensing Halo, Cleanup & Gate) (`p3-9/`)
 
 Every cavern greybox element is now gone (`greybox.ts` deleted → `impostors.ts`), the subtle warm 3200 K sensing halo is active on deep honed limestone & terrazzo, Metal PSO warmup eliminates the airlock hitch (`177 ms → 24 ms`), and all 20 gate views + extended route test (disc + F6 + lifts + funicular + F5–F1) pass cleanly with the 1910 Grand Hall untouched. Full 20-shot archive is also in [evidence/phase-3/](../evidence/phase-3/README.md).

@@ -57,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'lift', 'twin', 'wellgate',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'escalator', 'speedgates', 'disc', 'lifts', 'lift', 'twin', 'wellgate',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -223,6 +223,12 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   twin: { position: [-17.55, -52.5 + EYE, 73.65], target: [-15.8, -49.5, 80.5], fov: 68, intent: 'Inside the descending glass capsule lift looking across at the empty twin cabin gliding past in its ringed glass tube, warm ceiling halo glowing against the sunlit cavern.' },
   wellgate: { position: [-3.2, VESPER.topY + EYE, 65.5], target: [0, VESPER.topY + 0.75, OCULUS.cz - 3.2], fov: 62, intent: 'Crossing floor: 2035 Monolith circular ultra-clear glass well ring and curved sliding glass leaves in slim stainless frames (closed while the disc is docked above).' },
   deep: { position: [-35, HALCYON.topY + EYE, 59], target: [0, HALCYON.topY + 1, 94], intent: 'Along the Halcyon platform diagonal.' },
+  train: {
+    position: [45.2, VESPER.topY + EYE, 66.8],
+    target: [20.0, VESPER.railY + 2.35, VESPER.trackZ[0] + 0.3],
+    fov: 58,
+    intent: 'On the Crossing floor beside the Vesper screen doors with a mirror train dwelling and doors open, looking along its nose, flank and open saloon toward the Meridian bridge.',
+  },
 };
 
 /** Parses `?cam=` from a query string; returns null if absent or unknown. */

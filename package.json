@@ -18,7 +18,9 @@
     "nav-metro-test": "tsx scripts/nav-metro-test.ts",
     "escalator-phase-test": "tsx scripts/escalator-phase-test.ts",
     "zones-test": "tsx scripts/zones-test.ts",
-    "metro-test": "npm run metro-layout-test && npm run nav-regions-test && npm run nav-metro-test && npm run metro-runtime-test && npm run zones-test && npm run escalator-phase-test"
+    "metro-train-test": "tsx scripts/metro-train-test.ts",
+    "metro-trainmodel-test": "tsx scripts/metro-trainmodel-test.ts",
+    "metro-test": "npm run metro-layout-test && npm run nav-regions-test && npm run nav-metro-test && npm run metro-runtime-test && npm run zones-test && npm run escalator-phase-test && npm run metro-train-test && npm run metro-trainmodel-test"
   },
   "dependencies": {
     "n8ao": "2.0.1",

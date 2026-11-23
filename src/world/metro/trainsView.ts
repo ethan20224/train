@@ -25,20 +25,44 @@ export interface TrainsView {
 export const POOL_SIZE = 4;
 /** Beyond this distance (m) from the camera to the train the interior detail is dropped for an emissive card. */
 export const INTERIOR_LOD_DIST = 120;
+/** Depth inside a tunnel bore (m) at which a train reaches full tunnel darkness (0). */
+export const TUNNEL_DARK_DIST = 120;
 const LOD_HYSTERESIS = 8;
 const HALF_LEN = METRO_TRAIN.length / 2;
 
+/**
+ * Tunnel visibility factor (1 at/outside the bore mouth -> 0 at >= 120 m inside either bore), computed from the
+ * closest train end's distance inside the bore so trains emerge from true darkness without popping (P4-W, Ruling 32).
+ */
+export function tunnelVisibilityFactor(s: number, portalIn: number, portalOut: number): number {
+  const nose = s + HALF_LEN;
+  const tail = s - HALF_LEN;
+  let depth = 0;
+  if (nose < -portalIn) depth = -portalIn - nose;
+  else if (tail > portalOut) depth = tail - portalOut;
+  if (depth <= 0) return 1;
+  if (depth >= TUNNEL_DARK_DIST) return 0;
+  const t = (TUNNEL_DARK_DIST - depth) / TUNNEL_DARK_DIST;
+  return t * t * (3 - 2 * t);
+}
+
 export function createTrainsView(materials: MetroMaterials | null, deps: TrainsViewDeps = {}): TrainsView {
   const trackOf = deps.trackOf ?? defaultTrackOf;
-  const shared = createSharedMaterials(materials?.deep.champagne);
   const object = new THREE.Group();
   object.name = 'metroTrains';
   const rigs: TrainRig[] = [];
   const slotId: number[] = [];
   const near: boolean[] = [];
   for (let i = 0; i < POOL_SIZE; i++) {
-    const rig = createTrainRig(shared, 'vesper');
+    // Each pool slot gets its own cloned material instances (same program cache key, independent uTunnel uniforms).
+    const slotShared = createSharedMaterials(materials?.deep.champagne);
+    const rig = createTrainRig(slotShared, 'vesper');
     rig.group.visible = false;
+    // Warm slot 0 (both near interior and far LOD card) inside DepthLook.precompile() so first train spawn has 0 PSO stall.
+    if (i === 0) {
+      rig.group.userData.warmupVisible = true;
+      rig.card.userData.warmupVisible = true;
+    }
     object.add(rig.group);
     rigs.push(rig); slotId.push(-1); near.push(true);
   }
@@ -77,6 +101,7 @@ export function createTrainsView(materials: MetroMaterials | null, deps: TrainsV
       rig.group.rotation.y = Math.atan2(-track.dir[1], track.dir[0]);
       rig.group.visible = true;
       rig.setDoors(t.doors01);
+      rig.setTunnel(tunnelVisibilityFactor(t.s, track.portalIn, track.portalOut), t.s, track.portalIn, track.portalOut);
       // distance from the camera to the nearest point of the 81.5 m consist
       const along = THREE.MathUtils.clamp((cameraPos.x - px) * track.dir[0] + (cameraPos.z - pz) * track.dir[1], -HALF_LEN, HALF_LEN);
       v.set(px + track.dir[0] * along, track.railY, pz + track.dir[1] * along);

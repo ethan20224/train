@@ -196,12 +196,17 @@ async function boot(): Promise<void> {
     surfaceRoots: modules.filter((m) => m.name !== 'lighting' && m.name !== 'metro').map((m) => m.object),
   });
   await depthLook.captureMetro();
+  if (camPreset) (metroRoot.userData.stageTrainsForPreset as ((p: typeof camPreset) => void) | undefined)?.(camPreset);
+  const getMetroTrains = (metroRoot.userData.getTrains as (() => readonly unknown[]) | undefined) ?? (() => []);
+  const onEnterDeep = metroRoot.userData.onEnterDeep as (() => void) | undefined;
+  let notifiedDeep = false;
   window.__meridian.metro = () => ({
     zone: depthLook.airlock.zone,
     look: depthLook.factor,
     disc: { y: disc.y, docked: disc.docked },
     lifts: lifts.snapshots(),
     funicular: funicular.snapshot(),
+    trains: getMetroTrains(),
     feet: controls.feet.toArray(),
   });
   // Guarantee: the static sun shadow map is rendered once, then never again (autoUpdate = false).
@@ -242,6 +247,10 @@ async function boot(): Promise<void> {
     audio.update(frame);
 
     depthLook.update(camera.position.y);
+    if (!notifiedDeep && depthLook.airlock.zone === 'deep') {
+      notifiedDeep = true;
+      onEnterDeep?.();
+    }
     renderer.info.reset();
     postfx.render(dt);
 

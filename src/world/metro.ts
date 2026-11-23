@@ -1,8 +1,10 @@
 import * as THREE from 'three';
+import type { PresetName } from '../core/presets';
 import type { BuildContext, FrameInfo, WorldModule } from '../core/types';
 import { VESPER } from '../layoutMetro';
 import { disc } from '../metro/disc';
 import { onMetroFrame } from '../metro/runtime';
+import { createTimetable } from '../metro/timetable';
 import { buildMetroImpostors } from './metro/impostors';
 import { createMetroMaterials } from './metro/materials';
 import { buildEscalators } from './metro/escalators';
@@ -21,6 +23,7 @@ import { buildOnyxWall } from './metro/onyxWall';
 import { buildLiftsView } from './metro/liftsView';
 import { buildFunicularView } from './metro/funicularView';
 import { updateSensingHalo } from './metro/halo';
+import { createTrainsView } from './metro/trainsView';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Monolith & Machine cavern complete. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -48,8 +51,13 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const onyxWall = buildOnyxWall(ctx.materials, kit);
   const liftsView = buildLiftsView(ctx.materials, kit, ctx.renderer);
   const funicularView = buildFunicularView(ctx.materials, kit);
+  const timetable = createTimetable({ seed: 42 });
+  const trainsView = createTrainsView(kit);
   voidGroup.add(liftsView.voidGroup, funicularView.voidGroup);
-  deepGroup.add(shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group, waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup);
+  deepGroup.add(
+    shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group,
+    waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object,
+  );
   void meridian.psdRows; // driven by timetable in Phase 4 (P4-3)
   void crossing.psdRows; // driven by timetable in Phase 4 (P4-3)
   void halcyon.psdRows;  // driven by timetable in Phase 4 (P4-3)
@@ -79,7 +87,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     ...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...meridian.deepMaterials,
     ...crossing.deepMaterials, ...halcyon.deepMaterials, ...portals.deepMaterials,
     ...waterWall.deepMaterials, ...onyxWall.deepMaterials, ...liftsView.deepMaterials, ...funicularView.deepMaterials,
-    ...sinking.wellDeepMaterials, ...esc.deepMaterials,
+    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials,
   ];
   root.userData.bothZoneMaterials = [...liftsView.bothZoneMaterials, ...funicularView.bothZoneMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
@@ -90,11 +98,31 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   for (const m of root.userData.deepMaterials as THREE.Material[]) voidMats.delete(m as THREE.MeshStandardMaterial);
   for (const m of root.userData.bothZoneMaterials as THREE.Material[]) voidMats.delete(m as THREE.MeshStandardMaterial);
   root.userData.voidMaterials = [...voidMats];
+
+  let deepEntered = false;
+  root.userData.onEnterDeep = (): void => {
+    if (deepEntered) return;
+    deepEntered = true;
+    timetable.enteredDeep();
+  };
+  root.userData.getTrains = () => timetable.trains();
+  root.userData.stageTrainsForPreset = (preset: PresetName): void => {
+    if (preset !== 'train') return;
+    // Fast-forward the real deterministic timetable until a Vesper track-0 train is stopped with doors open.
+    for (let i = 0; i < 6000; i++) {
+      timetable.update(0.05);
+      const ready = timetable.trains().some((t) => t.line === 'vesper' && t.track === 0 && t.phase === 'stopped' && t.doors01 >= 0.999);
+      if (ready) break;
+    }
+    trainsView.update(timetable.trains(), ctx.camera.position);
+  };
+
   return {
     name: 'metro',
     object: root,
-    update(_f: FrameInfo): void {
-      // nothing: every metro visual is driven in real time by onMetroFrame
+    update(f: FrameInfo): void {
+      timetable.update(f.dt);
+      trainsView.update(timetable.trains(), f.camera.position);
     },
   };
 }
