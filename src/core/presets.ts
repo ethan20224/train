@@ -57,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'wellgate',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'lift', 'twin', 'wellgate',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -219,6 +219,8 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   speedgates: { position: [10.6, THRESHOLD.y + EYE, 80.6], target: [7.2, THRESHOLD.y + 0.9, 82.4], fov: 60, intent: 'Threshold: the east speed-gate bank seen from the F3 side, champagne cabinets, glass panels, light lines.' },
   disc: { position: [OCULUS.cx, DISC.topY + EYE, OCULUS.cz + 2.9], target: [OCULUS.cx, DISC.topY - 0.4, OCULUS.cz - 2.4], fov: 72, intent: 'Standing on the Sinking Floor at the top: the inlaid medallion, the brass rail, the open gangway behind.' },
   lifts: { position: [-11.2, THRESHOLD.y + EYE, 71.5], target: [-17, -25.6, 77], fov: 62, intent: 'Threshold: the two glass lift tubes rising to their stainless-and-glass machinery lanterns, sheaves visible.' },
+  lift: { position: [-17.78, -39.5 + EYE, 74.38], target: [10, -45.5, 69.5], fov: 76, intent: 'Inside the south glass capsule lift descending out of the buried sky: white onyx depth gauge and champagne frame foreground, buried noon sky overhead, Meridian bridge, sunlit cavern and Crossing floor spreading beyond.' },
+  twin: { position: [-17.55, -52.5 + EYE, 73.65], target: [-15.8, -49.5, 80.5], fov: 68, intent: 'Inside the descending glass capsule lift looking across at the empty twin cabin gliding past in its ringed glass tube, warm ceiling halo glowing against the sunlit cavern.' },
   wellgate: { position: [-3.2, VESPER.topY + EYE, 65.5], target: [0, VESPER.topY + 0.75, OCULUS.cz - 3.2], fov: 62, intent: 'Crossing floor: 2035 Monolith circular ultra-clear glass well ring and curved sliding glass leaves in slim stainless frames (closed while the disc is docked above).' },
   deep: { position: [-35, HALCYON.topY + EYE, 59], target: [0, HALCYON.topY + 1, 94], intent: 'Along the Halcyon platform diagonal.' },
 };

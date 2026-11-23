@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
 import {
-  ESCALATOR_BANDS, LANDINGS, OCULUS, ONYX_BAND, SKY, THRESHOLD, VOID, VOID_DETAIL as D, VOID_RING_FIRST_Y, lightRingYs, voidRadiusAt,
+  ESCALATOR_BANDS, LANDINGS, LIFTS, OCULUS, ONYX_BAND, SKY, THRESHOLD, VOID, VOID_DETAIL as D, VOID_RING_FIRST_Y, lightRingYs, voidRadiusAt,
   type Landing,
 } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
@@ -585,7 +585,15 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
     const hole: Array<[number, number]> = [];
     const nA = 96;
     for (let i = 0; i <= nA; i++) { const a = phiC - ((Math.PI + 2 * phiC) * i) / nA; hole.push([CX + rH * Math.cos(a), CZ + rH * Math.sin(a)]); }
-    terrazzo.add(slabGeo(outer, [hole], y, DK.topT));
+    const liftCutouts = LIFTS.positions.map(([lx, lz]) => {
+      const pts: Array<[number, number]> = [];
+      for (let i = 0; i < 48; i++) {
+        const a = (i / 48) * TAU;
+        pts.push([lx + LIFTS.tubeR * Math.cos(a), lz + LIFTS.tubeR * Math.sin(a)]);
+      }
+      return pts;
+    });
+    terrazzo.add(slabGeo(outer, [hole, ...liftCutouts], y, DK.topT));
     // bridge body under the top: south girder, soffit, cove, ribs
     const xB = rH + 0.2;
     const ySoff = y - DK.depth - 0.04;

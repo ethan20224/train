@@ -14,6 +14,7 @@ import { buildMetro } from './world/metro';
 import { DepthLook } from './lighting/looks';
 import { updateMetroRuntime, metroDynamicRegions } from './metro/runtime';
 import { disc } from './metro/disc';
+import { lifts } from './metro/lifts';
 import { createAudioEngine } from './audio/audio';
 import { buildAtmosphere } from './lighting/atmosphere';
 import { buildLighting } from './lighting/lighting';
@@ -59,8 +60,8 @@ declare global {
       time?: number;
       /** Phase 4: the held ticket (null when none). */
       ticket?: Ticket | null;
-      /** Phase 4 debug: perform E as if pressed (ignores pointer lock). Returns what was acted on, or null. */
-      interact?: () => 'window' | 'bell' | null;
+      /** Phase 4 + Metro debug: perform E as if pressed (ignores pointer lock). Returns what was acted on, or null. */
+      interact?: () => 'window' | 'bell' | 'liftCall' | 'liftFloor' | null;
       /** Test-only: force the gate ticket requirement on/off (null = GATES.requireTicket). */
       setRequireTicket?: (v: boolean | null) => void;
       /** Phase 4 debug: ticket UI state. */
@@ -138,6 +139,7 @@ async function boot(): Promise<void> {
   if (camPreset) {
     controls.setEnabled(false);
     applyPreset(camera, camPreset);
+    lifts.stageForPreset(camPreset);
   }
 
   Object.assign(window.__meridian, { camera, renderer, scene, quality: quality.state, feet: controls.feet, locked: () => controls.isLocked });
@@ -150,7 +152,7 @@ async function boot(): Promise<void> {
     disabled: !!camPreset,
   });
   Object.defineProperty(window.__meridian, 'ticket', { get: () => tickets.held, enumerable: true, configurable: true });
-  window.__meridian.interact = () => interaction.perform() as 'window' | 'bell' | null;
+  window.__meridian.interact = () => interaction.perform() as 'window' | 'bell' | 'liftCall' | 'liftFloor' | null;
   window.__meridian.setRequireTicket = setRequireTicketOverride;
   window.__meridian.ticketUi = () => ticketUi.debugState;
   const ctx: BuildContext = { renderer, scene, camera, materials, audio, quality: quality.state };
@@ -192,7 +194,13 @@ async function boot(): Promise<void> {
     surfaceRoots: modules.filter((m) => m.name !== 'lighting' && m.name !== 'metro').map((m) => m.object),
   });
   await depthLook.captureMetro();
-  window.__meridian.metro = () => ({ zone: depthLook.airlock.zone, look: depthLook.factor, disc: { y: disc.y, docked: disc.docked }, feet: controls.feet.toArray() });
+  window.__meridian.metro = () => ({
+    zone: depthLook.airlock.zone,
+    look: depthLook.factor,
+    disc: { y: disc.y, docked: disc.docked },
+    lifts: lifts.snapshots(),
+    feet: controls.feet.toArray(),
+  });
   // Guarantee: the static sun shadow map is rendered once, then never again (autoUpdate = false).
   renderer.shadowMap.needsUpdate = true;
   renderer.render(scene, camera);

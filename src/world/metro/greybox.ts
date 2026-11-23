@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  CAVERN, FUNICULAR, LIFTS, MAP_WALL, OCULUS, SKY, THRESHOLD,
+  FUNICULAR, MAP_WALL, OCULUS, SKY,
 } from '../../layoutMetro';
 
 export interface Greybox {
@@ -47,12 +47,7 @@ export function buildGreybox(): Greybox {
 
   // --- deep (drawn below the airlock) ----------------------------------------------------------------
   const D = new THREE.Group(); D.name = 'metroDeep';
-  // Shell (P3-1), sky (P3-2), Meridian (P3-3), Crossing (P3-4), Halcyon deep hall (P3-5) are real.
-  // the tubes end at the Threshold deck; their heads and the glass above it are built by gates.ts (void group, always drawn)
-  for (const [x, z] of LIFTS.positions) {
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(LIFTS.tubeR, LIFTS.tubeR, THRESHOLD.y - CAVERN.yBottom, 48, 1, true), glass);
-    tube.position.set(x, (THRESHOLD.y + CAVERN.yBottom) / 2, z); D.add(tube);
-  }
+  // Shell (P3-1), sky (P3-2), Meridian (P3-3), Crossing (P3-4), Halcyon (P3-5), portals (P3-6), water/onyx (P3-7), lifts (P3-8a) are real.
   const [tx, ty] = FUNICULAR.top; const [bx, by] = FUNICULAR.bottom;
   const track = flightSlab(deepSteel, 'x', FUNICULAR.z - FUNICULAR.trackHalfWidth, FUNICULAR.z + FUNICULAR.trackHalfWidth, tx, bx, ty, by);
   const cabin = box(glass, tx, ty, FUNICULAR.z - FUNICULAR.cabinWidth / 2, tx + FUNICULAR.cabinLength, ty + FUNICULAR.cabinHeight, FUNICULAR.z + FUNICULAR.cabinWidth / 2);

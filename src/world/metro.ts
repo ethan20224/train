@@ -18,6 +18,7 @@ import { buildHalcyonHall } from './metro/halcyon';
 import { buildPortals } from './metro/portals';
 import { buildWaterWall } from './metro/waterWall';
 import { buildOnyxWall } from './metro/onyxWall';
+import { buildLiftsView } from './metro/liftsView';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Phase 3: replacing deep greybox with Monolith & Machine. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -38,7 +39,9 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const portals = buildPortals(ctx.materials, kit);
   const waterWall = buildWaterWall(ctx.materials, kit);
   const onyxWall = buildOnyxWall(ctx.materials, kit);
-  gb.deepGroup.add(shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group, waterWall.group, onyxWall.group);
+  const liftsView = buildLiftsView(ctx.materials, kit, ctx.renderer);
+  gb.voidGroup.add(liftsView.voidGroup);
+  gb.deepGroup.add(shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group, waterWall.group, onyxWall.group, liftsView.deepGroup);
   void meridian.psdRows; // driven by timetable in Phase 4 (P4-3)
   void crossing.psdRows; // driven by timetable in Phase 4 (P4-3)
   void halcyon.psdRows;  // driven by timetable in Phase 4 (P4-3)
@@ -55,6 +58,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     sinking.update(disc.y, disc.gateOpen('bottom'));
     oculus.update(disc.gateOpen('top'));
     fixtures.update(dt, feet);
+    liftsView.update();
     portals.updateIdle(realClock);
     waterWall.update(realClock);
   });
@@ -62,15 +66,17 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   root.userData.deepMaterials = [
     ...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...meridian.deepMaterials,
     ...crossing.deepMaterials, ...halcyon.deepMaterials, ...portals.deepMaterials,
-    ...waterWall.deepMaterials, ...onyxWall.deepMaterials,
+    ...waterWall.deepMaterials, ...onyxWall.deepMaterials, ...liftsView.deepMaterials,
     ...sinking.wellDeepMaterials, ...gb.deepMaterials, ...esc.deepMaterials,
   ];
+  root.userData.bothZoneMaterials = [...liftsView.bothZoneMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
   gb.voidGroup.traverse((o) => {
     const mat = (o as THREE.Mesh).material;
     for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) if ((m as THREE.MeshStandardMaterial).isMeshStandardMaterial) voidMats.add(m as THREE.MeshStandardMaterial);
   });
   for (const m of root.userData.deepMaterials as THREE.Material[]) voidMats.delete(m as THREE.MeshStandardMaterial);
+  for (const m of root.userData.bothZoneMaterials as THREE.Material[]) voidMats.delete(m as THREE.MeshStandardMaterial);
   root.userData.voidMaterials = [...voidMats];
   return {
     name: 'metro',

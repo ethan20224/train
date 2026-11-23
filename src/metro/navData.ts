@@ -54,7 +54,7 @@ export function metroStaticRegions(): Region[] {
   return [
     landing(LANDINGS.L1),
     landing(LANDINGS.L2),
-    { ...boundsOf(annulus), y: THRESHOLD.y, circle: annulus, holes: [circleShape(cx, cz, THRESHOLD.rInner + C), ...bandHoles(ESCALATOR_BANDS.outer, F3_LOW_FOOTPRINT_Z0, F3.to - 0.3)] },
+    { ...boundsOf(annulus), y: THRESHOLD.y, circle: annulus, holes: [circleShape(cx, cz, THRESHOLD.rInner + C), ...bandHoles(ESCALATOR_BANDS.outer, F3_LOW_FOOTPRINT_Z0, F3.to - 0.3), ...liftHoles()] },
     landing(LANDINGS.thresholdBridge),
     {
       xMin: -doorX, xMax: doorX, zMin: isl.zMin + C, zMax: isl.zMax - C, y: MERIDIAN.topY,

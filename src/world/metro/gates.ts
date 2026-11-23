@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
 import {
-  LIFT_HEAD as LH, LIFTS, SPEED_GATES as SG, SPEED_GATE_CABINET_W as CAB_W, THRESHOLD, speedGateCabinets, speedGateLanes,
+  LIFT_HEAD as LH, LIFTS, SKY, SPEED_GATES as SG, SPEED_GATE_CABINET_W as CAB_W, THRESHOLD, speedGateCabinets, speedGateLanes,
 } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
+import { LIFT_KINEMATICS, liftCallButtonPos, liftDoorDir, lifts } from '../../metro/lifts';
 import { GeoBag, boxMM, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import type { MetroMaterials } from './materials';
 import { vertexGlow } from './glow';
@@ -86,42 +87,116 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
     }
   }
 
-  // ---- lift heads ------------------------------------------------------------------------------------------------
+  // ---- lift heads (doorways cut open toward sky hole, Threshold deck sleeves, call buttons, turning sheaves) ----
   const lights: THREE.BufferGeometry[] = [];
-  const tubeBottom = Y0 + LH.collarH - 0.02;
+  const DOOR_H = 2.45;
+  const DOOR_HALF = LIFT_KINEMATICS.doorHalfAngle;
+  const tubeBottom = Y0;
   /** Band section centred on its path: a = radial, b = up. */
   const ringSection = (_a: number, w: number, h: number, c: number): P2[] => [[-w / 2, 0], [w / 2, 0], [w / 2, h - c], [w / 2 - c, h], [-w / 2 + c, h], [-w / 2, h - c]];
-  const ringFr = (r: number, y: number, n = 64): Frame[] => Array.from({ length: n + 1 }, (_, i) => {
-    const t = (i / n) * TAU;
+  const arcFrames = (r: number, y: number, a0: number, a1: number, n: number): Frame[] => Array.from({ length: n + 1 }, (_, i) => {
+    const t = a0 + ((a1 - a0) * i) / n;
     const radial = v3(Math.cos(t), 0, Math.sin(t));
     return { o: v3(r * radial.x, y, r * radial.z), a: radial, b: UP.clone() };
   });
+  const arcTubeGlass = (r: number, y0: number, y1: number, a0: number, a1: number, segs: number): THREE.BufferGeometry => {
+    const p: number[] = [];
+    for (let i = 0; i < segs; i++) {
+      const p0 = a0 + ((a1 - a0) * i) / segs;
+      const p1 = a0 + ((a1 - a0) * (i + 1)) / segs;
+      const x0 = r * Math.cos(p0), z0 = r * Math.sin(p0);
+      const x1 = r * Math.cos(p1), z1 = r * Math.sin(p1);
+      p.push(x0, y0, z0, x0, y1, z0, x1, y1, z1, x0, y0, z0, x1, y1, z1, x1, y0, z1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+    g.computeVertexNormals();
+    return g;
+  };
   const sheaveProf: P2[] = [[0, -0.085], [0.09, -0.085], [0.09, -0.05], [0.44, -0.07], [LH.sheaveR, -0.06], [LH.sheaveR - 0.04, -0.015], [LH.sheaveR - 0.04, 0.015], [LH.sheaveR, 0.06], [0.44, 0.07], [0.09, 0.05], [0.09, 0.085], [0, 0.085]];
-  const sheaveGeo = latheMeters(sheaveProf, 48, 1, 1);
+  const sheaveBody = latheMeters(sheaveProf, 48, 1, 1);
+  // 6 machined radial ribs on the sheave web so rotation is unmistakably readable through the lantern glass
+  const sheaveParts: THREE.BufferGeometry[] = [sheaveBody];
+  for (let k = 0; k < 6; k++) {
+    const rib = new THREE.BoxGeometry(0.032, 0.125, 0.34);
+    rib.translate(0, 0, 0.26);
+    rib.rotateY((k / 6) * TAU);
+    sheaveParts.push(rib);
+  }
+  const sheaveBag = new GeoBag(lib, 'castIron', kit.metersPerTile.stainless);
+  for (const sp of sheaveParts) { sp.rotateZ(Math.PI / 2); sheaveBag.add(sp); }
+  const sheaveInstGeo = sheaveBag.merge()!;
+
   const hubGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.9, 12);
   const roofProf: P2[] = [[0, 0], [1.38, 0], [1.46, 0.02], [1.46, 0.06], [1.34, 0.1], [0.5, 0.14], [0, 0.15]];
   const roofGeo = latheMeters(roofProf, 64, 1, 1);
   const deckProf: P2[] = [[0, 0], [1.38, 0], [1.42, 0.03], [1.42, LH.deckT - 0.03], [1.38, LH.deckT], [0, LH.deckT]];
   const deckGeo = latheMeters(deckProf, 64, 1, 1);
-  const collarProf: P2[] = [[1.4, 0], [LH.collarR, 0], [LH.collarR, 0.1], [LH.collarR - 0.05, LH.collarH], [1.4, LH.collarH]];
-  const collarGeo = latheMeters(collarProf, 64, 1, 1);
+  const collarProf: P2[] = [[0, 0], [LH.collarR - LIFTS.tubeR, 0], [LH.collarR - LIFTS.tubeR, 0.1], [LH.collarR - LIFTS.tubeR - 0.05, LH.collarH], [0, LH.collarH]];
   const motorGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.42, 20);
   const tubeH = LH.tubeTopY - tubeBottom;
-  const tubeGeo = new THREE.CylinderGeometry(LIFTS.tubeR, LIFTS.tubeR, tubeH, 48, 1, true);
   const lanternY0 = LH.tubeTopY + LH.deckT, lanternY1 = LIFTS.headY - 0.15;
   const sideLen = 2 * LH.lanternR * Math.sin(Math.PI / LH.lanternSides);
   const axleY = (lanternY0 + lanternY1) / 2 + 0.02;
 
-  for (const [lx, lz] of LIFTS.positions) {
+  // Threshold curved landing glass door leaves (2 lifts x 2 bi-parting leaves, animated inside thresholdGlass — 0 extra draw calls)
+  interface LiftDoorLeaf { lift: number; sign: 1 | -1; lx: number; lz: number; start: number; count: number }
+  const liftDoorLeaves: LiftDoorLeaf[] = [];
+  let liftLeafVertOffset = 0;
+
+  for (let li = 0; li < LIFTS.positions.length; li++) {
+    const [lx, lz] = LIFTS.positions[li]!;
+    const da = liftDoorDir(li, 0).angle;
     const M = (x = 0, y = 0, z = 0): THREE.Matrix4 => new THREE.Matrix4().makeTranslation(lx + x, y, lz + z);
-    stainless.add(collarGeo, M(0, Y0));
-    glassStatic.add(tubeGeo, M(0, tubeBottom + tubeH / 2));
+    // Floor collar cut open across the doorway so entry is flush
+    stainless.add(sweep(collarProf, arcFrames(LIFTS.tubeR, Y0, da + DOOR_HALF, da + TAU - DOOR_HALF, 44), { closed: true, caps: true }), M());
+    // Brushed-stainless circular shaft liner through the 2 m Threshold deck thickness (-32 .. -30)
+    const deckSleeve = new THREE.CylinderGeometry(LIFTS.tubeR + 0.01, LIFTS.tubeR + 0.01, Y0 - SKY.y, 48, 1, true);
+    deckSleeve.scale(-1, 1, 1); // inward-facing cylinder lining the bore
+    stainless.add(deckSleeve, M(0, (Y0 + SKY.y) / 2));
+    // Glass tube: lower section open across doorway (da ± DOOR_HALF), upper section full 360
+    glassStatic.add(arcTubeGlass(LIFTS.tubeR, Y0, Y0 + DOOR_H, da + DOOR_HALF, da + TAU - DOOR_HALF, 40), M());
+    glassStatic.add(arcTubeGlass(LIFTS.tubeR, Y0 + DOOR_H, LH.tubeTopY, 0, TAU, 48), M());
+    // Doorway stainless transom header & flanking jambs
+    stainless.add(sweep(ringSection(0, 0.055, 0.065, 0.008), arcFrames(LIFTS.tubeR + 0.015, Y0 + DOOR_H, da - DOOR_HALF - 0.03, da + DOOR_HALF + 0.03, 12), { closed: true, caps: true }), M());
+    for (const edgeA of [da - DOOR_HALF - 0.012, da + DOOR_HALF + 0.012]) {
+      stainless.add(new THREE.CylinderGeometry(0.028, 0.028, DOOR_H, 8), M((LIFTS.tubeR + 0.018) * Math.cos(edgeA), Y0 + DOOR_H / 2, (LIFTS.tubeR + 0.018) * Math.sin(edgeA)));
+    }
+    // Exterior call-button housing + backlit warm indicator disc at exact liftCallButtonPos(li, 0)
+    const bp = liftCallButtonPos(li, 0);
+    const bAng = Math.atan2(bp.nz, bp.nx);
+    const housing = boxMM(-0.03, -0.10, -0.05, 0.03, 0.10, 0.05);
+    housing.rotateY(-bAng);
+    housing.translate(bp.x - bp.nx * 0.02, bp.y, bp.z - bp.nz * 0.02);
+    stainless.add(housing);
+    const led = new THREE.CylinderGeometry(0.026, 0.026, 0.014, 16);
+    led.rotateZ(Math.PI / 2);
+    led.rotateY(-bAng);
+    led.translate(bp.x + bp.nx * 0.014, bp.y, bp.z + bp.nz * 0.014);
+    lights.push(led.toNonIndexed());
+
+    // Bi-parting curved Threshold landing glass doors (added to glassPanels so they animate on CPU with 0 extra draw calls)
+    for (const sign of [-1, 1] as const) {
+      const a0 = sign < 0 ? da - DOOR_HALF + 0.004 : da + 0.004;
+      const a1 = sign < 0 ? da - 0.004 : da + DOOR_HALF - 0.004;
+      const leafG = arcTubeGlass(LIFTS.tubeR - 0.035, Y0 + 0.02, Y0 + DOOR_H - 0.02, a0, a1, 8);
+      const count = leafG.getAttribute('position').count;
+      glassPanels.add(leafG, M());
+      liftDoorLeaves.push({ lift: li, sign, lx, lz, start: nPanel * 36 + liftLeafVertOffset, count });
+      liftLeafVertOffset += count;
+    }
+
+    // 3 symmetrical guide posts outside doorway (da + 60, +180, +300 deg) so no post blocks entry
     for (let i = 0; i < LH.posts; i++) {
-      const t = Math.PI / 2 + (i / LH.posts) * TAU;
+      const t = da + Math.PI / 3 + (i / LH.posts) * TAU;
       stainless.add(new THREE.CylinderGeometry(LH.postR, LH.postR, tubeH, 8), M((LIFTS.tubeR + LH.postR) * Math.cos(t), tubeBottom + tubeH / 2, (LIFTS.tubeR + LH.postR) * Math.sin(t)));
     }
-    for (let y = tubeBottom + 0.7; y < LH.tubeTopY - 0.3; y += LH.bandEvery) {
-      stainless.add(sweep(ringSection(0, 0.028, 0.03, 0.008), ringFr(LIFTS.tubeR + 0.015, y), { closed: true }), M());
+    for (let y = Y0 + 0.7; y < LH.tubeTopY - 0.3; y += LH.bandEvery) {
+      const openDoor = y <= Y0 + DOOR_H + 0.05;
+      stainless.add(
+        sweep(ringSection(0, 0.028, 0.03, 0.008), arcFrames(LIFTS.tubeR + 0.015, y, openDoor ? da + DOOR_HALF : 0, openDoor ? da + TAU - DOOR_HALF : TAU, openDoor ? 44 : 64), { closed: true, caps: openDoor }),
+        M(),
+      );
     }
     // head: deck plate, then the lantern (8 stainless corner posts, glass between, top and bottom rails), roof
     stainless.add(deckGeo, M(0, LH.tubeTopY));
@@ -137,10 +212,7 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
       glassStatic.add(new THREE.BoxGeometry(0.01, lanternY1 - lanternY0 - 0.1, sideLen - 0.06), orient((lanternY0 + lanternY1) / 2));
     }
     stainless.add(roofGeo, M(0, lanternY1));
-    // the machinery inside: sheave on a horizontal axle across the lantern, bearing pedestals, motor
-    const sh = sheaveGeo.clone();
-    sh.rotateZ(Math.PI / 2);
-    stainless.add(sh, M(0, axleY, 0));
+    // stationary machinery inside: horizontal axle, bearing pedestals, motor (the sheave itself rotates via InstancedMesh below)
     stainless.add(hubGeo.clone().rotateZ(Math.PI / 2), M(0, axleY, 0));
     for (const sx of [-0.4, 0.4]) stainless.add(new THREE.BoxGeometry(0.05, axleY - lanternY0 + 0.05, 0.16), M(sx, (lanternY0 + axleY) / 2 - 0.0, 0));
     stainless.add(motorGeo.clone().rotateZ(Math.PI / 2), M(-0.75, lanternY0 + 0.2, 0));
@@ -183,6 +255,18 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
   void metalMesh;
   for (let i = 0; i < cabinets.length; i++) setStrip(i, IDLE);
 
+  // Rotating sheaves inside the two lift machinery heads (reuses metalMat: +1 void call)
+  const sheaveMesh = new THREE.InstancedMesh(tint(sheaveInstGeo, [0.78, 0.84, 0.96]), metalMat, LIFTS.positions.length);
+  sheaveMesh.name = 'liftHeadSheaves';
+  sheaveMesh.userData.noShadow = true;
+  sheaveMesh.frustumCulled = false;
+  group.add(sheaveMesh);
+  const _shM = new THREE.Matrix4();
+  const _shR = new THREE.Matrix4();
+  const _shT = new THREE.Matrix4();
+  const prevLiftY = new Float32Array(LIFTS.positions.length).fill(NaN);
+  const prevDoorOpen = new Float32Array(LIFTS.positions.length).fill(-1);
+
   const statG = glassStatic.merge()!;
   const panelG = glassPanels.merge()!;
   const glassGeo = mergeGeometries([statG, panelG], false)!;
@@ -200,9 +284,50 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
   const cabAdj = cabinets.map((c) => lanes.map((l, li) => (l.side === c.side && (l.index === c.index || l.index === c.index - 1) ? li : -1)).filter((v) => v >= 0));
   const posDirty = (): void => { pos.needsUpdate = true; };
 
+  const syncLiftMachinery = (): boolean => {
+    let sheaveMoved = false;
+    let doorsMoved = false;
+    for (let li = 0; li < LIFTS.positions.length; li++) {
+      const snap = lifts.cabin(li);
+      if (snap.y !== prevLiftY[li]) {
+        prevLiftY[li] = snap.y;
+        const [lx, lz] = LIFTS.positions[li]!;
+        _shT.makeTranslation(lx, axleY, lz);
+        _shR.makeRotationX(snap.y / LH.sheaveR);
+        _shM.multiplyMatrices(_shT, _shR);
+        sheaveMesh.setMatrixAt(li, _shM);
+        sheaveMoved = true;
+      }
+      const open01 = lifts.landingDoorOpen01(li, 0);
+      if (open01 !== prevDoorOpen[li]) {
+        prevDoorOpen[li] = open01;
+        for (let di = 0; di < liftDoorLeaves.length; di++) {
+          const lf = liftDoorLeaves[di]!;
+          if (lf.lift !== li) continue;
+          const rot = lf.sign * open01 * DOOR_HALF * 0.96;
+          const c = Math.cos(rot), s = Math.sin(rot);
+          const v0 = panelBase + lf.start;
+          for (let k = 0; k < lf.count; k++) {
+            const bx = base[(v0 + k) * 3]! - lf.lx;
+            const bz = base[(v0 + k) * 3 + 2]! - lf.lz;
+            pos.setX(v0 + k, lf.lx + bx * c - bz * s);
+            pos.setZ(v0 + k, lf.lz + bx * s + bz * c);
+          }
+        }
+        doorsMoved = true;
+      }
+    }
+    if (sheaveMoved) sheaveMesh.instanceMatrix.needsUpdate = true;
+    return doorsMoved;
+  };
+  syncLiftMachinery();
+
   return {
     group,
-    stats: { calls: 2, triangles: (metalGeo.getAttribute('position').count + glassGeo.getAttribute('position').count) / 3 },
+    stats: {
+      calls: 3,
+      triangles: (metalGeo.getAttribute('position').count + glassGeo.getAttribute('position').count + sheaveInstGeo.getAttribute('position').count * LIFTS.positions.length) / 3,
+    },
     update(dt: number, feet: { x: number; y: number; z: number }): void {
       const onLevel = Math.abs(feet.y - Y0) < 1.6;
       let panelsMoved = false, lightsMoved = false;
@@ -234,8 +359,8 @@ export function buildThresholdFixtures(lib: MaterialLibrary, kit: MetroMaterials
             pos.setY(v0 + k, base[(v0 + k) * 3 + 1]! - sink * s);
           }
         }
-        posDirty();
       }
+      if (syncLiftMachinery() || panelsMoved) posDirty();
       if (lightsMoved) {
         for (let ci = 0; ci < cabinets.length; ci++) {
           let g = 0;

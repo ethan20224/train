@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { BOOKING_OFFICE, CONCIERGE, GATES } from '../layout';
+import { BOOKING_OFFICE, CONCIERGE, GATES, PLAYER } from '../layout';
+import { LIFTS } from '../layoutMetro';
+import {
+  LIFT_STOPS, LIFT_STOP_LABELS, liftCallButtonPos, liftDoorDir, liftFloorButtonPos, lifts,
+  type LiftSnapshot, type LiftStop,
+} from '../metro/lifts';
 import type { AudioEngine } from './types';
 import { ticketRequired } from '../player/navigation';
 import { buildTicket, tickets } from './ticket';
@@ -8,15 +13,17 @@ import { trainControl } from '../trains/scheduler';
 import type { TicketUI } from '../ui/ticketUi';
 
 /**
- * Interaction system (Phase 4): proximity + facing checks for the three booking-office windows and the concierge
- * bell, plus the "ticket required" hint at the gates. E performs the action (only while pointer-locked, never
- * in ?cam mode). Targeting is a pure function so it can be tested without a browser.
+ * Interaction system (Phase 4 + Meridian Deep lifts): proximity + facing checks for the three booking-office
+ * windows, concierge bell, ticket-gate hint, and metro capsule lift call/floor buttons. E performs the action
+ * (only while pointer-locked, never in ?cam mode). Targeting is a pure function so it can be tested without a browser.
  */
 
 export type Target =
   | { kind: 'window'; index: number }
   | { kind: 'bell' }
-  | { kind: 'gate' };
+  | { kind: 'gate' }
+  | { kind: 'liftCall'; lift: number; stop: LiftStop }
+  | { kind: 'liftFloor'; lift: number; stop: LiftStop; current: boolean };
 
 interface V3 {
   x: number;
@@ -30,16 +37,69 @@ const FACING_DOT = 0.5;
 const WINDOW_TARGET_Y = BOOKING_OFFICE.counterHeight + 0.45;
 const GATE_HINT_DEPTH = 2.9; // metres south of the band (the player stops 0.4 m short of it)
 
-const facing = (eye: V3, fwd: V3, tx: number, ty: number, tz: number): boolean => {
+const viewDot = (eye: V3, fwd: V3, tx: number, ty: number, tz: number): number => {
   const dx = tx - eye.x;
   const dy = ty - eye.y;
   const dz = tz - eye.z;
   const len = Math.hypot(dx, dy, dz) || 1;
-  return (fwd.x * dx + fwd.y * dy + fwd.z * dz) / len > FACING_DOT;
+  return (fwd.x * dx + fwd.y * dy + fwd.z * dz) / len;
 };
 
+const facing = (eye: V3, fwd: V3, tx: number, ty: number, tz: number): boolean =>
+  viewDot(eye, fwd, tx, ty, tz) > FACING_DOT;
+
 /** What is the player at / looking at? `fwd` is the unit camera forward. Pure. */
-export function findTarget(feet: V3, eye: V3, fwd: V3, hasTicket: boolean, ticketRequired = true): Target | null {
+export function findTarget(
+  feet: V3,
+  eye: V3,
+  fwd: V3,
+  hasTicket: boolean,
+  ticketRequired = true,
+  liftState: readonly LiftSnapshot[] = lifts.snapshots(),
+): Target | null {
+  // Metro targets (capsule lift floor buttons inside a docked cabin, and call buttons outside closed landing doors)
+  for (let i = 0; i < liftState.length; i++) {
+    const c = liftState[i]!;
+    if (Math.hypot(feet.x - c.x, feet.z - c.z) <= LIFTS.cabinR - PLAYER.wallClearance + 0.12 && Math.abs(feet.y - c.y) <= 0.6) {
+      if (c.docked === null) return null; // mid-ride: no button clutter
+      let bestStop: LiftStop | null = null;
+      let bestDot = 0.80;
+      for (const s of [0, 1, 2] as const) {
+        const b = liftFloorButtonPos(i, s, c.y, c.doorAngle);
+        const d = viewDot(eye, fwd, b.x, b.y, b.z);
+        if (d > bestDot) {
+          bestDot = d;
+          bestStop = s;
+        }
+      }
+      if (bestStop !== null) return { kind: 'liftFloor', lift: i, stop: bestStop, current: c.docked === bestStop };
+      return null;
+    }
+  }
+  let bestCall: { lift: number; stop: LiftStop; score: number } | null = null;
+  for (let i = 0; i < liftState.length; i++) {
+    const c = liftState[i]!;
+    for (const s of [0, 1, 2] as const) {
+      const sy = LIFT_STOPS[s]!;
+      if (Math.abs(feet.y - sy) > 0.6) continue;
+      if (c.docked === s && (c.state === 'open' || c.state === 'opening')) continue;
+      const btn = liftCallButtonPos(i, s);
+      const dir = liftDoorDir(i, s);
+      const doorX = c.x + dir.x * LIFTS.tubeR;
+      const doorZ = c.z + dir.z * LIFTS.tubeR;
+      const dBtn = Math.hypot(feet.x - btn.x, feet.z - btn.z);
+      const dDoor = Math.hypot(feet.x - doorX, feet.z - doorZ);
+      if (dBtn > 2.4 && dDoor > 2.2) continue;
+      const dotBtn = viewDot(eye, fwd, btn.x, btn.y, btn.z);
+      const dotDoor = viewDot(eye, fwd, doorX, sy + 1.3, doorZ);
+      const score = Math.max(dotBtn, dotDoor - 0.1);
+      if ((dotBtn > 0.55 || dotDoor > 0.65) && (!bestCall || score > bestCall.score)) {
+        bestCall = { lift: i, stop: s, score };
+      }
+    }
+  }
+  if (bestCall) return { kind: 'liftCall', lift: bestCall.lift, stop: bestCall.stop };
+
   if (feet.y > 1.0 || feet.y < -1.0) return null; // balcony, bridge deck, metro: no surface targets there
   const bo = BOOKING_OFFICE;
   for (let i = 0; i < bo.windowCentersX.length; i++) {
@@ -116,6 +176,12 @@ export class Interaction {
       case 'gate':
         ui.setPrompt('Ticket required — Booking Office', false);
         break;
+      case 'liftCall':
+        ui.setPrompt('Call lift', true);
+        break;
+      case 'liftFloor':
+        ui.setPrompt(LIFT_STOP_LABELS[this.target.stop]!, !this.target.current);
+        break;
     }
   }
 
@@ -142,6 +208,13 @@ export class Interaction {
         this.d.audio.bell();
       }
       return 'bell';
+    }
+    if (t.kind === 'liftCall') {
+      return lifts.call(t.lift, t.stop) ? 'liftCall' : null;
+    }
+    if (t.kind === 'liftFloor') {
+      if (t.current) return null;
+      return lifts.sendTo(t.lift, t.stop) ? 'liftFloor' : null;
     }
     return null; // the gate hint is information only
   }

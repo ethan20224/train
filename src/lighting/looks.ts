@@ -45,6 +45,9 @@ export class DepthLook {
   private readonly probe: THREE.LightProbe;
   private readonly surfaceSH: THREE.SphericalHarmonics3;
   private deepSH: THREE.SphericalHarmonics3 | null = null;
+  private deepEnvTex: THREE.Texture | null = null;
+  private voidEnvTex: THREE.Texture | null = null;
+  private bothMats: THREE.MeshStandardMaterial[] = [];
   private readonly dimmable: Array<{ light: THREE.Light; base: number }> = [];
   private readonly toggles: THREE.Object3D[] = [];
   private readonly voidCasters: THREE.Mesh[] = [];
@@ -121,6 +124,17 @@ export class DepthLook {
     for (const { light, base } of this.dimmable) light.intensity = base * (1 - this.factor);
   }
 
+  private applyBothZoneEnv(z: Zone, markNeedsUpdate: boolean): void {
+    const tex = z === 'deep' ? this.deepEnvTex : this.voidEnvTex;
+    if (!tex || this.bothMats.length === 0) return;
+    for (const m of this.bothMats) {
+      if (m.envMap !== tex) {
+        m.envMap = tex;
+        if (markNeedsUpdate) m.needsUpdate = true;
+      }
+    }
+  }
+
   private applyZone(z: Zone): void {
     const deep = z === 'deep';
     for (const o of this.toggles) o.visible = !deep;
@@ -128,6 +142,7 @@ export class DepthLook {
     this.deepImpostor.visible = !deep;
     this.surfaceImpostor.visible = deep;
     for (const m of this.voidCasters) m.castShadow = !deep; // the deep sun is emitted at the sky plane: nothing above it casts
+    this.applyBothZoneEnv(z, false);
     setSunMode(this.sun, z);
     this.d.renderer.shadowMap.needsUpdate = true;
     this.d.postfx.setGodRaysEnabled(this.godRaysAllowed && !deep);
@@ -178,7 +193,7 @@ export class DepthLook {
       for (const c of o.children) collectHallMats(c);
     };
     collectHallMats(scene);
-    const pick = (key: string): THREE.MeshStandardMaterial[] => {
+    const pick = (key: string, optional = false): THREE.MeshStandardMaterial[] => {
       const all = (metroRoot.userData[key] ?? []) as THREE.Material[];
       const seen = new Set<THREE.MeshStandardMaterial>();
       for (const m of all) {
@@ -187,29 +202,37 @@ export class DepthLook {
         }
       }
       const kept = [...seen];
-      if (kept.length === 0) console.warn(`DepthLook: ${key} is empty after excluding hall-shared materials (${all.length} listed)`);
+      if (!optional && kept.length === 0) console.warn(`DepthLook: ${key} is empty after excluding hall-shared materials (${all.length} listed)`);
       return kept;
     };
     const deepMats = pick('deepMaterials');
     const voidMats = pick('voidMaterials');
+    const bothMats = pick('bothZoneMaterials', true);
     const pmrem = new THREE.PMREMGenerator(renderer);
     try {
-      const deepSH = await this.captureEnv('deep', DEEP_LOOK.capture, deepMats, true, pmrem);
-      if (deepSH) {
-        this.deepSH = deepSH;
+      const deepRes = await this.captureEnv('deep', DEEP_LOOK.capture, deepMats, true, bothMats.length > 0, pmrem);
+      this.deepEnvTex = deepRes.envTex;
+      if (deepRes.sh) {
+        this.deepSH = deepRes.sh;
         this.update(camera.position.y);
       }
-      await this.captureEnv('surface', VOID_LOOK.capture, voidMats, false, pmrem);
+      const voidRes = await this.captureEnv('surface', VOID_LOOK.capture, voidMats, false, bothMats.length > 0, pmrem);
+      this.voidEnvTex = voidRes.envTex;
     } finally {
       pmrem.dispose();
     }
+    this.bothMats = bothMats;
+    // Assign active-zone PMREM envMap once BEFORE precompile() so both-zone materials compile with USE_ENVMAP active;
+    // subsequent airlock swaps between two identically-formatted PMREM textures hit Three.js's program cache (0 compiles).
+    this.applyBothZoneEnv(this.airlock.zone, true);
     await this.precompile();
   }
 
   private async captureEnv(
-    zone: Zone, at: readonly [number, number, number], mats: THREE.MeshStandardMaterial[], wantSH: boolean, pmrem: THREE.PMREMGenerator,
-  ): Promise<THREE.SphericalHarmonics3 | null> {
-    if (mats.length === 0 && !wantSH) return null;
+    zone: Zone, at: readonly [number, number, number], mats: THREE.MeshStandardMaterial[], wantSH: boolean, wantEnv: boolean, pmrem: THREE.PMREMGenerator,
+  ): Promise<{ sh: THREE.SphericalHarmonics3 | null; envTex: THREE.Texture | null }> {
+    const needPmrem = mats.length > 0 || wantEnv;
+    if (!needPmrem && !wantSH) return { sh: null, envTex: null };
     const { renderer, scene, camera } = this.d;
     const saved = this.airlock.zone;
     const savedEnv = scene.environment;
@@ -250,7 +273,7 @@ export class DepthLook {
       const passes = mats.length > 0 ? 2 : 1;
       for (let pass = 0; pass < passes; pass++) {
         cube.update(renderer, scene);
-        if (mats.length > 0) {
+        if (needPmrem) {
           const next = pmrem.fromCubemap(rt.texture);
           for (const m of mats) { m.envMap = next.texture; m.needsUpdate = true; }
           env?.dispose();
@@ -283,7 +306,7 @@ export class DepthLook {
       this.applyZone(saved);
       this.update(camera.position.y);
     }
-    return sh;
+    return { sh, envTex: committed ? (env?.texture ?? null) : null };
   }
 
   /** Compiles every program in the scene for PostFX's linear HDR input buffer, then restores the render target. */

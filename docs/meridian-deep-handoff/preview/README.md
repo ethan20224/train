@@ -2,6 +2,20 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P3-8a — Twin Glass Capsule Lifts (`p3-8a/`)
+
+Two independent working glass capsule lifts connecting Threshold (`−30 m`), Crossing (`−70 m`), and Halcyon (`−82 m`) both up and down:
+- **Cabins (`liftsView.ts`, 6 instanced calls in `metroVoid`, both-zone env swap across the `−16` airlock):** champagne anodised floor/ceiling rings and mullions, brushed-stainless under-bowl and anchored handrail, warm 3200 K ceiling downlight halo + floor micro-cove, bi-parting curved glass doors that rotate smoothly to align with each level's landing, and a backlit **white onyx analog depth gauge (`0 → −82 m`)** with brushed-stainless needle and 3 tactile backlit floor buttons (`−30`, `−70`, `−82`).
+- **Tubes & machinery (`liftsView.ts` + `gates.ts`):** ultra-clear deep glass shafts ringed every 3 m in brushed stainless down through the laminated glass floor onto the Halcyon aprons, curved sliding landing doors at all 3 levels, call-button beacons, cut Threshold deck openings with machined stainless sleeves, and rotating sheaves inside the machinery lanterns.
+- **Ghost runs & controls (`lifts.ts` + `interaction.ts`):** `E` call buttons outside closed doors and `E` floor buttons inside; seeded deterministic ghost runs every 40–70 s on the unoccupied twin weighted 2:1 toward the player's level.
+
+- **Lift (new preset — inside descending capsule: white onyx depth gauge at `−39.5 m`, backlit buttons, sky hole, Meridian bridge & onyx wall)** — ![lift](p3-8a/lift.jpg)
+- **Twin (new preset — empty twin capsule gliding past with warm ceiling halo in its ringed glass tube)** — ![twin](p3-8a/twin.jpg)
+- **Lifts (Threshold machinery lanterns with spinning sheaves, docked south capsule, doorway & call buttons)** — ![lifts](p3-8a/lifts.jpg)
+- **Crossing (twin ringed glass lift tubes rising out of the fritted glass floor into the buried blue sky)** — ![crossing](p3-8a/crossing.jpg)
+- **Glass floor (ringed glass shafts descending straight onto the Halcyon island landing aprons)** — ![glassfloor](p3-8a/glassfloor.jpg)
+- **Deep (looking up from Halcyon through the skylight at both shafts & the hovering Crossing capsule)** — ![deep](p3-8a/deep.jpg)
+
 ## P3-7 — Living Water Wall & Backlit Book-Matched Onyx Wall (`p3-7/`)
 
 Opposite 40 m × 36+ m feature walls anchoring the transept in 5 draw calls total:
