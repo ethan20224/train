@@ -18,7 +18,7 @@ import type { MetroMaterials } from './materials';
  *     4. liftCabinDoorGlass   (4 inst: curved ultra-clear sliding cabin door leaves)
  *     5. liftDepthDial        (2 inst: backlit white-onyx 0 -> -82 m depth gauge dial + 3 floor buttons with live current highlight)
  *     6. liftDepthNeedle      (2 inst: brushed stainless/champagne depth pointer tracking real-time y)
- * - Deep tubes (-82 .. -32) & deep landing doors (-70, -82) live in `metroDeep` (4 draw calls total, replacing greybox cylinders).
+ * - Deep tubes (-82 .. -32) & deep landing doors (-70, -82) live in `metroDeep` (4 draw calls total).
  */
 
 const TAU = Math.PI * 2;

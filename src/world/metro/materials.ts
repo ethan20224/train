@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { MaterialLibrary } from '../../core/types';
 import { VOID_DETAIL } from '../../layoutMetro';
 import { excludeDirectionalLight } from '../../lighting/sunMask';
+import { installSensingHalo } from './halo';
 
 /**
  * Meridian Deep material kit (spec §4, Monolith & Machine). Upstairs = Beaux-Arts carved stone, bronze, brass;
@@ -400,6 +401,9 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
   deepSet.terrazzo.color.setScalar(0.54);
   deepSet.terrazzo.roughness = 0.24;
   deepSet.terrazzo.envMapIntensity = 0.62;
+  // Subtle warm 3200 K sensing halo on deep honed limestone & deep terrazzo only (P3-9).
+  installSensingHalo(deepSet.honedLimestone);
+  installSensingHalo(deepSet.terrazzo);
   voidSet.emissive = emissive;
   // separate instances: deep materials are mutated per depth look, the void ones must not be touched
   deepSet.emissive = {

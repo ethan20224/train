@@ -2,6 +2,25 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P3-9 — Phase 3 Cavern Complete (Sensing Halo, Cleanup & Gate) (`p3-9/`)
+
+Every cavern greybox element is now gone (`greybox.ts` deleted → `impostors.ts`), the subtle warm 3200 K sensing halo is active on deep honed limestone & terrazzo, Metal PSO warmup eliminates the airlock hitch (`177 ms → 24 ms`), and all 20 gate views + extended route test (disc + F6 + lifts + funicular + F5–F1) pass cleanly with the 1910 Grand Hall untouched. Full 20-shot archive is also in [evidence/phase-3/](../evidence/phase-3/README.md).
+
+- **Crossing (finished transept: glass panel, twin lifts, inclined funicular, floating bridge, backlit onyx)** — ![crossing](p3-9/crossing.jpg)
+- **Floor (monolith benches, 2035 well gate, inlays, twin lifts & living water wall)** — ![floor](p3-9/floor.jpg)
+- **Glass-floor look-up (twin sunlit ringed shafts, hovering capsule, floating bridge & buried sun)** — ![glassup](p3-9/glassup.jpg)
+- **Sun (buried noon solar disc framed by twin glass shafts & bridge)** — ![sun](p3-9/sun.jpg)
+- **Meridian (floating island flanked by funicular monorail & twin glass lifts)** — ![meridian](p3-9/meridian.jpg)
+- **Skyride (descending F4 onto Meridian with clean recessed map-wall frieze alcove)** — ![skyride](p3-9/skyride.jpg)
+- **Water wall (living liquid black-granite mirror)** — ![waterwall](p3-9/waterwall.jpg)
+- **Onyx wall (backlit book-matched white onyx & funicular monorail)** — ![onyx](p3-9/onyx.jpg)
+- **Lift (inside descending capsule with white onyx depth gauge)** — ![lift](p3-9/lift.jpg)
+- **Twin (empty twin capsule passing)** — ![twin](p3-9/twin.jpg)
+- **Funicular (glass cabin on wedge chassis sliding out of the sky slot)** — ![funicular](p3-9/funicular.jpg)
+- **Deep (Halcyon 82 m underground under the daylight shaft)** — ![deep](p3-9/deep.jpg)
+- **Map wall alcove (greybox removed; ready for Phase 4 live map & clock)** — ![mapwall](p3-9/mapwall.jpg)
+- **Balcony (1910 Grand Hall unchanged)** — ![balcony](p3-9/balcony.jpg)
+
 ## P3-8b — Inclined Glass Funicular (`p3-8b/`)
 
 Working inclined glass funicular connecting the east Threshold (`−30 m`) top station alcove to the Crossing floor (`−70 m`) east station along a 50.7° brushed-stainless rack rail (Ruling 37):

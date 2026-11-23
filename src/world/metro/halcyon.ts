@@ -7,6 +7,7 @@ import {
 import { trackOf } from '../../metro/tracks';
 import { LINE_COLORS } from '../../metro/trainModel';
 import { GeoBag, boxMM, sweep, v3, type Frame, type P2 } from '../concourse/geo';
+import { installSensingHalo } from './halo';
 import type { MetroMaterials } from './materials';
 import { createPsdBank, type PsdController } from './psd';
 import { buildSlabTrackGeos } from './track';
@@ -713,6 +714,7 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
   const shellMat = kit.deep.honedLimestone.clone();
   shellMat.name = 'metroDeepHalcyonShell';
   shellMat.vertexColors = true;
+  installSensingHalo(shellMat);
 
   const matteMat = new THREE.MeshStandardMaterial({
     name: 'metroDeepHalcyonMatte',

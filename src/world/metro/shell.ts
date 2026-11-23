@@ -4,6 +4,7 @@ import {
   CAVERN, CROSS_OUTLINE, DISC, MAP_WALL, MERIDIAN, OCULUS, PORTAL, SHELL, SKY, VESPER, WATER_WALL,
 } from '../../layoutMetro';
 import { GeoBag, rng, v3, type P2 } from '../concourse/geo';
+import { installSensingHalo } from './halo';
 import type { MetroMaterials } from './materials';
 
 /**
@@ -682,6 +683,7 @@ export function buildCavernShell(lib: MaterialLibrary, kit: MetroMaterials, opts
   const limeMat = kit.deep.honedLimestone.clone();
   limeMat.name = 'metroDeepShellLimestone';
   limeMat.vertexColors = true;
+  installSensingHalo(limeMat);
 
   const graniteMat = new THREE.MeshStandardMaterial({
     name: 'metroDeepBlackGranite',

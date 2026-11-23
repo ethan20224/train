@@ -309,17 +309,66 @@ export class DepthLook {
     return { sh, envTex: committed ? (env?.texture ?? null) : null };
   }
 
-  /** Compiles every program in the scene for PostFX's linear HDR input buffer, then restores the render target. */
+  /**
+   * Compiles every program AND warms Metal GPU pipeline state objects (beauty + N8AO + shadow map)
+   * for BOTH zones up front at boot (while the intro covers the canvas), so crossing the -16 airlock
+   * in either direction incurs zero shader or PSO stalls.
+   */
   private async precompile(): Promise<void> {
     const { renderer, scene, camera, postfx } = this.d;
     const savedRT = renderer.getRenderTarget();
     const savedFace = renderer.getActiveCubeFace();
     const savedMip = renderer.getActiveMipmapLevel();
+    const savedZone = this.airlock.zone;
+    const savedPos = camera.position.clone();
+    const savedQuat = camera.quaternion.clone();
+    const savedAutoClear = renderer.autoClear;
+    const savedCulled: Array<{ o: THREE.Object3D; c: boolean }> = [];
     try {
       renderer.setRenderTarget(postfx.composer.inputBuffer);
       await renderer.compileAsync(scene, camera);
-    } finally {
       renderer.setRenderTarget(savedRT, savedFace, savedMip);
+      // Warm actual Metal PSOs across both zones (disable frustum culling for 1 warmup draw so every mesh's PSO compiles now)
+      scene.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh && o.frustumCulled) {
+          savedCulled.push({ o, c: true });
+          o.frustumCulled = false;
+        }
+      });
+      const otherZone: Zone = savedZone === 'surface' ? 'deep' : 'surface';
+      this.applyZone(otherZone);
+      if (otherZone === 'deep') {
+        this.blend(1);
+        this.sun.intensity = DEEP_SUN.intensity;
+        camera.position.set(0, -55, 74);
+        camera.lookAt(0, -68, 74);
+        camera.updateMatrixWorld(true);
+      } else {
+        this.blend(0);
+        this.sun.intensity = this.sunSurface;
+        camera.position.set(0, 6, 3);
+        camera.lookAt(0, 6, 60);
+        camera.updateMatrixWorld(true);
+      }
+      renderer.shadowMap.needsUpdate = true;
+      postfx.render(0);
+      // Warm savedZone as well while frustumCulled is off so off-camera meshes in the starting zone warm their PSOs too
+      this.applyZone(savedZone);
+      camera.position.copy(savedPos);
+      camera.quaternion.copy(savedQuat);
+      camera.updateMatrixWorld(true);
+      this.update(camera.position.y);
+      renderer.shadowMap.needsUpdate = true;
+      postfx.render(0);
+    } finally {
+      for (const { o, c } of savedCulled) o.frustumCulled = c;
+      camera.position.copy(savedPos);
+      camera.quaternion.copy(savedQuat);
+      camera.updateMatrixWorld(true);
+      renderer.setRenderTarget(savedRT, savedFace, savedMip);
+      renderer.autoClear = savedAutoClear;
+      this.applyZone(savedZone);
+      this.update(camera.position.y);
     }
   }
 }

@@ -10,9 +10,24 @@ await page.click('#intro .prompt');
 await page.waitForTimeout(2500);
 if (!(await page.evaluate(() => window.__meridian.locked()))) { await page.mouse.click(720, 450); await page.waitForTimeout(300); }
 if (!(await page.evaluate(() => window.__meridian.locked()))) { console.log('NOTE: no pointer lock'); await browser.close(); process.exit(2); }
-const state = () => page.evaluate(() => { const m = window.__meridian; return { yaw: m.camera.rotation.y, fx: m.feet.x, fy: m.feet.y, fz: m.feet.z, metro: m.metro(), prompt: m.ticketUi().prompt }; });
+const state = () => page.evaluate(() => { const m = window.__meridian; return { yaw: m.camera.rotation.y, pitch: m.camera.rotation.x, ey: m.camera.position.y, fx: m.feet.x, fy: m.feet.y, fz: m.feet.z, metro: m.metro(), prompt: m.ticketUi().prompt }; });
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-const look = (dyaw) => page.evaluate((mx) => document.dispatchEvent(new MouseEvent('mousemove', { movementX: mx, movementY: 0 })), -dyaw / 0.002);
+const look = (dyaw, dpitch = 0) => page.evaluate(([mx, my]) => document.dispatchEvent(new MouseEvent('mousemove', { movementX: mx, movementY: my })), [-dyaw / 0.002, -dpitch / 0.002]);
+async function aimAt(tx, ty, tz) {
+  for (let i = 0; i < 4; i++) {
+    const s = await state();
+    const dx = tx - s.fx, dy = ty - s.ey, dz = tz - s.fz;
+    const yaw = Math.atan2(-dx, -dz);
+    const pitch = Math.atan2(dy, Math.hypot(dx, dz) || 1);
+    await look(wrap(yaw - s.yaw), pitch - s.pitch);
+    await page.waitForTimeout(40);
+  }
+}
+async function levelPitch() {
+  const s = await state();
+  await look(0, -s.pitch);
+  await page.waitForTimeout(40);
+}
 async function goto(tx, tz, { tol = 0.3, maxMs = 90000 } = {}) {
   await page.keyboard.down('KeyW');
   const t0 = Date.now(); let ok = false; let last = null; let lastT = Date.now();
@@ -56,7 +71,62 @@ check((await state()).fy < -81.9, 'F6 down to Halcyon');
 await goto(-25.2, 68.8, { tol: 0.1 }); await goto(-50, 68.8);            // F6 up unit
 check(Math.abs((await state()).fy + 70) < 0.01, 'F6 up to the Crossing floor');
 await mark('deep: F6 down/up');
-await via([[-50, 72], [-10, 70], [-5, 68], [7.0, 68.5]]);
+
+// Capsule lift leg (P3-8a): Crossing (-70) -> Halcyon (-82) -> Crossing (-70) via real E controls
+await via([[-50, 71.2], [-14.2, 71.2], [-14.2, 80.0]]);
+{
+  let s = await state();
+  if (!(s.metro.lifts[1].docked === 1 && s.metro.lifts[1].state === 'open')) {
+    const a = -0.52;
+    await aimAt(-17 + 1.48 * Math.cos(a), -70 + 1.15, 80 + 1.48 * Math.sin(a));
+    await page.waitForTimeout(100);
+    s = await state();
+    check(s.prompt.toLowerCase().includes('call lift'), `lift call prompt visible (${s.prompt})`);
+    await page.keyboard.press('KeyE');
+    await levelPitch();
+    await waitFor((st) => st.metro.lifts[1].docked === 1 && st.metro.lifts[1].state === 'open', 45000, 'lift 1 arrived & opened at Crossing (-70)');
+  }
+  await goto(-17.0, 80.0, { tol: 0.2 });
+  s = await state();
+  const a0 = s.metro.lifts[1].doorAngle - 0.64;
+  await aimAt(-17 + 1.17 * Math.cos(a0), -70 + 1.06, 80 + 1.17 * Math.sin(a0));
+  await page.waitForTimeout(100);
+  s = await state();
+  check(s.prompt.toLowerCase().includes('halcyon'), `lift Halcyon button prompt visible (${s.prompt})`);
+  await page.keyboard.press('KeyE');
+  await levelPitch();
+  const atHal = await waitFor((st) => st.metro.lifts[1].docked === 2 && st.metro.lifts[1].state === 'open' && st.fy < -81.9, 30000, 'lift 1 rode down to Halcyon (-82)');
+  check(atHal.fy < -81.9, 'lift 1 carried rider to Halcyon (-82)');
+  await goto(-15.0, 78.0, { tol: 0.35 });                                  // step onto Halcyon island centre line
+  check((await state()).fy < -81.9, 'stepped out of lift onto Halcyon island');
+  await goto(-17.0, 80.0, { tol: 0.2 });                                   // re-board lift 1
+  s = await state();
+  const a1 = s.metro.lifts[1].doorAngle - 0.64;
+  await aimAt(-17 + 1.17 * Math.cos(a1), -82 + 1.24, 80 + 1.17 * Math.sin(a1));
+  await page.waitForTimeout(100);
+  s = await state();
+  check(s.prompt.toLowerCase().includes('crossing'), `lift Crossing button prompt visible (${s.prompt})`);
+  await page.keyboard.press('KeyE');
+  await levelPitch();
+  const backCrs = await waitFor((st) => st.metro.lifts[1].docked === 1 && st.metro.lifts[1].state === 'open' && Math.abs(st.fy + 70) < 0.05, 30000, 'lift 1 rode up to Crossing (-70)');
+  check(Math.abs(backCrs.fy + 70) < 0.05, 'lift 1 carried rider back up to Crossing (-70)');
+  await goto(-14.2, 80.0, { tol: 0.35 });
+}
+await mark('lift -70/-82/-70');
+
+// Inclined funicular leg (P3-8b): Crossing (-70) -> Threshold (-30) -> Crossing (-70)
+await via([[-14.2, 71.0], [-10, 66.0], [55.0, 66.0], [55.0, 71.0]]);
+await waitFor((st) => st.metro.funicular.docked === 'bottom' && st.metro.funicular.state === 'docked', 45000, 'funicular docked at Crossing (-70)');
+await goto(55.0, 74.0, { tol: 0.3 });
+const atFunTop = await waitFor((st) => st.metro.funicular.docked === 'top' && st.metro.funicular.state === 'docked' && Math.abs(st.fy + 30) < 0.05, 45000, 'funicular carried rider up to Threshold (-30)');
+check(Math.abs(atFunTop.fy + 30) < 0.05, 'funicular arrived flush at Threshold (-30)');
+await via([[22.3, 76.6], [18.5, 76.6], [22.3, 76.6]], 0.35);               // step onto Threshold annulus & return
+await goto(22.3, 74.0, { tol: 0.3 });                                      // re-board funicular
+const atFunBot = await waitFor((st) => st.metro.funicular.docked === 'bottom' && st.metro.funicular.state === 'docked' && Math.abs(st.fy + 70) < 0.05, 45000, 'funicular carried rider back down to Crossing (-70)');
+check(Math.abs(atFunBot.fy + 70) < 0.05, 'funicular returned flush to Crossing (-70)');
+await via([[55.0, 71.0], [55.0, 66.0], [7.0, 66.0], [7.0, 68.5]]);
+await mark('funicular -70/-30');
+
 await goto(7.0, 71.4, { tol: 0.1 }); await goto(7.0, 114.3, { tol: 0.3 }); // F5 up to the Meridian island
 check(Math.abs((await state()).fy + 46) < 0.01, 'F5 up to the Meridian island');
 await mark('F5');
