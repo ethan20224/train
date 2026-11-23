@@ -57,7 +57,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'wellgate',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'escalator', 'speedgates', 'disc', 'lifts', 'wellgate',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -212,7 +212,8 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   glassfloor: { position: [-24, VESPER.topY + EYE, 66], target: [-16, HALCYON.topY, 80], intent: 'Standing on the glass panel looking down at the Halcyon platform.' },
   glassup: { position: [HALCYON.centre[0], HALCYON.topY + EYE, HALCYON.centre[1]], target: [-10, -40, 80], fov: 72, intent: 'From the Halcyon platform looking up through the glass: bridge, droplets, sky.' },
   mapwall: { position: [0, MERIDIAN.topY + EYE, 70], target: [0, (MAP_WALL.yMin + MAP_WALL.yMax) / 2, MAP_WALL.z], intent: 'From the Meridian island facing the map wall and running clock under the sky.' },
-  waterwall: { position: [-40, VESPER.topY + EYE, 74], target: [WATER_WALL.x, -55, 74], intent: 'Crossing floor west end facing the water wall and the Vesper portals.' },
+  waterwall: { position: [-35, VESPER.topY + EYE, 74], target: [WATER_WALL.x, -56, 74], fov: 66, intent: 'Crossing floor west end facing the 36 m living water wall, top specular weir glint, parted Vesper portals, monolith benches and stainless foot trough.' },
+  onyx: { position: [34, VESPER.topY + EYE, 68.0], target: [60, -54, 76.5], fov: 66, intent: 'Crossing floor east end (clear of the funicular) facing the 40 m backlit book-matched white onyx wall, slim stainless joint grid, Vesper east portals and lit 2 m floor reveal.' },
   funicular: { position: [40, VESPER.topY + EYE, 80], target: [FUNICULAR.top[0], -40, FUNICULAR.z], fov: 66, intent: 'From the east floor looking up the funicular track into the sky.' },
   escalator: { position: [5.0, LANDINGS.L1.y + EYE, 80.7], target: [5.6, -17.5, 66], fov: 62, intent: 'At the top of F2 looking down the flight: steps flowing away, glass balustrades, handrails, warm skirt lines.' },
   speedgates: { position: [10.6, THRESHOLD.y + EYE, 80.6], target: [7.2, THRESHOLD.y + 0.9, 82.4], fov: 60, intent: 'Threshold: the east speed-gate bank seen from the F3 side, champagne cabinets, glass panels, light lines.' },

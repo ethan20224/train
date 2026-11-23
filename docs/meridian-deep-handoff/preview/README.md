@@ -2,6 +2,18 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P3-7 — Living Water Wall & Backlit Book-Matched Onyx Wall (`p3-7/`)
+
+Opposite 40 m × 36+ m feature walls anchoring the transept in 5 draw calls total:
+- **West (`waterWall.ts`, 3 calls):** gravity-accelerating laminar water sheet gliding down polished black granite with quintic-smooth animated reflections of the sky, Meridian coves & east onyx wall, top stainless weir lip glint, peaked stainless diverter canopies parting the sheet cleanly around both Vesper west portals with silver edge rivulets, and a calm brushed-stainless catch trough.
+- **East (`onyxWall.ts`, 2 calls):** 27 × 13 backlit alabaster-white onyx slabs (`1.48 × 2.96 m`) book-matched symmetrically across slim brushed-stainless mullions, descending into the lit 2 m open floor reveal and pierced cleanly by both Vesper east portals.
+
+- **Water wall (t = 3.0 s — calm liquid curtain reflecting sky, bridge coves & onyx wall)** — ![waterwall](p3-7/waterwall.jpg)
+- **Water wall (t = 3.5 s — 0.5 s later confirming living gravity-accelerated motion)** — ![waterwall-t1](p3-7/waterwall-t1.jpg)
+- **Onyx wall (new preset — backlit book-matched alabaster white onyx in stainless grid)** — ![onyx](p3-7/onyx.jpg)
+- **Crossing (warm backlit onyx anchoring the east end beneath the floating bridge)** — ![crossing](p3-7/crossing.jpg)
+- **Floor (living mirror water wall anchoring the west end)** — ![floor](p3-7/floor.jpg)
+
 ## P3-6 — Twelve Tunnel Bores & Darkened Horseshoe Tunnels (`p3-6/`)
 
 All twelve single-track bores (Meridian north/south, Vesper west/east, Halcyon SW/NE) in 4 draw calls: precision 0.30 m brushed-stainless reveals with 30 mm shadow gaps, 341.5 m (`TIMING.spawnClearance + METRO_TRAIN.length + 10`) horseshoe dark charcoal linings distance-darkened in shader (no fog washout, black end caps), modern slab tracks extending cleanly into the bores, and 684 instanced 6 m arch light-rib fixtures driven by one HalfFloat `DataTexture` (2 % idle shimmer now; arrival waves & departure wakes in Phase 4).
