@@ -308,15 +308,17 @@ export function buildPortals(lib: MaterialLibrary, _kit: MetroMaterials): Portal
         float u = (vRing.y + 0.5) / uSegCount;
         float v = (vRing.x + 0.5) / uBoreCount;
         float inten = texture2D(uWaveTex, vec2(u, v)).r;
-        // Neutral architectural white deep inside; line-colour accent tint ONLY on the last 3 mouth segments (0, 1, 2)
+        // Neutral architectural white deep inside; crisp line-colour tint ONLY on the last 3 mouth segments (0, 1, 2),
+        // luminance-balanced so Meridian blue and Halcyon oxblood read just as clearly as the approaching white crest.
         float mouthMask = 1.0 - step(2.5, vRing.y);
         vec3 neutral = vec3(0.92, 0.96, 1.0);
-        vec3 tint = mix(neutral, vAccent, mouthMask * 0.72);
+        vec3 tint = mix(neutral, vAccent, mouthMask * 0.56);
+        float mouthLift = mix(1.0, 1.35, mouthMask);
         // Gentle tunnel-depth attenuation so deep ribs stay crisp architectural markers without blowing out
         float depthM = ${PORTAL_RING_FIRST_DEPTH.toFixed(1)} + vRing.y * ${PORTAL_RING_PITCH.toFixed(1)};
         float depthFade = mix(0.28, 1.0, exp(-depthM * 0.014));
         // Subtle dark metallic housing baseline (0.015) so even unlit mouth ribs read as physical fixtures
-        vec3 col = vec3(0.012, 0.014, 0.017) + tint * (inten * uPeak * depthFade);
+        vec3 col = vec3(0.012, 0.014, 0.017) + tint * (inten * uPeak * depthFade * mouthLift);
         gl_FragColor = vec4(col, 1.0);
       }
     `,

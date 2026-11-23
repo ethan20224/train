@@ -5,6 +5,7 @@ import {
   ESCALATOR, FLIGHTS, GLASS_FLOOR, HALCYON, LIFTS, PORTAL, PSD, SHELL, VESPER,
 } from '../../layoutMetro';
 import { trackOf } from '../../metro/tracks';
+import { formatTransomText } from '../../metro/choreography';
 import { LINE_COLORS } from '../../metro/trainModel';
 import { GeoBag, boxMM, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import { installSensingHalo } from './halo';
@@ -675,9 +676,9 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
         // F6 escalator descends diagonally across t = +4.65 around s = -14.2..-11.05 (between doors -16.92 & -10.25):
         // step the PSD cleanly down to a 1.25 m fixed glass guard under F6's inclined truss so zero metal clips F6!
         lowHeadroomSpan: [-14.2, -11.08, 1.25],
-        initialDisplay: 'HALCYON LINE · NORTH-EASTBOUND',
+        initialDisplay: formatTransomText('halcyon', 0, null, false),
       },
-      { track: t1, side: -1, platformY: Y_TOP, platformHalfLen: HALCYON.halfLength, initialDisplay: 'HALCYON LINE · SOUTH-WESTBOUND' },
+      { track: t1, side: -1, platformY: Y_TOP, platformHalfLen: HALCYON.halfLength, initialDisplay: formatTransomText('halcyon', 1, null, false) },
     ],
     lib,
     kit,

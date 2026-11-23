@@ -2,6 +2,20 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P4-3 — Synced Screen Doors, 12-Bore Light-Wave & Transom Displays (`p4-3/`)
+
+Arrivals are now choreographed purely by light, motion, and quiet hairline typography (`0` extra draw calls):
+- **Screen doors (`choreography.ts`, `psd.ts`, `metro.ts`):** exact analytic smoothstep inversion of `timetable`'s `doors01` (no timetable changes, Ruling 30) gives platform screen doors an exact **0.3 s opening lag** after the car doors start and an exact **0.3 s closing lead** before they finish. Every PSD pair checks geometric alignment against the stopped train's `doorOffsets()`; unaligned pairs or tracks with no stopped train stay strictly shut.
+- **12-bore tunnel light-wave (`choreography.ts`, `portals.ts`):** travelling neutral-white crest (~4 segments wide) races down each train's `portalIn` bore and flares luminance-balanced line-colour mouth ribs **4.0 s before the nose emerges**, decaying cleanly over a 2 s afterglow; departing trains trail a fainter **40 % wake** into their `portalOut` bore. Multiple waves combine with `max` (zero flicker/overshoot).
+- **Transom displays (`network.ts`, `psd.ts`):** hairline dot-matrix displays share the poetic station/destination list (`Vesper Falls`, `Halcyon`, `Hollow Bay`, `Ashgrove`, `Elsewhere`, `The Last Summer`, `Nowhere Junction`, `Meridian Deep`) and redraw the canvas **only** when state text changes (`ARRIVING` / `DOORS OPENING` / `DEPARTING`).
+
+- **Portal sequence 1 — white light-wave racing down the dark horseshoe bore** — ![portal-wave](p4-3/portal-wave.jpg)
+- **Portal sequence 2 — 3 ink-blue mouth ribs flaring 4 s before the nose arrives** — ![portal-wave-mouth](p4-3/portal-wave-mouth.jpg)
+- **Portal sequence 3 — mirror Meridian train gliding cleanly out of the bore mouth** — ![portal-emerging](p4-3/portal-emerging.jpg)
+- **Vesper synced doors — PSDs & car doors aligned wide open (`VESPER · ELSEWHERE · DOORS OPENING`)** — ![train-doors](p4-3/train-doors.jpg)
+- **Meridian synced doors — stopped train open on track 1 while track 0 PSDs stay shut** — ![meridian-doors](p4-3/meridian-doors.jpg)
+- **Departure wake — 40 % wake trailing a departing Meridian train into its north exit bore** — ![portal-departure-wake](p4-3/portal-departure-wake.jpg)
+
 ## P4-W — Driverless Mirror Metro Trains Wired Live (`p4-w/`)
 
 Live timetable-driven driverless mirror trains (`seed: 42`, ≤ 4 present across all 6 tracks, 9 calls near / 8 far) wired into `metroDeep` with per-slot cloned PBR/basic materials (`32` PBR + `8` basic sharing the same compiled programs), chained `uTunnel` + per-fragment tunnel-darkness shader (smooth falloff from bore mouth to 120 m inside, fog suppressed inside bores so trains emerge from pure darkness with zero silhouette pop), `renderOrder = 1` clean transparent layering behind PSD glass (`2`) and glass floor (`3`), boot Metal PSO warmup (`warmupVisible` on slot 0), `enteredDeep()` on first deep crossing, `window.__meridian.metro().trains`, both train test suites added to `metro-test` (`72/72`), and the new `train` preset.

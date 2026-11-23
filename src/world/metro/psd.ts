@@ -70,9 +70,12 @@ export interface PsdRowSpec {
 
 export interface PsdController {
   readonly doorCount: number;
+  readonly doorCentres: readonly number[];
   setOpen(doorIndex: number, f: number): void;
   setAll(f: number): void;
   setDisplay(text: string): void;
+  getDisplay(): string;
+  maxOpen(): number;
 }
 
 export interface PsdRow extends PsdController {
@@ -207,12 +210,14 @@ function createDisplayAtlas(
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = ctx === gEmis ? '#dce6f2' : '#f2f6fb';
-      // Hairline letter spacing via spaced glyphs
+      // Hairline letter spacing via spaced glyphs (auto-tighten if a long label approaches canvas width)
       const chars = [...label];
-      const spacing = 3.6;
-      let totalW = 0;
-      for (const ch of chars) totalW += ctx.measureText(ch).width + spacing;
-      let cx = (W - totalW + spacing) / 2;
+      let glyphSum = 0;
+      for (const ch of chars) glyphSum += ctx.measureText(ch).width;
+      const maxSpacing = chars.length > 1 ? Math.max(0.8, (W - 48 - glyphSum) / (chars.length - 1)) : 3.6;
+      const spacing = Math.min(3.6, maxSpacing);
+      const totalW = glyphSum + spacing * Math.max(0, chars.length - 1);
+      let cx = (W - totalW) / 2;
       const cy = yOff + (RH - 10) / 2 + 1;
       for (const ch of chars) {
         const w = ctx.measureText(ch).width;
@@ -261,7 +266,7 @@ export function createPsdBank(
     open01: number;
   }
   const leafSlots: LeafSlot[] = [];
-  const rowLeafRanges: Array<{ start: number; doors: number }> = [];
+  const rowLeafRanges: Array<{ start: number; doors: number; doorCentres: readonly number[] }> = [];
   const displayParts: THREE.BufferGeometry[] = [];
   const numRows = Math.max(1, specs.length);
   const defaultDoors = doorOffsets();
@@ -380,7 +385,7 @@ export function createPsdBank(
       cursor = db + PSD.mullionW;
     }
     if (sMax - PSD.mullionW > cursor) addGlassBayWithCut(cursor, sMax - PSD.mullionW);
-    rowLeafRanges.push({ start: startSlot, doors: doors.length });
+    rowLeafRanges.push({ start: startSlot, doors: doors.length, doorCentres: doors });
 
     // Transom fascia quads facing the platform (+nx, +nz): framed inside slim visible champagne top/bottom rails
     // (32 mm top cap, 24 mm bottom lip) so the transom reads as precision champagne architecture, not a black bar.
@@ -550,7 +555,16 @@ export function createPsdBank(
       lastText = text;
       atlas.drawRow(rIdx, text);
     };
-    return { doorCount: range.doors, setOpen, setAll, setDisplay };
+    const getDisplay = (): string => lastText;
+    const maxOpen = (): number => {
+      let m = 0;
+      for (let d = 0; d < range.doors; d++) {
+        const v = leafSlots[range.start + d * 2]!.open01;
+        if (v > m) m = v;
+      }
+      return m;
+    };
+    return { doorCount: range.doors, doorCentres: range.doorCentres, setOpen, setAll, setDisplay, getDisplay, maxOpen };
   });
 
   return { group, rows, deepMaterials };
@@ -568,8 +582,11 @@ export function createPsdRow(
     group: bank.group,
     deepMaterials: bank.deepMaterials,
     doorCount: ctrl.doorCount,
+    doorCentres: ctrl.doorCentres,
     setOpen: ctrl.setOpen,
     setAll: ctrl.setAll,
     setDisplay: ctrl.setDisplay,
+    getDisplay: ctrl.getDisplay,
+    maxOpen: ctrl.maxOpen,
   };
 }

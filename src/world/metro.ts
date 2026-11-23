@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import type { PresetName } from '../core/presets';
 import type { BuildContext, FrameInfo, WorldModule } from '../core/types';
-import { VESPER } from '../layoutMetro';
+import { METRO_TRAIN, VESPER } from '../layoutMetro';
 import { disc } from '../metro/disc';
 import { onMetroFrame } from '../metro/runtime';
-import { createTimetable } from '../metro/timetable';
+import { createTimetable, type TrainState } from '../metro/timetable';
+import { TRACKS, trackOf } from '../metro/tracks';
+import { alignedPsdDoorOpen, evaluatePortalWaves, formatTransomText, trackIndexOf } from '../metro/choreography';
 import { buildMetroImpostors } from './metro/impostors';
 import { createMetroMaterials } from './metro/materials';
 import { buildEscalators } from './metro/escalators';
@@ -58,9 +60,61 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group,
     waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object,
   );
-  void meridian.psdRows; // driven by timetable in Phase 4 (P4-3)
-  void crossing.psdRows; // driven by timetable in Phase 4 (P4-3)
-  void halcyon.psdRows;  // driven by timetable in Phase 4 (P4-3)
+  // 6 PSD row controllers ordered identically to TRACKS [meridian0, meridian1, vesper0, vesper1, halcyon0, halcyon1]
+  const psdRows = [
+    meridian.psdRows[0], meridian.psdRows[1],
+    crossing.psdRows[0], crossing.psdRows[1],
+    halcyon.psdRows[0], halcyon.psdRows[1],
+  ] as const;
+  const hadDoorsOpen: boolean[] = [false, false, false, false, false, false];
+  const stoppedByTrack: Array<TrainState | null> = [null, null, null, null, null, null];
+  const displayByTrack: Array<TrainState | null> = [null, null, null, null, null, null];
+  const waveBuf = new Float32Array(portals.boreCount * portals.segmentCount);
+  const HALF_LEN = METRO_TRAIN.length / 2;
+
+  const syncPsds = (trains: readonly TrainState[]): void => {
+    for (let i = 0; i < 6; i++) { stoppedByTrack[i] = null; displayByTrack[i] = null; }
+    for (let k = 0; k < trains.length; k++) {
+      const t = trains[k]!;
+      if (t.phase === 'gone') continue;
+      const idx = trackIndexOf(t.line, t.track);
+      if (t.phase === 'stopped') {
+        stoppedByTrack[idx] = t;
+        displayByTrack[idx] = t;
+      } else if (t.phase === 'departing') {
+        const tr = trackOf(t.line, t.track);
+        if (!displayByTrack[idx] && t.s - HALF_LEN < tr.portalOut + 15) displayByTrack[idx] = t;
+      } else if (t.phase === 'approaching') {
+        if (!displayByTrack[idx]) displayByTrack[idx] = t;
+      }
+    }
+    for (let idx = 0; idx < 6; idx++) {
+      const tr = TRACKS[idx]!;
+      const row = psdRows[idx]!;
+      const st = stoppedByTrack[idx]!;
+      if (st) {
+        if (st.doors01 > 0.01) hadDoorsOpen[idx] = true;
+      } else {
+        hadDoorsOpen[idx] = false;
+      }
+      const centres = row.doorCentres;
+      for (let d = 0; d < row.doorCount; d++) {
+        row.setOpen(d, alignedPsdDoorOpen(centres[d]!, st));
+      }
+      row.setDisplay(formatTransomText(tr.line, tr.track, displayByTrack[idx]!, hadDoorsOpen[idx]!));
+    }
+  };
+
+  const syncPortalWaves = (trains: readonly TrainState[], realSec: number): void => {
+    const segs = portals.segmentCount;
+    evaluatePortalWaves(trains, realSec, segs, waveBuf);
+    for (let b = 0; b < portals.boreCount; b++) {
+      const base = b * segs;
+      for (let s = 0; s < segs; s++) portals.setSegment(b, s, waveBuf[base + s]!);
+    }
+    portals.commit();
+  };
+
   const sinking = buildDisc(ctx.materials, kit, VESPER.topY);
   sinking.group.position.y = disc.y;
   voidGroup.add(sinking.group);
@@ -77,7 +131,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     fixtures.update(dt, feet);
     liftsView.update();
     funicularView.update();
-    portals.updateIdle(realClock);
+    syncPortalWaves(timetable.trains(), realClock);
     waterWall.update(realClock);
     updateSensingHalo(dt, feet);
   });
@@ -106,6 +160,13 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     timetable.enteredDeep();
   };
   root.userData.getTrains = () => timetable.trains();
+  root.userData.getPsdState = () =>
+    TRACKS.map((tr, i) => ({
+      line: tr.line,
+      track: tr.track,
+      maxOpen: psdRows[i]!.maxOpen(),
+      display: psdRows[i]!.getDisplay(),
+    }));
   root.userData.stageTrainsForPreset = (preset: PresetName): void => {
     if (preset !== 'train') return;
     // Fast-forward the real deterministic timetable until a Vesper track-0 train is stopped with doors open.
@@ -114,7 +175,10 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
       const ready = timetable.trains().some((t) => t.line === 'vesper' && t.track === 0 && t.phase === 'stopped' && t.doors01 >= 0.999);
       if (ready) break;
     }
-    trainsView.update(timetable.trains(), ctx.camera.position);
+    const ts = timetable.trains();
+    trainsView.update(ts, ctx.camera.position);
+    syncPsds(ts);
+    syncPortalWaves(ts, realClock);
   };
 
   return {
@@ -122,7 +186,9 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     object: root,
     update(f: FrameInfo): void {
       timetable.update(f.dt);
-      trainsView.update(timetable.trains(), f.camera.position);
+      const ts = timetable.trains();
+      trainsView.update(ts, f.camera.position);
+      syncPsds(ts);
     },
   };
 }

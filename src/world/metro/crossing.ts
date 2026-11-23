@@ -5,6 +5,7 @@ import {
   CAVERN, CROSSING, DISC, FUNICULAR, GLASS_FLOOR, LIFTS, OCULUS, PSD, TRENCH, VESPER,
 } from '../../layoutMetro';
 import { trackOf } from '../../metro/tracks';
+import { formatTransomText } from '../../metro/choreography';
 import { LINE_COLORS } from '../../metro/trainModel';
 import { GeoBag, boxMM, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import type { MetroMaterials } from './materials';
@@ -699,11 +700,11 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
     [
       {
         track: t0, side: +1, platformY: yTop, platformHalfLen: VESPER.platformXMax,
-        extendSMin: fl.xMin, extendSMax: fl.xMax, initialDisplay: 'VESPER LINE · EASTBOUND',
+        extendSMin: fl.xMin, extendSMax: fl.xMax, initialDisplay: formatTransomText('vesper', 0, null, false),
       },
       {
         track: t1, side: +1, platformY: yTop, platformHalfLen: VESPER.platformXMax,
-        extendSMin: fl.xMin, extendSMax: fl.xMax, initialDisplay: 'VESPER LINE · WESTBOUND',
+        extendSMin: fl.xMin, extendSMax: fl.xMax, initialDisplay: formatTransomText('vesper', 1, null, false),
       },
     ],
     lib,

@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { MaterialLibrary } from '../../core/types';
 import { CAVERN, DISC, MERIDIAN, OCULUS, PSD, SKY } from '../../layoutMetro';
 import { trackOf } from '../../metro/tracks';
+import { formatTransomText } from '../../metro/choreography';
 import { LINE_COLORS } from '../../metro/trainModel';
 import { GeoBag, boxMM, latheMeters, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import type { MetroMaterials } from './materials';
@@ -408,8 +409,8 @@ export function buildMeridianBridge(lib: MaterialLibrary, kit: MetroMaterials): 
   const t1 = trackOf('meridian', 1);
   const psdBank = createPsdBank(
     [
-      { track: t0, side: -1, platformY: yTop, platformHalfLen: 45, initialDisplay: 'MERIDIAN LINE · NORTHBOUND' },
-      { track: t1, side: -1, platformY: yTop, platformHalfLen: 45, initialDisplay: 'MERIDIAN LINE · SOUTHBOUND' },
+      { track: t0, side: -1, platformY: yTop, platformHalfLen: 45, initialDisplay: formatTransomText('meridian', 0, null, false) },
+      { track: t1, side: -1, platformY: yTop, platformHalfLen: 45, initialDisplay: formatTransomText('meridian', 1, null, false) },
     ],
     lib,
     kit,
