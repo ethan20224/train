@@ -1,9 +1,10 @@
-// Meridian Deep Phase 1 route through the REAL controls: node scripts/metro-route-test.mjs [--headed]
-// balcony -> oculus gangway -> disc ride (frame timing across the airlock) -> F6 down/up -> F5/F4/F3/F2/F1 up the up units -> hall.
+// Meridian Deep route through the REAL controls: node scripts/metro-route-test.mjs [--headed]
+// balcony -> oculus gangway -> disc ride -> F6 down/up -> lift -70/-82/-70 -> funicular -70/-30/-70 ->
+// 3-min sim dwell on Crossing floor (?timescale=4: all 3 lines arrive, PSD sync, <= 50 ms) -> F5/F4/F3/F2/F1 -> hall.
 import { launch, open } from './lib.mjs';
 const headed = process.argv.includes('--headed');
 const browser = await launch({ headed });
-const { page, errors } = await open(browser, 'q=med', { noHmr: true });
+const { page, errors } = await open(browser, 'q=med&timescale=4', { noHmr: true });
 let failures = 0;
 const check = (c, m) => { if (!c) { failures++; console.log(`FAIL ${m}`); } else console.log(`ok   ${m}`); };
 await page.click('#intro .prompt');
@@ -99,6 +100,15 @@ await via([[-50, 71.2], [-14.2, 71.2], [-14.2, 80.0]]);
   check(atHal.fy < -81.9, 'lift 1 carried rider to Halcyon (-82)');
   await goto(-15.0, 78.0, { tol: 0.35 });                                  // step onto Halcyon island centre line
   check((await state()).fy < -81.9, 'stepped out of lift onto Halcyon island');
+  s = await state();
+  if (!(s.metro.lifts[1].docked === 2 && s.metro.lifts[1].state === 'open')) {
+    const aCall = -Math.PI / 4 - 0.52;
+    await aimAt(-17 + 1.48 * Math.cos(aCall), -82 + 1.15, 80 + 1.48 * Math.sin(aCall));
+    await page.waitForTimeout(100);
+    await page.keyboard.press('KeyE');
+    await levelPitch();
+    await waitFor((st) => st.metro.lifts[1].docked === 2 && st.metro.lifts[1].state === 'open', 45000, 'lift 1 re-opened at Halcyon (-82)');
+  }
   await goto(-17.0, 80.0, { tol: 0.2 });                                   // re-board lift 1
   s = await state();
   const a1 = s.metro.lifts[1].doorAngle - 0.64;
@@ -126,6 +136,50 @@ const atFunBot = await waitFor((st) => st.metro.funicular.docked === 'bottom' &&
 check(Math.abs(atFunBot.fy + 70) < 0.05, 'funicular returned flush to Crossing (-70)');
 await via([[55.0, 71.0], [55.0, 66.0], [7.0, 66.0], [7.0, 68.5]]);
 await mark('funicular -70/-30');
+
+// Phase 4 (P4-6): 3-minute simulated dwell on the Crossing floor at ?timescale=4 (45 s real time -> 180 s sim time).
+// Assert trains arrive on all three lines, screen doors open ONLY alongside stopped trains, and max frame <= 50 ms on spawn/wave.
+{
+  await aimAt(-24, -64, 70);
+  const fDwell0 = await page.evaluate(() => window.__frames.length);
+  const tSim0 = await page.evaluate(() => window.__meridian.time ?? 0);
+  const arrivedLines = new Set();
+  const openedPsdLines = new Set();
+  let badPsdOpen = 0;
+  let badPsdDetail = '';
+  let maxTrainsSeen = 0;
+  const wallStart = Date.now();
+  while (Date.now() - wallStart < 90000) {
+    const snap = await page.evaluate(() => ({ t: window.__meridian.time ?? 0, m: window.__meridian.metro() }));
+    const ts = snap.m.trains ?? [];
+    const psds = snap.m.psd ?? [];
+    if (ts.length > maxTrainsSeen) maxTrainsSeen = ts.length;
+    for (const tr of ts) if (tr.phase === 'stopped') arrivedLines.add(tr.line);
+    for (const p of psds) {
+      if (p.maxOpen > 0.01) {
+        openedPsdLines.add(p.line);
+        const hasStopped = ts.some((tr) => tr.line === p.line && tr.track === p.track && tr.phase === 'stopped');
+        if (!hasStopped) {
+          badPsdOpen++;
+          badPsdDetail = `${p.line}${p.track} open=${p.maxOpen.toFixed(2)}`;
+        }
+      }
+    }
+    if (snap.t - tSim0 >= 180) break;
+    await page.waitForTimeout(100);
+  }
+  const dwellFrames = await page.evaluate((i) => window.__frames.slice(i), fDwell0);
+  const ds = [...dwellFrames].sort((a, b) => a - b);
+  const dwellMax = ds.at(-1) ?? 0;
+  const dwellP95 = ds[Math.floor(ds.length * 0.95)] ?? 0;
+  console.log(`crossing 3-min dwell: arrived=[${[...arrivedLines].sort().join(',')}] psdOpen=[${[...openedPsdLines].sort().join(',')}] maxTrains=${maxTrainsSeen} frames=${dwellFrames.length} p95=${dwellP95.toFixed(1)} ms max=${dwellMax.toFixed(1)} ms`);
+  check(arrivedLines.size === 3, `trains arrived on all three lines (${[...arrivedLines].sort().join(', ')})`);
+  check(openedPsdLines.size === 3, `screen doors opened on all three lines (${[...openedPsdLines].sort().join(', ')})`);
+  check(badPsdOpen === 0, `screen doors opened only alongside stopped trains (violations=${badPsdOpen} ${badPsdDetail})`);
+  check(dwellMax <= 50, `no frame > 50 ms during 3-min Crossing train dwell (max ${dwellMax.toFixed(1)})`);
+  await levelPitch();
+}
+await mark('Crossing 3m dwell');
 
 await goto(7.0, 71.4, { tol: 0.1 }); await goto(7.0, 114.3, { tol: 0.3 }); // F5 up to the Meridian island
 check(Math.abs((await state()).fy + 46) < 0.01, 'F5 up to the Meridian island');

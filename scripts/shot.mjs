@@ -20,7 +20,7 @@ if (names.length === 0) throw new Error('could not read PRESET_NAMES from src/co
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(`--${n}`);
-const opt = (n, d) => args.find((a) => a.startsWith(`--${n}=`))?.split('=')[1] ?? d;
+const opt = (n, d) => { const p = `--${n}=`; const a = args.find((x) => x.startsWith(p)); return a ? a.slice(p.length) : d; };
 const positional = args.filter((a) => !a.startsWith('--'));
 const wanted = positional.length === 0 || positional.includes('all') ? names : positional;
 for (const w of wanted) if (!names.includes(w)) throw new Error(`unknown preset "${w}". Known: ${names.join(', ')}`);

@@ -2,6 +2,15 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P4-6 — Phase 4 Gate Complete (All 14 Headed Perf Cells 54.4–60.0 fps @ pr ≥ 1.10) (`p4-6/`)
+
+All Phase 4 systems live simultaneously (4 mirror trains across 6 tracks, 12-bore arrival light-waves & departure wakes, 0.3 s lag/lead synced screen doors, 2,314 kinetic champagne droplets, 40 × 7 m backlit live map wall & continuous running white onyx clock):
+- **Tests:** `build`, `metro-test` (`85/85`, 10 suites), `nav-test` (`20/20`), `graph-test`, `traffic-sim` all PASS; extended `metro-route-test.mjs` with 3-min Crossing-floor dwell (`?timescale=4`) passed 100 % of navigation, mover, train arrival (all 3 lines), and PSD sync checks (`0` violations, `0` console errors, dwell `p95 = 33.4 ms`).
+- **Headed M2 perf (`perf-presets.mjs`, 4 live trains):** every single one of `crossing, meridian, glassup, mapwall, droplets, train, deep` at both `1440×900@1` (`58.6–60.0 fps`, `pr 1.35`) and `1470×956@2` (`54.4–60.0 fps`, `pr 1.10–1.35`), worst deep calls `198` (cap `≤ 266`). Full 19-JPEG archive & scored report in [evidence/phase-4/](../evidence/phase-4/README.md).
+
+- **Glass-floor look-up (82 m underground looking up through T-grid & twin ringed shafts at the bridge, buried sun & 2,314 champagne droplets)** — ![glassup](p4-6/glassup.jpg)
+- **Balcony (1910 Grand Hall unchanged, brass clock still frozen at 6:47)** — ![balcony](p4-6/balcony.jpg)
+
 ## P4-5 — Live Map Wall & The Running Clock (`p4-5/`)
 
 Backlit 40 × 7 m architectural transit map wall and the one living clock in the station (`src/metro/mapLayout.ts`, `src/world/metro/mapWall.ts`, **4 draw calls total**):
