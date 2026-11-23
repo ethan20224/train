@@ -678,7 +678,9 @@ export function buildVoidShell(lib: MaterialLibrary, kit: MetroMaterials): VoidB
   const terrazzoMat = kit.terrazzo.clone(); terrazzoMat.color.setScalar(0.62); terrazzoMat.envMapIntensity = 0.45;
   const stainlessMat = kit.stainless.clone(); stainlessMat.color.set(0xdfe6ec); stainlessMat.envMapIntensity = 0.65;
   const brassMat = kit.brass.clone();
-  const onyxMat = kit.onyx.clone(); onyxMat.emissiveIntensity = 0.85; onyxMat.roughness = 0.38;
+  // The polished-era band reads as a calm backlit alabaster light line, not a busy gold vein pattern.
+  const onyxMat = kit.onyx.clone(); onyxMat.roughness = 0.3;
+  onyxMat.map = null; onyxMat.emissiveMap = null; onyxMat.color.set(0xf3ede3); onyxMat.emissive.setRGB(1.0, 0.9, 0.76); onyxMat.emissiveIntensity = 0.55;
   const wallStone = kit.carvedStone.clone();
   wallStone.name = 'metroVoidAshlar'; wallStone.vertexColors = true;
   const strataMat = kit.strata.clone();

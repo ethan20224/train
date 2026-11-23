@@ -338,11 +338,12 @@ export function createMetroMaterials(renderer: THREE.WebGLRenderer, lib: Materia
     // dark_rock_02 is near-black: lift albedo above 1.0 (linear) with a cool grey-brown cast
     strata.color.setRGB(2.3, 2.2, 2.1);
 
-    const honedLimestone = stoneBase.clone();
-    honedLimestone.name = 'metroHonedLimestone';
-    honedLimestone.color.set(0xfdfaf3); // near-white: the map is already pale
-    honedLimestone.roughness = 0.55;
-    honedLimestone.normalScale.set(0.25, 0.25); // honed: nearly flat
+    // Procedural honed mineral maps (no 1910 running-bond mortar lines, which read as bathroom tile in the void's polished era
+    // and the Threshold drum), warm like the cavern stone (cloud forest ruling 2026-11-23).
+    const honedLimestone = new THREE.MeshStandardMaterial({
+      name: 'metroHonedLimestone', color: 0xe9dcc6, map: honedMaps.map, roughnessMap: honedMaps.roughnessMap,
+      normalMap: honedMaps.normalMap, normalScale: new THREE.Vector2(0.3, 0.3), roughness: 1.0, metalness: 0,
+    });
 
     const onyx = new THREE.MeshStandardMaterial({
       name: 'metroOnyx', color: 0xf2ece0, map: veins, roughness: 0.22, metalness: 0,
