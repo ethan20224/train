@@ -14,6 +14,7 @@ import { buildCavernShell } from './metro/shell';
 import { buildBuriedSky } from './metro/sky';
 import { buildMeridianBridge } from './metro/meridian';
 import { buildCrossing } from './metro/crossing';
+import { buildHalcyonHall } from './metro/halcyon';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Phase 3: replacing deep greybox with Monolith & Machine. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -30,9 +31,11 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const sky = buildBuriedSky(ctx.materials, kit);
   const meridian = buildMeridianBridge(ctx.materials, kit);
   const crossing = buildCrossing(ctx.materials, kit, ctx.renderer);
-  gb.deepGroup.add(shell.group, sky.group, meridian.group, crossing.group);
+  const halcyon = buildHalcyonHall(ctx.materials, kit);
+  gb.deepGroup.add(shell.group, sky.group, meridian.group, crossing.group, halcyon.group);
   void meridian.psdRows; // driven by timetable in Phase 4 (P4-3)
   void crossing.psdRows; // driven by timetable in Phase 4 (P4-3)
+  void halcyon.psdRows;  // driven by timetable in Phase 4 (P4-3)
   const sinking = buildDisc(ctx.materials, kit, VESPER.topY);
   sinking.group.position.y = disc.y;
   gb.voidGroup.add(sinking.group);
@@ -48,7 +51,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   root.add(gb.voidGroup, gb.deepGroup, gb.deepImpostor, gb.surfaceImpostor);
   root.userData.deepMaterials = [
     ...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...meridian.deepMaterials,
-    ...crossing.deepMaterials, ...sinking.wellDeepMaterials, ...gb.deepMaterials, ...esc.deepMaterials,
+    ...crossing.deepMaterials, ...halcyon.deepMaterials, ...sinking.wellDeepMaterials, ...gb.deepMaterials, ...esc.deepMaterials,
   ];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
   gb.voidGroup.traverse((o) => {

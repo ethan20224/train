@@ -97,15 +97,19 @@ function buildClipPrototype(): THREE.BufferGeometry {
   return merged;
 }
 
-export function buildSlabTracks(
-  specs: readonly SlabTrackSpec[],
-  lib: MaterialLibrary,
-  kit: MetroMaterials,
-  namePrefix = 'slabTrack',
-): SlabTrackBuild {
-  const group = new THREE.Group();
-  group.name = namePrefix;
+export interface SlabTrackGeos {
+  plinths: THREE.BufferGeometry | null;
+  rails: THREE.BufferGeometry | null;
+  clipMatrices: THREE.Matrix4[];
+  clipPrototype: THREE.BufferGeometry;
+  edgeLights: THREE.BufferGeometry | null;
+}
 
+/**
+ * Builds the raw concrete-plinth, vertex-coloured Vignoles rail, clip transform, and trench-edge light geometries
+ * for one or more tracks. Reused by both `buildSlabTracks` (3-4 calls) and tight-budget modules like `halcyon.ts`.
+ */
+export function buildSlabTrackGeos(specs: readonly SlabTrackSpec[], lib: MaterialLibrary): SlabTrackGeos {
   const plinthBag = new GeoBag(lib, 'wallStone', 2.0);
   const railParts: THREE.BufferGeometry[] = [];
   const lightParts: THREE.BufferGeometry[] = [];
@@ -203,6 +207,29 @@ export function buildSlabTracks(
     }
   }
 
+  let rails: THREE.BufferGeometry | null = null;
+  if (railParts.length > 0) {
+    rails = mergeGeometries(railParts, false)!;
+    for (const p of railParts) p.dispose();
+  }
+  let edgeLights: THREE.BufferGeometry | null = null;
+  if (lightParts.length > 0) {
+    edgeLights = mergeGeometries(lightParts, false)!;
+    for (const p of lightParts) p.dispose();
+  }
+  return { plinths: plinthBag.merge(), rails, clipMatrices, clipPrototype: buildClipPrototype(), edgeLights };
+}
+
+export function buildSlabTracks(
+  specs: readonly SlabTrackSpec[],
+  lib: MaterialLibrary,
+  kit: MetroMaterials,
+  namePrefix = 'slabTrack',
+): SlabTrackBuild {
+  const group = new THREE.Group();
+  group.name = namePrefix;
+  const geos = buildSlabTrackGeos(specs, lib);
+
   const concreteMat = new THREE.MeshStandardMaterial({
     name: `${namePrefix}Concrete`,
     color: 0x565a60,
@@ -224,32 +251,29 @@ export function buildSlabTracks(
     roughness: 0.42,
   });
 
-  const plinthGeo = plinthBag.merge();
-  if (plinthGeo) {
-    const m = new THREE.Mesh(plinthGeo, concreteMat);
+  if (geos.plinths) {
+    const m = new THREE.Mesh(geos.plinths, concreteMat);
     m.name = `${namePrefix}Plinths`;
     group.add(m);
   }
-  if (railParts.length > 0) {
-    const mergedRails = mergeGeometries(railParts, false)!;
-    for (const p of railParts) p.dispose();
-    const m = new THREE.Mesh(mergedRails, railMat);
+  if (geos.rails) {
+    const m = new THREE.Mesh(geos.rails, railMat);
     m.name = `${namePrefix}Rails`;
     group.add(m);
   }
-  if (clipMatrices.length > 0) {
-    const clipMesh = new THREE.InstancedMesh(buildClipPrototype(), clipMat, clipMatrices.length);
+  if (geos.clipMatrices.length > 0) {
+    const clipMesh = new THREE.InstancedMesh(geos.clipPrototype, clipMat, geos.clipMatrices.length);
     clipMesh.name = `${namePrefix}Fastenings`;
-    for (let i = 0; i < clipMatrices.length; i++) clipMesh.setMatrixAt(i, clipMatrices[i]!);
+    for (let i = 0; i < geos.clipMatrices.length; i++) clipMesh.setMatrixAt(i, geos.clipMatrices[i]!);
     clipMesh.instanceMatrix.needsUpdate = true;
     clipMesh.computeBoundingSphere();
     clipMesh.userData.noShadow = true; // tiny 3 cm clips need not bake into the 3 cm static shadow map
     group.add(clipMesh);
+  } else {
+    geos.clipPrototype.dispose();
   }
-  if (lightParts.length > 0) {
-    const mergedLights = mergeGeometries(lightParts, false)!;
-    for (const p of lightParts) p.dispose();
-    const m = new THREE.Mesh(mergedLights, kit.deep.emissive.coolRing);
+  if (geos.edgeLights) {
+    const m = new THREE.Mesh(geos.edgeLights, kit.deep.emissive.coolRing);
     m.name = `${namePrefix}EdgeLights`;
     m.userData.noShadow = true;
     group.add(m);

@@ -2,6 +2,15 @@
 
 Updated after each completed task so you can browse every new screenshot in one place.
 
+## P3-5 — Halcyon Deep Hall & Daylight Shaft (`p3-5/`)
+
+Enclosed 110 m × 20 m diagonal hall 82 m underground: stack-bond honed limestone walls with two continuous horizontal 4000 K cool light slots (2.4 m & 6.0 m), 3 × 3 m axis-aligned coffered pale ceiling at −73.5 m, rectangular limestone light well rising to the glass floor with two lit diagonal corner light shelves, lined honed-limestone F6 escalator cutting piercing the NW wall (≥ 2.5 m headroom + stainless frame), dark terrazzo island with flush oxblood satin enamel inlays, centre-facing stainless lift landing aprons, Halcyon PSDs (with clean low-headroom step-down under F6), and modern slab tracks — all in 10 draw calls.
+
+- **Deep (82 m underground: daylight shaft through glass floor, coffered ceiling, oxblood PSDs & F6)** — ![deep](p3-5/deep.jpg)
+- **Glass-floor look-up (looking 50 m up through T-grid, lift collars, floating bridge & buried sun)** — ![glassup](p3-5/glassup.jpg)
+- **Glass floor look-down (lit corner light shelves, sunlit terrazzo island, lift landings & slab tracks)** — ![glassfloor](p3-5/glassfloor.jpg)
+- **Crossing (looking across the walkable glass floor into the finished Halcyon hall below)** — ![crossing](p3-5/crossing.jpg)
+
 ## P3-4 — Crossing Floor, Vesper Tracks, Glass Panel & 2035 Well Gate (`p3-4/`)
 
 116 m × 20 m dark terrazzo Crossing floor with flush 1.5 m brushed-stainless division grid (zero brass in cavern) and flush satin enamel wayfinding inlays (jade along Vesper PSDs, ink-blue from F5, oxblood to F6 & glass panel), full-height Vesper screen doors + fixed end screens, dark Vesper rail trenches with modern slab track and cool edge lights, walkable laminated structural glass floor on a 1.5 m stainless T-grid with 0.10 m ceramic frit borders & lift-tube collars, cantilevered honed-limestone monolith benches with warm 3200 K under-lights, 2035 Monolith circular glass balustrade well ring with curved sliding glass leaves (zero bronze/brass), and bottom newel/combplate height fix across F1–F6.

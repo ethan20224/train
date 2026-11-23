@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import {
-  CAVERN, FUNICULAR, HALCYON, LIFTS, MAP_WALL, OCULUS, SKY,
-  THRESHOLD, VESPER,
+  CAVERN, FUNICULAR, LIFTS, MAP_WALL, OCULUS, SKY, THRESHOLD,
 } from '../../layoutMetro';
 
 export interface Greybox {
@@ -36,8 +35,8 @@ export function buildGreybox(): Greybox {
   const { cx, cz } = OCULUS;
   const glass = new THREE.MeshStandardMaterial({ color: 0xcfe3ee, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false });
   // independent materials (not clones): the void ones are sun-excluded, deep surfaces must receive the deep sun.
-  const deepStone = std(0xd8d2c6, 0.6); const deepSteel = std(0xb9c0c6, 0.35, 0.7);
-  const deepMaterials = [deepStone, deepSteel];
+  const deepSteel = std(0xb9c0c6, 0.35, 0.7);
+  const deepMaterials = [deepSteel];
 
   // --- void (always drawn) ---------------------------------------------------------------------------
   const V = new THREE.Group(); V.name = 'metroVoid';
@@ -48,17 +47,7 @@ export function buildGreybox(): Greybox {
 
   // --- deep (drawn below the airlock) ----------------------------------------------------------------
   const D = new THREE.Group(); D.name = 'metroDeep';
-  // Cavern shell (P3-1), buried sky (P3-2), floating Meridian bridge (P3-3), Crossing floor/Vesper/glass (P3-4) are real.
-  const deepIsland = new THREE.Mesh(new THREE.BoxGeometry(HALCYON.halfLength * 2, 1.2, HALCYON.halfWidth * 2), deepStone);
-  deepIsland.rotation.y = -Math.atan2(HALCYON.dir[1], HALCYON.dir[0]); deepIsland.position.set(HALCYON.centre[0], HALCYON.topY - 0.6, HALCYON.centre[1]);
-  D.add(deepIsland);
-  for (const side of [-1, 1]) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(HALCYON.halfLength * 2 + 20, Math.abs(CAVERN.yBottom - (VESPER.topY - VESPER.slabThickness)), 0.5), deepStone);
-    const [ux, uz] = HALCYON.dir;
-    wall.rotation.y = deepIsland.rotation.y;
-    wall.position.set(HALCYON.centre[0] - uz * side * HALCYON.hallHalfWidth, (CAVERN.yBottom + VESPER.topY - VESPER.slabThickness) / 2, HALCYON.centre[1] + ux * side * HALCYON.hallHalfWidth);
-    D.add(wall);
-  }
+  // Shell (P3-1), sky (P3-2), Meridian (P3-3), Crossing (P3-4), Halcyon deep hall (P3-5) are real.
   // the tubes end at the Threshold deck; their heads and the glass above it are built by gates.ts (void group, always drawn)
   for (const [x, z] of LIFTS.positions) {
     const tube = new THREE.Mesh(new THREE.CylinderGeometry(LIFTS.tubeR, LIFTS.tubeR, THRESHOLD.y - CAVERN.yBottom, 48, 1, true), glass);

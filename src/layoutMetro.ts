@@ -536,7 +536,16 @@ export const HALCYON = {
   /** Unit long axis (x, z): north-east diagonal. */
   dir: [SQRT1_2, SQRT1_2] as readonly [number, number],
   halfLength: 45, halfWidth: 5,
+  /** Deep-hall end sits this far beyond the 90 m island (hall length = ±55 m along axis). */
+  portalExtra: 10,
   topY: -82, railY: -83.1,
+  /** Hall ceiling soffit height (1 m under base floor -72.5, 2 m under Crossing slab underside -71.5). */
+  ceilingY: -73.5,
+  /** Coffer grid pitch along the hall axis & across width, and coffer recess depth. */
+  cofferPitch: 3.0,
+  cofferDepth: 0.24,
+  /** Heights above platform (HALCYON.topY) of the two continuous horizontal cool light slots on the long walls. */
+  lightSlotHeights: [2.4, 6.0] as readonly [number, number],
   /** Track centres either side of the island, perpendicular to the diagonal. */
   trackOffset: 6.55,
   /** Deep-hall half-width (walls) perpendicular to the diagonal. */

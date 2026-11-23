@@ -23,12 +23,10 @@ export interface MetroTrack {
 
 const NAVE_Z = [CAVERN.nave.zMin, CAVERN.nave.zMax] as const;             // Meridian portals: nave end walls
 const TRANSEPT_X = [CAVERN.transept.xMin, CAVERN.transept.xMax] as const; // Vesper portals: transept end walls
-/** Deep-hall end sits 10 m beyond the 90 m island. Moves into layoutMetro with the Halcyon deep hall (P3-5). */
-const HALCYON_PORTAL_EXTRA = 10;
 
 const meridianZ = (NAVE_Z[0] + NAVE_Z[1]) / 2;                       // 74
 const vesperX = (TRANSEPT_X[0] + TRANSEPT_X[1]) / 2;                 // 0
-const hp = HALCYON.halfLength + HALCYON_PORTAL_EXTRA;                // 55
+const hp = HALCYON.halfLength + HALCYON.portalExtra;                 // 55
 const perp: readonly [number, number] = [-HALCYON.dir[1], HALCYON.dir[0]];
 
 export const TRACKS: readonly MetroTrack[] = [

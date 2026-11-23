@@ -62,6 +62,8 @@ export interface PsdRowSpec {
   /** Optional extended fixed-only glass screen beyond platformHalfLen (e.g. Vesper x = ±45..±58). */
   extendSMin?: number;
   extendSMax?: number;
+  /** Optional low-headroom cutout [s0, s1, lowH] where overhead structure (e.g. F6 escalator) passes over the PSD line. */
+  lowHeadroomSpan?: readonly [number, number, number];
   /** Initial transom display text (e.g. 'MERIDIAN LINE · NORTHBOUND'). */
   initialDisplay: string;
 }
@@ -296,34 +298,57 @@ export function createPsdBank(
       metalBag.add(orientedBox(cx, platformY + (y0 + y1) / 2, cz, len, y1 - y0, depth, yaw));
     };
 
-    const addGlassBay = (s0: number, s1: number): void => {
+    const addGlassBay = (s0: number, s1: number, maxTopY = PSD_DETAIL.transomBot): void => {
       const span = s1 - s0;
       if (span < 0.05) return;
       const nBays = Math.max(1, Math.ceil(span / PSD_DETAIL.maxFixedBayW));
       const bayW = span / nBays;
-      // Continuous slim base sill across fixed span
+      // Continuous slim base sill across fixed span (and top cap rail when lowered under overhead structure)
       addMetalBar(s0, s1, 0, PSD_DETAIL.sillH, PSD_DETAIL.mullionD);
+      if (maxTopY < PSD_DETAIL.transomBot - 0.05) {
+        addMetalBar(s0, s1, maxTopY - 0.05, maxTopY, PSD_DETAIL.mullionD);
+      }
       for (let b = 0; b < nBays; b++) {
         const a = s0 + b * bayW;
         const c = s0 + (b + 1) * bayW;
         if (b > 0) {
           // Slim 50 mm intermediate mullion
-          addMetalBar(a - PSD.mullionW / 2, a + PSD.mullionW / 2, PSD_DETAIL.sillH, PSD_DETAIL.transomBot, PSD_DETAIL.mullionD);
+          addMetalBar(a - PSD.mullionW / 2, a + PSD.mullionW / 2, PSD_DETAIL.sillH, maxTopY, PSD_DETAIL.mullionD);
         }
         const ga = a + PSD.mullionW / 2;
         const gc = c - PSD.mullionW / 2;
-        if (gc - ga > 0.04) {
+        const glassTop = maxTopY < PSD_DETAIL.transomBot - 0.05 ? maxTopY - 0.05 : maxTopY;
+        if (gc - ga > 0.04 && glassTop > PSD_DETAIL.sillH + 0.05) {
           const [cx, cz] = ptS((ga + gc) / 2, 0.014); // slightly platform-side so sliding leaves pass track-side cleanly
           glassBag.add(orientedBox(
-            cx, platformY + (PSD_DETAIL.sillH + PSD_DETAIL.transomBot) / 2, cz,
-            gc - ga, PSD_DETAIL.transomBot - PSD_DETAIL.sillH, PSD_DETAIL.glassT, yaw,
+            cx, platformY + (PSD_DETAIL.sillH + glassTop) / 2, cz,
+            gc - ga, glassTop - PSD_DETAIL.sillH, PSD_DETAIL.glassT, yaw,
           ));
         }
       }
     };
 
-    // Continuous top transom housing along the entire PSD + fixed-extension span
-    addMetalBar(sMin, sMax, PSD_DETAIL.transomBot, PSD.height, PSD_DETAIL.transomD);
+    const lowSpan = spec.lowHeadroomSpan;
+    const addGlassBayWithCut = (s0: number, s1: number): void => {
+      if (!lowSpan || lowSpan[1] <= s0 + 0.04 || lowSpan[0] >= s1 - 0.04) {
+        addGlassBay(s0, s1);
+        return;
+      }
+      const c0 = Math.max(s0, lowSpan[0]), c1 = Math.min(s1, lowSpan[1]);
+      if (c0 > s0 + 0.05) addGlassBay(s0, c0);
+      addMetalBar(c0 - PSD.mullionW / 2, c0 + PSD.mullionW / 2, 0, PSD_DETAIL.transomBot, PSD_DETAIL.mullionD);
+      addGlassBay(c0 + PSD.mullionW / 2, c1 - PSD.mullionW / 2, lowSpan[2]);
+      addMetalBar(c1 - PSD.mullionW / 2, c1 + PSD.mullionW / 2, 0, PSD_DETAIL.transomBot, PSD_DETAIL.mullionD);
+      if (s1 > c1 + 0.05) addGlassBay(c1, s1);
+    };
+
+    // Continuous top transom housing along the entire PSD + fixed-extension span (interrupted cleanly at lowHeadroomSpan)
+    if (lowSpan && lowSpan[1] > sMin && lowSpan[0] < sMax) {
+      if (lowSpan[0] > sMin + 0.05) addMetalBar(sMin, lowSpan[0], PSD_DETAIL.transomBot, PSD.height, PSD_DETAIL.transomD);
+      if (sMax > lowSpan[1] + 0.05) addMetalBar(lowSpan[1], sMax, PSD_DETAIL.transomBot, PSD.height, PSD_DETAIL.transomD);
+    } else {
+      addMetalBar(sMin, sMax, PSD_DETAIL.transomBot, PSD.height, PSD_DETAIL.transomD);
+    }
     // End posts
     addMetalBar(sMin, sMin + PSD.mullionW, 0, PSD_DETAIL.transomBot, PSD_DETAIL.mullionD);
     addMetalBar(sMax - PSD.mullionW, sMax, 0, PSD_DETAIL.transomBot, PSD_DETAIL.mullionD);
@@ -336,7 +361,7 @@ export function createPsdBank(
       const da = dc - doorHalf;
       const db = dc + doorHalf;
       // Mullions flanking the door opening
-      if (da - PSD.mullionW > cursor) addGlassBay(cursor, da - PSD.mullionW);
+      if (da - PSD.mullionW > cursor) addGlassBayWithCut(cursor, da - PSD.mullionW);
       addMetalBar(da - PSD.mullionW, da, 0, PSD_DETAIL.transomBot, PSD_DETAIL.mullionD + 0.015);
       addMetalBar(db, db + PSD.mullionW, 0, PSD_DETAIL.transomBot, PSD_DETAIL.mullionD + 0.015);
       // Slim flush stainless/champagne threshold bar in doorway floor
@@ -354,7 +379,7 @@ export function createPsdBank(
       }
       cursor = db + PSD.mullionW;
     }
-    if (sMax - PSD.mullionW > cursor) addGlassBay(cursor, sMax - PSD.mullionW);
+    if (sMax - PSD.mullionW > cursor) addGlassBayWithCut(cursor, sMax - PSD.mullionW);
     rowLeafRanges.push({ start: startSlot, doors: doors.length });
 
     // Transom fascia quads facing the platform (+nx, +nz): framed inside slim visible champagne top/bottom rails
@@ -385,7 +410,15 @@ export function createPsdBank(
     };
 
     // Place crisp 3.4 m display panels centred above every 2nd door pair (plus the last door so both ends show signage),
-    // with blank smoked-glass + continuous line-accent fascia strips between them (sampled from UV x = 0.005..0.03).
+    // with blank smoked-glass + continuous line-accent fascia strips between them (clipping cleanly around lowHeadroomSpan).
+    const addFasciaClipped = (sa: number, sb: number, u0: number, u1: number): void => {
+      if (!lowSpan || lowSpan[1] <= sa + 0.02 || lowSpan[0] >= sb - 0.02) {
+        addFasciaQuad(sa, sb, u0, u1);
+        return;
+      }
+      if (lowSpan[0] > sa + 0.05) addFasciaQuad(sa, lowSpan[0], 0.005, 0.03);
+      if (sb > lowSpan[1] + 0.05) addFasciaQuad(lowSpan[1], sb, 0.005, 0.03);
+    };
     const dispHalf = 1.7;
     const dispCentres = doors.length <= 4
       ? doors
@@ -394,11 +427,11 @@ export function createPsdBank(
     for (const dc of dispCentres) {
       const a = Math.max(-halfLen, dc - dispHalf);
       const b = Math.min(+halfLen, dc + dispHalf);
-      if (a > fCur + 0.02) addFasciaQuad(fCur, a, 0.005, 0.03);
-      addFasciaQuad(a, b, 0.0, 1.0);
+      if (a > fCur + 0.02) addFasciaClipped(fCur, a, 0.005, 0.03);
+      addFasciaClipped(a, b, 0.0, 1.0);
       fCur = b;
     }
-    if (halfLen > fCur + 0.02) addFasciaQuad(fCur, halfLen, 0.005, 0.03);
+    if (halfLen > fCur + 0.02) addFasciaClipped(fCur, halfLen, 0.005, 0.03);
   }
 
   // ---- Build batched meshes (5 draw calls total for the entire bank) ----
