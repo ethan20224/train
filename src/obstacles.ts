@@ -5,7 +5,7 @@ import { shedObstacles } from './world/shed/layoutData';
 import { hotelObstacles } from './world/hotel/layoutData';
 import { platformObstacles } from './world/platformEnds/data';
 import { shopObstacles } from './world/shops/layoutData';
-import { THRESHOLD, VESPER, crossingBenchObstacleCircles, infoScreenObstacleCircles, totemObstacleCircles } from './layoutMetro';
+import { HALCYON, THRESHOLD, halcyonPlanterObstacleCircles, infoScreenObstacleCircles, kitObstacleCircles, totemObstacleCircles } from './layoutMetro';
 
 /**
  * Collidable props that are not part of the spec layout (benches, lamp posts, signs, ...).
@@ -44,10 +44,13 @@ export const PLATFORM_OBSTACLES: readonly PropObstacle[] = platformObstacles();
 /** Owned by world/shops.ts (Phase 5B: shopfronts, conveniences, cross-platform kiosk, level 0). */
 export const SHOP_OBSTACLES: readonly PropObstacle[] = shopObstacles();
 
-/** Owned by world/metro/gates.ts & crossing.ts (Threshold wayfinding totems at -30 — the fare line itself is region holes, src/metro/navData.ts; Crossing monolith benches at -70; platform info-screen masts/pylons). */
+/** Owned by world/metro/gates.ts & crossing.ts (Threshold wayfinding totems at -30 — the fare line itself is region holes, src/metro/navData.ts; platform info-screen masts/pylons; platform kit: bench-planters, kiosks, lounges, help points ... on all three platforms). */
 export const METRO_OBSTACLES: readonly PropObstacle[] = [
   ...totemObstacleCircles().map((c) => ({ ...c, level: THRESHOLD.y })),
-  ...crossingBenchObstacleCircles().map((c) => ({ ...c, level: VESPER.topY })),
   // Platform info screens (world/metro/infoScreens.ts): Meridian screen masts and Vesper floor pylons, each at its own platform level.
   ...infoScreenObstacleCircles(),
+  // Platform life and station kit (world/metro/platformKit.ts): every solid object of PLATFORM_KIT at its platform's level.
+  ...kitObstacleCircles(),
+  // Halcyon island planter beds and the benches facing them (world/metro/halcyonArt.ts), at the Halcyon platform level.
+  ...halcyonPlanterObstacleCircles().map((c) => ({ ...c, level: HALCYON.topY })),
 ];

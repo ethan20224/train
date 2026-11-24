@@ -3,6 +3,7 @@
  * mounded floor: src/world/metro/forest.ts builds the terrain mesh from it, src/metro/walks.ts sets boardwalk deck heights from it.
  */
 import { CAVERN, FOREST, TRENCH, VESPER } from '../layoutMetro';
+import { carveGround } from './streamPlan';
 
 const Y0 = CAVERN.baseFloorY;
 
@@ -31,7 +32,7 @@ export const GROUND: readonly GroundRect[] = [
   { xMin: CAVERN.nave.xMax, xMax: 58.0, zMin: zN, zMax: CAVERN.transept.zMax },
 ];
 
-/** Forest floor height at (x, z): soft mounds, low against the walls and the track plinths. */
+/** Forest floor height at (x, z): soft mounds, low against the walls and the track plinths, with the stream channel and koi pond carved in (streamPlan.ts). */
 export function forestGroundY(x: number, z: number): number {
   const n = vnoise(x * 0.11 + 17, z * 0.11 - 5) * 0.7 + vnoise(x * 0.31 - 3, z * 0.31 + 9) * 0.3;
   let edge = 1;
@@ -40,5 +41,5 @@ export function forestGroundY(x: number, z: number): number {
     const d = Math.min(x - r.xMin, r.xMax - x, z - r.zMin, r.zMax - z);
     edge = Math.min(1, Math.max(0, d / 3.0));
   }
-  return Y0 + 0.06 + FOREST.groundRise * n * (0.25 + 0.75 * edge);
+  return carveGround(x, z, Y0 + 0.06 + FOREST.groundRise * n * (0.25 + 0.75 * edge));
 }

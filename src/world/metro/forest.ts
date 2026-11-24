@@ -36,7 +36,7 @@ const FD = {
 
 // ---- deterministic helpers ----------------------------------------------------------------------------------------
 
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -80,7 +80,7 @@ export class Mesher {
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _t = new THREE.Vector3();
 
 /** A tube along `spine` with per-ring radius `rAt(s, theta)`; parallel-transported frames so it never twists. */
-function tube(
+export function tube(
   m: Mesher, spine: readonly THREE.Vector3[], radial: number, rAt: (s: number, th: number) => number,
   colAt: (s: number, th: number) => readonly [number, number, number], vOffset: number,
 ): void {
@@ -118,7 +118,7 @@ function tube(
 }
 
 /** Quadratic Bézier samples. */
-function bezier(p0: THREE.Vector3, p1: THREE.Vector3, p2: THREE.Vector3, n: number): THREE.Vector3[] {
+export function bezier(p0: THREE.Vector3, p1: THREE.Vector3, p2: THREE.Vector3, n: number): THREE.Vector3[] {
   const out: THREE.Vector3[] = [];
   for (let i = 0; i <= n; i++) {
     const t = i / n, u = 1 - t;

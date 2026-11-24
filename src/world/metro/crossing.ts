@@ -27,9 +27,8 @@ import { buildSlabTracks } from './track';
  *    ceramic frit pane borders, lift-tube collars, `depthWrite: false` and explicit `renderOrder: 3`.
  *  - 1.1 m ultra-clear glass balustrades with brushed-stainless caps around the -70 disc well ring (325° open at south
  *    for the curved sliding glass well gate in disc.ts), F6 opening, and east/west floor ends (open at funicular).
- *  - Three groups of honed-limestone cantilevered monolith benches (2.4 × 0.5 × 0.45 m) with warm 3200 K under-lights.
  *
- * Budget: 16 draw calls here + 2 curved leaf calls in disc.ts = 18 calls total (budget <= 18).
+ * Budget: 14 draw calls here + 2 curved leaf calls in disc.ts = 16 calls total. Seating lives in platformKit.ts.
  */
 
 const CROSSING_DETAIL = {
@@ -107,15 +106,6 @@ function flatQuadXZ(x0: number, z0: number, x1: number, z1: number, y: number): 
   g.setAttribute('uv', new THREE.Float32BufferAttribute([
     0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0,
   ], 2));
-  return g;
-}
-
-function quadGeo(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, ref: THREE.Vector3): THREE.BufferGeometry {
-  const n = b.clone().sub(a).cross(c.clone().sub(a));
-  const pts = n.dot(ref) >= 0 ? [a, b, c, a, c, d] : [a, c, b, a, d, c];
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap((p) => [p.x, p.y, p.z]), 3));
-  g.computeVertexNormals();
   return g;
 }
 
@@ -307,8 +297,6 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
   const inlayParts: THREE.BufferGeometry[] = [];
   const slabBodyBag = new GeoBag(lib, 'wallStone', 3.0);
   const balGlassGeos: THREE.BufferGeometry[] = [];
-  const benchStoneBag = new GeoBag(lib, 'wallStone', kit.metersPerTile.honedLimestone);
-  const benchGlowParts: THREE.BufferGeometry[] = [];
 
   // ---- 1. Partitioned Crossing terrazzo floor + flush 1.5 m brushed-stainless strips + satin enamel inlays ----
   // Zero coplanar overlap: exact 1D grid breakpoint partitioning + exact circle clip around the r = 4.0 disc well.
@@ -634,66 +622,7 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
     addGlassRun([[fl.xMax - 0.06, zPsdN + 0.06], [fl.xMax - 0.06, zPsdS - 0.06]]);
   }
 
-  // ---- 5. Three groups of Monolith honed-limestone cantilevered benches with warm 3200 K under-lights ----
-  {
-    const { length: L, depth: D, height: H } = CROSSING.bench;
-    const seatBot = 0.27;  // 18 cm thick cantilevered monolith limestone seat
-    const pedL = 1.56, pedD = 0.26;
-    const ch = 0.012;      // subtle 12 mm top chamfer
-
-    for (const b of CROSSING.benches) {
-      const sx = b.axis === 'x' ? L : D;
-      const sz = b.axis === 'x' ? D : L;
-      const px = b.axis === 'x' ? pedL : pedD;
-      const pz = b.axis === 'x' ? pedD : pedL;
-
-      // Recessed central pedestal base (y = 0 .. 0.27)
-      benchStoneBag.add(boxMM(b.x - px / 2, yTop, b.z - pz / 2, b.x + px / 2, yTop + seatBot, b.z + pz / 2));
-      // Cantilevered monolith seat slab (lower body + subtly chamfered top cap)
-      benchStoneBag.add(boxMM(b.x - sx / 2, yTop + seatBot, b.z - sz / 2, b.x + sx / 2, yTop + H - ch, b.z + sz / 2));
-      benchStoneBag.add(boxMM(b.x - sx / 2 + ch, yTop + H - ch, b.z - sz / 2 + ch, b.x + sx / 2 - ch, yTop + H, b.z + sz / 2 - ch));
-
-      // Hidden warm 3200 K linear under-light tucked cleanly under the cantilevered seat (downward strip + recessed 14 mm groove glow)
-      const gy = yTop + seatBot - 0.005;
-      const inset = 0.055;
-      const bandW = 0.055;
-      if (b.axis === 'x') {
-        for (const sgn of [-1, 1] as const) {
-          const zA = b.z + sgn * (sz / 2 - inset - bandW);
-          const zB = b.z + sgn * (sz / 2 - inset);
-          benchGlowParts.push(quadGeo(
-            v3(b.x - sx / 2 + 0.08, gy, Math.min(zA, zB)), v3(b.x + sx / 2 - 0.08, gy, Math.min(zA, zB)),
-            v3(b.x + sx / 2 - 0.08, gy, Math.max(zA, zB)), v3(b.x - sx / 2 + 0.08, gy, Math.max(zA, zB)),
-            v3(0, -1, 0),
-          ));
-          const zFace = b.z + sgn * (pz / 2 + 0.004);
-          benchGlowParts.push(quadGeo(
-            v3(b.x - px / 2 + 0.03, yTop + seatBot - 0.016, zFace), v3(b.x + px / 2 - 0.03, yTop + seatBot - 0.016, zFace),
-            v3(b.x + px / 2 - 0.03, yTop + seatBot - 0.002, zFace), v3(b.x - px / 2 + 0.03, yTop + seatBot - 0.002, zFace),
-            v3(0, 0, sgn),
-          ));
-        }
-      } else {
-        for (const sgn of [-1, 1] as const) {
-          const xA = b.x + sgn * (sx / 2 - inset - bandW);
-          const xB = b.x + sgn * (sx / 2 - inset);
-          benchGlowParts.push(quadGeo(
-            v3(Math.min(xA, xB), gy, b.z - sz / 2 + 0.08), v3(Math.max(xA, xB), gy, b.z - sz / 2 + 0.08),
-            v3(Math.max(xA, xB), gy, b.z + sz / 2 - 0.08), v3(Math.min(xA, xB), gy, b.z + sz / 2 - 0.08),
-            v3(0, -1, 0),
-          ));
-          const xFace = b.x + sgn * (px / 2 + 0.004);
-          benchGlowParts.push(quadGeo(
-            v3(xFace, yTop + seatBot - 0.016, b.z - pz / 2 + 0.03), v3(xFace, yTop + seatBot - 0.016, b.z + pz / 2 - 0.03),
-            v3(xFace, yTop + seatBot - 0.002, b.z + pz / 2 - 0.03), v3(xFace, yTop + seatBot - 0.002, b.z - pz / 2 + 0.03),
-            v3(sgn, 0, 0),
-          ));
-        }
-      }
-    }
-  }
-
-  // ---- 6. Vesper platform screen doors (x ±45) + fixed full-height glass screens continuing to x ±58 (5 calls) ----
+  // ---- 5. Vesper platform screen doors (x ±45) + fixed full-height glass screens continuing to x ±58 (5 calls) ----
   const t0 = trackOf('vesper', 0); // z = 62.45, dir = [+1, 0], side = +1 -> psd at z = 64.35 facing +z
   const t1 = trackOf('vesper', 1); // z = 85.55, dir = [-1, 0], side = +1 -> psd at z = 83.65 facing -z
   const psdBank = createPsdBank(
@@ -712,7 +641,7 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
     { name: 'vesperPsd', extraFixedGlass: balGlassGeos },
   );
 
-  // ---- 7. Vesper modern slab tracks (continuing 24 m inside all 4 bores) + thin cool 4000 K trench-edge light lines ----
+  // ---- 6. Vesper modern slab tracks (continuing 24 m inside all 4 bores) + thin cool 4000 K trench-edge light lines ----
   const tracks = buildSlabTracks(
     [
       {
@@ -739,7 +668,7 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
     'vesperTracks',
   );
 
-  // ---- Assemble meshes (16 draw calls here + 2 curved leaf calls in disc.ts = 18 total) ----
+  // ---- Assemble meshes (14 draw calls here + 2 curved leaf calls in disc.ts = 16 total) ----
   const stainlessMat = new THREE.MeshStandardMaterial({
     name: 'metroDeepCrossingStainless',
     color: 0xcfd5db,
@@ -777,12 +706,6 @@ export function buildCrossing(lib: MaterialLibrary, kit: MetroMaterials, rendere
     addM(mergedInlay, inlayMat, 'crossingInlay', true);
   }
   addM(slabBodyBag.merge(), slabBodyMat, 'crossingSlabBody');
-  addM(benchStoneBag.merge(), kit.deep.honedLimestone, 'crossingBenches');
-  if (benchGlowParts.length > 0) {
-    const mergedGlow = mergeGeometries(benchGlowParts, false)!;
-    for (const p of benchGlowParts) p.dispose();
-    addM(mergedGlow, kit.deep.emissive.coveStrip, 'crossingBenchGlow', true);
-  }
   group.add(psdBank.group, tracks.group);
 
   return {

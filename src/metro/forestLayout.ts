@@ -5,6 +5,7 @@
  */
 import { CAVERN, CROSS_OUTLINE, FLIGHTS, ESCALATOR_BANDS, FOREST, VESPER } from '../layoutMetro';
 import { walkSamples } from './walks';
+import { waterSd } from './streamPlan';
 
 export type TreeKind = 'canopy' | 'umbrella';
 
@@ -135,6 +136,14 @@ function clearOfWalks(trees: readonly ForestTree[]): ForestTree[] {
   return out;
 }
 
+// ---- stream keep-out (stream + koi pond, src/metro/streamPlan.ts) ---------------------------------------------------------
+
+/** Clear distance from the water edge to a trunk centre: the root flare may reach the bank but never the water. */
+export const streamTrunkClear = (trunkR: number): number => 0.5 + 1.3 * trunkR;
+const trunkInWater = (t: ForestTree): boolean => waterSd(t.x, t.z) < streamTrunkClear(t.trunkR);
+/** Bank ferns and moss are welcome; plants never stand in the water (tree ferns keep a trunk's width back, boulders their radius). */
+export const STREAM_CLEAR = { fern: 0.3, treeFern: 0.8, boulderPad: 0.2 } as const;
+
 export function planForest(seed: number = FOREST.seed): ForestPlan {
   const rnd = mulberry32(seed);
   const trees: ForestTree[] = [];
@@ -177,7 +186,7 @@ export function planForest(seed: number = FOREST.seed): ForestPlan {
   }
 
   // Same stream as without walks: the corridor trees are removed (or their crowns trimmed) afterwards, so the rest of the forest is unchanged.
-  const planted = clearOfWalks(trees);
+  const planted = clearOfWalks(trees).filter((t) => !trunkInWater(t));
   trees.length = 0;
   trees.push(...planted);
 
@@ -190,7 +199,7 @@ export function planForest(seed: number = FOREST.seed): ForestPlan {
       for (let z = bed.zMin + 0.8; z <= bed.zMax - 0.8; z += 2.6) {
         const jx = x + (rnd() - 0.5) * 2.2, jz = z + (rnd() - 0.5) * 2.2;
         if ((transept && Math.abs(jx) < CAVERN.nave.xMax) || !inAnyBed(jx, jz, 0.7) || rnd() > 0.32) continue;
-        if (trees.some((t) => (t.x - jx) ** 2 + (t.z - jz) ** 2 < 2.2 ** 2)) continue;
+        if (waterSd(jx, jz) < STREAM_CLEAR.treeFern || trees.some((t) => (t.x - jx) ** 2 + (t.z - jz) ** 2 < 2.2 ** 2)) continue;
         if (treeFerns.some((f) => (f.x - jx) ** 2 + (f.z - jz) ** 2 < 2.4 ** 2) || nearGroundWalk(jx, jz, 1.5)) continue;
         treeFerns.push({ x: jx, z: jz, height: 1.8 + rnd() * 3.4, seed: Math.floor(rnd() * 1e9) });
       }
@@ -199,7 +208,7 @@ export function planForest(seed: number = FOREST.seed): ForestPlan {
       for (let z = bed.zMin + 0.4; z <= bed.zMax - 0.4; z += 1.05) {
         const jx = x + (rnd() - 0.5) * 1.0, jz = z + (rnd() - 0.5) * 1.0;
         if ((transept && Math.abs(jx) < CAVERN.nave.xMax) || !inAnyBed(jx, jz, 0.3) || rnd() > 0.72) continue;
-        if (trees.some((t) => (t.x - jx) ** 2 + (t.z - jz) ** 2 < (t.trunkR * 2.6) ** 2) || nearGroundWalk(jx, jz, 1.15)) continue;
+        if (waterSd(jx, jz) < STREAM_CLEAR.fern || trees.some((t) => (t.x - jx) ** 2 + (t.z - jz) ** 2 < (t.trunkR * 2.6) ** 2) || nearGroundWalk(jx, jz, 1.15)) continue;
         ferns.push({ x: jx, z: jz, size: 0.85 + rnd() * 0.95, seed: Math.floor(rnd() * 1e9) });
       }
     }
@@ -209,7 +218,7 @@ export function planForest(seed: number = FOREST.seed): ForestPlan {
       if (transept && Math.abs(x) < CAVERN.nave.xMax) continue;
       if (trees.some((t) => (t.x - x) ** 2 + (t.z - z) ** 2 < 2.5 ** 2)) continue;
       const r = 0.35 + rnd() * 0.9, seed = Math.floor(rnd() * 1e9);
-      if (nearGroundWalk(x, z, r * 1.3 + 1.1)) continue;
+      if (waterSd(x, z) < r + STREAM_CLEAR.boulderPad || nearGroundWalk(x, z, r * 1.3 + 1.1)) continue;
       boulders.push({ x, z, r, seed });
     }
   }

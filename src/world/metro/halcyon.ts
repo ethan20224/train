@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
 import {
-  ESCALATOR, FLIGHTS, GLASS_FLOOR, HALCYON, LIFTS, PORTAL, PSD, SHELL, VESPER,
+  ESCALATOR, FLIGHTS, GLASS_FLOOR, HALCYON, HALCYON_ART, LIFTS, PORTAL, PSD, SHELL, VESPER,
 } from '../../layoutMetro';
 import { trackOf } from '../../metro/tracks';
 import { formatTransomText } from '../../metro/choreography';
 import { LINE_COLORS } from '../../metro/trainModel';
 import { GeoBag, boxMM, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import { vertexGlow } from './glow';
+import { buildHalcyonArt } from './halcyonArt';
 import { installSensingHalo } from './halo';
 import type { MetroMaterials } from './materials';
 import { createPsdBank, type PsdController } from './psd';
@@ -21,8 +22,8 @@ import { buildSlabTrackGeos } from './track';
  * beneath the cavern base floor (-72.5):
  *  - Stack-bond honed limestone walls with 12 mm physical shadow gaps and two continuous horizontal cool 4000 K light
  *    slots at 2.4 m (-79.6) and 6.0 m (-76.0) above the platform; 2 single-track bores per end wall (s = ±55).
- *  - Coffered pale ceiling at y = -73.5 (3 × 3 m coffers aligned to the hall axis), cut cleanly for the hexagonal
- *    daylight shaft under GLASS_FLOOR and the F6 headroom entry slot.
+ *  - Warm slatted oak ceiling at y = -73.5 (slat bays along the hall axis, recessed warm light lines between them;
+ *    halcyonArt.ts), cut cleanly for the hexagonal daylight shaft under GLASS_FLOOR and the F6 headroom entry slot.
  *  - Rectangular honed-limestone light well rising -73.5 -> -70 under GLASS_FLOOR, with TWO deliberate lit corner
  *    light shelves at -73.5 (NW & SE corners overhanging the 20 m diagonal hall), each fitted with a brushed-stainless
  *    baffle and concealed cool 4000 K linear wall-grazer.
@@ -31,13 +32,18 @@ import { buildSlabTrackGeos } from './track';
  *  - Dark polished terrazzo island (±45 × ±5 m, y = -82) with flush oxblood satin enamel inlays, lift landing collars
  *    (doors facing island centre line), island-end glass balustrades, Halcyon PSD bank (oxblood accents), and modern
  *    slab tracks (`track.ts`).
+ *  - Planted central island (kerbed oak beds with tree ferns, small trees, ferns and benches) and the dappled-light art wall
+ *    (SE long wall, backlit translucent stone ribbon with a slow leaf-shadow shader), both in halcyonArt.ts.
  *
- * Budget: EXACTLY 10 draw calls total (shell, lights, terrazzo, inlay+plinths, steel+rails+clips, 5 PSD bank calls; <= 10).
+ * Budget: EXACTLY 14 draw calls total (shell, lights, terrazzo, inlay+plinths, steel+rails+clips, 5 PSD bank calls = 10, plus
+ * halcyonArt's oak, planter soil, planter foliage and light-art calls; <= 14).
  */
 
 export interface HalcyonBuildOpts {
   /** Omit temporary 4 m dark portal liners behind the 4 end-wall bores (set true by P3-6 portals.ts). */
   omitPortalLiners?: boolean;
+  /** Renderer (texture anisotropy for the oak and foliage maps); omitted = a conservative default. */
+  renderer?: THREE.WebGLRenderer;
 }
 
 export interface HalcyonBuild {
@@ -177,13 +183,14 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
   const group = new THREE.Group();
   group.name = 'metroHalcyonHall';
 
-  // Exact 10 draw calls:
-  //  1. halcyonShell        (honed limestone walls + coffered ceiling + light well + corner shelves + F6 cutting + dark backing)
+  // Exact 14 draw calls:
+  //  1. halcyonShell        (honed limestone walls + ceiling plenum + light well + corner shelves + F6 cutting + dark backing)
   //  2. halcyonLights       (cool 4000 K horizontal wall slots + corner shelf grazers + F6 cutting side coves)
   //  3. halcyonTerrazzo     (dark terrazzo island floor)
   //  4. halcyonInlayPlinths (vertex-coloured matte/satin: oxblood floor inlays + concrete track plinths + dark platform body)
   //  5. halcyonSteel        (vertex-coloured metallic: Vignoles rails + rail clips + brushed stainless F6 frame, lift collars, end balustrades)
   // 6..10. halcyonPsd       (5 batched PSD calls, with island-end balustrade glass merged into extraFixedGlass)
+  // 11..14. halcyonArt      (oak ceiling/kerbs/benches, planter soil, planter foliage, dappled-light art ribbon)
   const shellParts: THREE.BufferGeometry[] = [];
   const lightParts: THREE.BufferGeometry[] = [];
   const terrazzoBag = new GeoBag(lib, 'darkMarble', kit.metersPerTile.terrazzo);
@@ -249,6 +256,15 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
     [-74.725, Y_CEIL],
   ];
 
+  // The light-art ribbon on the SE long wall replaces the stack-bond panels of the three courses between light slot 1 and the cornice
+  // course (slot 2 is dropped along it); its ends snap to the wall's own vertical joints so the bays continue the stone rhythm.
+  const artSide = HALCYON_ART.artWall.side;
+  const artY0 = yCourses[3]![0], artY1 = yCourses[5]![1];
+  const wallCols = Math.round((2 * L_HALL) / SHELL.panelW);
+  const artJoints = Array.from({ length: wallCols + 1 }, (_, i) => -L_HALL + (2 * L_HALL * i) / wallCols)
+    .filter((sj) => Math.abs(sj) <= HALCYON_ART.artWall.halfLength + 1.5);
+  const artS0 = artJoints[0]!, artS1 = artJoints[artJoints.length - 1]!;
+
   // A. Long walls (t = +W_HALL NW, t = -W_HALL SE)
   for (const side of [-1, 1] as const) {
     const tFace = side * W_HALL;
@@ -280,7 +296,9 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
       const yA = cy0 + gap / 2, yB = cy1 - gap / 2;
       if (yB - yA < 0.05) continue;
       const cuts = openCuts.filter(([, , oy0, oy1]) => cy1 > oy0 + 1e-4 && cy0 < oy1 - 1e-4).map(([a, b]) => [a - 0.03, b + 0.03] as const);
+      const inArtCourse = side === artSide && cy0 >= artY0 - 1e-4 && cy1 <= artY1 + 1e-4;
       for (let i = 0; i + 1 < sJoints.length; i++) {
+        if (inArtCourse && sJoints[i]! >= artS0 - 1e-6 && sJoints[i + 1]! <= artS1 + 1e-6) continue; // light-art bay
         for (const [sa, sb] of subtract1D(sJoints[i]!, sJoints[i + 1]!, cuts)) {
           const sA = sa + gap / 2, sB = sb - gap / 2;
           if (sB - sA < 0.06) continue;
@@ -294,7 +312,8 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
     // Two continuous horizontal cool 4000 K light slots at 2.4 m and 6.0 m above platform (18 mm shallow recess)
     const tSlot = side * (W_HALL + 0.018);
     for (const sy of [slot1Y, slot2Y]) {
-      const cuts = openCuts.filter(([, , oy0, oy1]) => sy + 0.05 > oy0 && sy - 0.05 < oy1).map(([a, b]) => [a - 0.04, b + 0.04] as const);
+      const cuts: Array<readonly [number, number]> = openCuts.filter(([, , oy0, oy1]) => sy + 0.05 > oy0 && sy - 0.05 < oy1).map(([a, b]) => [a - 0.04, b + 0.04] as const);
+      if (side === artSide && sy === slot2Y) cuts.push([artS0 - 0.04, artS1 + 0.04]); // slot 2 runs behind the art ribbon: dropped there
       for (const [sa, sb] of subtract1D(-L_HALL + 0.1, L_HALL - 0.1, cuts)) {
         lightParts.push(quadGeo(
           toWorld(sa, sy - 0.036, tSlot), toWorld(sb, sy - 0.036, tSlot),
@@ -303,6 +322,17 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
         ));
       }
     }
+  }
+
+  // Brushed-stainless frame of the light-art ribbon: a mullion on every stack-bond joint, rails along the top and bottom courses.
+  {
+    const tOut = artSide * (W_HALL - 0.015); // 15 mm proud of the stone face, into the hall
+    const tIn = artSide * (W_HALL + 0.04);   // sunk into the wall thickness
+    const tLo = Math.min(tOut, tIn), tHi = Math.max(tOut, tIn);
+    const yA = artY0 + gap / 2, yB = artY1 - gap / 2;
+    for (const sj of artJoints) addSteel(stBox(sj - 0.014, sj + 0.014, yA, yB, tLo, tHi));
+    addSteel(stBox(artS0, artS1, yA, yA + 0.04, tLo, tHi));
+    addSteel(stBox(artS0, artS1, yB - 0.04, yB, tLo, tHi));
   }
 
   // B. End walls (s = -55 and s = +55) with 2 single-track bores per end wall (t = ±6.55, 5.0 × 5.5 m)
@@ -365,7 +395,7 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
     }
   }
 
-  // ---- 2. Coffered pale ceiling at y = -73.5 (3 × 3 m axis-aligned coffers) + hexagonal light-well & F6 openings ----
+  // ---- 2. Oak slat ceiling at y = -73.5 (halcyonArt.ts) over a dark plenum + hexagonal light-well & F6 openings ----
   // Compute the exact hexagonal opening of GLASS_FLOOR (x -30..-10, z 65..83) clipped to |t| <= W_HALL (10):
   //   t = +10 line: z - x = 94 + 10*sqrt(2) = 108.142136 -> hits x = -30 at z = 78.1421, z = 83 at x = -25.1421
   //   t = -10 line: z - x = 94 - 10*sqrt(2) = 79.857864  -> hits x = -10 at z = 69.8579, z = 65 at x = -14.8579
@@ -386,59 +416,13 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
     [-L_HALL, -W_HALL], [L_HALL, -W_HALL], [L_HALL, W_HALL], [-L_HALL, W_HALL],
   ] as const).map(([s, t]) => { const p = toWorld(s, 0, t); return [p.x, p.z] as [number, number]; });
 
-  // A. Coffered ceiling plane & 3×3 m recessed coffers
+  // The oak slat bays, light lines and opening trims are built in halcyonArt.ts (buildHalcyonArt below). Here: the plenum behind them,
+  // a dark warm soffit one slat depth above the slat undersides (what shows through the 75 mm gaps and the light-line grooves), and the
+  // dark shadow-blocker roof cap above it (blocks any stray sun outside the light well).
   {
-    const pitch = HALCYON.cofferPitch; // 3.0 m
-    const depth = HALCYON.cofferDepth; // 0.24 m
-    const ribHalf = 0.17;              // 0.34 m wide coffer ribs
-
-    // Determine which 3×3 m bays lie completely clear of both the light-well hexagon and the F6 headroom slot
-    const holePolysLocal = [wellHexWorld, f6SlotWorld].map((poly) => poly.map(([x, z]) => toLocal(x, z)));
-    const bayClear = (sa: number, sb: number, ta: number, tb: number): boolean => {
-      // Conservative AABB rejection + exact vertex/edge check against both hole polygons in (s, t)
-      const pad = 0.35;
-      for (const poly of holePolysLocal) {
-        let minS = Infinity, maxS = -Infinity, minT = Infinity, maxT = -Infinity;
-        for (const [ps, pt] of poly) {
-          if (ps < minS) minS = ps; if (ps > maxS) maxS = ps;
-          if (pt < minT) minT = pt; if (pt > maxT) maxT = pt;
-        }
-        if (sb + pad < minS || sa - pad > maxS || tb + pad < minT || ta - pad > maxT) continue;
-        // Check if bay overlaps the actual opening in world XZ (fast check: test GLASS_FLOOR or F6 rect)
-        return false;
-      }
-      return true;
-    };
-
-    const cofferHolesWorld: Array<Array<[number, number]>> = [wellHexWorld, f6SlotWorld];
-    const sStart = -54, sEnd = 54;
-    const tStart = -9, tEnd = 9;
-    const down = v3(0, -1, 0);
-
-    for (let s = sStart; s < sEnd - 0.1; s += pitch) {
-      for (let t = tStart; t < tEnd - 0.1; t += pitch) {
-        const s0 = s + ribHalf, s1 = s + pitch - ribHalf;
-        const t0 = t + ribHalf, t1 = t + pitch - ribHalf;
-        if (!bayClear(s, s + pitch, t, t + pitch)) continue;
-        // Punch this coffer rectangle cleanly out of the main -73.5 ceiling soffit and build its 0.24 m recessed box!
-        const cPts: Array<[number, number]> = ([[s0, t0], [s1, t0], [s1, t1], [s0, t1]] as const).map(([cs, ct]) => {
-          const p = toWorld(cs, 0, ct); return [p.x, p.z] as [number, number];
-        });
-        cofferHolesWorld.push(cPts);
-        const yRec = Y_CEIL + depth;
-        // Recessed pale panel at y = -73.26
-        addShell(quadGeo(toWorld(s0, yRec, t0), toWorld(s1, yRec, t0), toWorld(s1, yRec, t1), toWorld(s0, yRec, t1), down), SOFFIT_RGB);
-        // 4 crisp vertical coffer cheek walls (catching raking daylight & cool slot bounce!)
-        addShell(quadGeo(toWorld(s0, Y_CEIL, t0), toWorld(s0, Y_CEIL, t1), toWorld(s0, yRec, t1), toWorld(s0, yRec, t0), v3(UX, 0, UZ)), SOFFIT_RGB);
-        addShell(quadGeo(toWorld(s1, Y_CEIL, t0), toWorld(s1, Y_CEIL, t1), toWorld(s1, yRec, t1), toWorld(s1, yRec, t0), v3(-UX, 0, -UZ)), SOFFIT_RGB);
-        addShell(quadGeo(toWorld(s0, Y_CEIL, t0), toWorld(s1, Y_CEIL, t0), toWorld(s1, yRec, t0), toWorld(s0, yRec, t0), v3(VX, 0, VZ)), SOFFIT_RGB);
-        addShell(quadGeo(toWorld(s0, Y_CEIL, t1), toWorld(s1, Y_CEIL, t1), toWorld(s1, yRec, t1), toWorld(s0, yRec, t1), v3(-VX, 0, -VZ)), SOFFIT_RGB);
-      }
-    }
-
-    // Main -73.5 soffit slab (facing down) + upper shadow-blocker roof cap at y = -73.15 (blocks any stray sun outside the light well!)
-    addShell(flatPolyXZ(hallOuterWorld, cofferHolesWorld, Y_CEIL, false), SOFFIT_RGB);
-    addShell(flatPolyXZ(hallOuterWorld, [wellHexWorld, f6SlotWorld], Y_CEIL + depth + 0.08, true), DARK_BACK_RGB);
+    const yPlenum = Y_CEIL + HALCYON_ART.ceiling.slatDepth;
+    addShell(flatPolyXZ(hallOuterWorld, [wellHexWorld, f6SlotWorld], yPlenum, false), [0.06, 0.045, 0.032]);
+    addShell(flatPolyXZ(hallOuterWorld, [wellHexWorld, f6SlotWorld], Y_CEIL + HALCYON.cofferDepth + 0.08, true), DARK_BACK_RGB);
   }
 
   // ---- 3. Rectangular Light Well (-73.5 -> -70.0) & Two Lit Corner Light Shelves (NW & SE overhangs at -73.5) ----
@@ -708,7 +692,15 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
   clipBase.dispose();
   if (trackGeos.edgeLights) lightParts.push(trackGeos.edgeLights);
 
-  // ---- Assemble EXACTLY 10 draw calls ----
+  // ---- 8. Oak ceiling, planted island, light-art ribbon (4 calls, halcyonArt.ts) ----
+  const art = buildHalcyonArt({
+    renderer: opts.renderer,
+    holesWorld: [wellHexWorld, f6SlotWorld],
+    ceilY: Y_CEIL,
+    art: { joints: artJoints, y0: artY0 + gap / 2 + 0.04, y1: artY1 - gap / 2 - 0.04 },
+  });
+
+  // ---- Assemble EXACTLY 14 draw calls ----
   const shellMat = kit.deep.honedLimestone.clone();
   shellMat.name = 'metroDeepHalcyonShell';
   shellMat.vertexColors = true;
@@ -762,10 +754,11 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
     addM(m, steelMat, 'halcyonSteel');
   }
   group.add(psdBank.group);
+  group.add(art.group);
 
   return {
     group,
     psdRows: [psdBank.rows[0]!, psdBank.rows[1]!],
-    deepMaterials: [shellMat, matteMat, steelMat, ...psdBank.deepMaterials],
+    deepMaterials: [shellMat, matteMat, steelMat, ...psdBank.deepMaterials, ...art.deepMaterials],
   };
 }

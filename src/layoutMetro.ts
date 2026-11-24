@@ -686,14 +686,7 @@ export const VESPER = {
   f6OpeningZ: VESPER_F6_OPENING_Z,
 } as const;
 
-export interface CrossingBenchSpec {
-  readonly x: number;
-  readonly z: number;
-  /** Long axis of the 2.4 m bench ('x' = east-west, 'z' = north-south). */
-  readonly axis: 'x' | 'z';
-}
-
-/** Crossing floor detailing (P3-4): 1.5 m stainless terrazzo grid, enamel wayfinding inlays, glass panel T-grid, benches, well gate. */
+/** Crossing floor detailing (P3-4): 1.5 m stainless terrazzo grid, enamel wayfinding inlays, glass panel T-grid, well gate (benches moved to PLATFORM_KIT). */
 export const CROSSING = {
   floorGrid: 1.5,
   stripW: 0.028,
@@ -703,45 +696,11 @@ export const CROSSING = {
   glassPanesX: 13,
   glassPanesZ: 12,
   glassFritWidth: 0.10,
-  /** Monolith honed-limestone bench dimensions (metres). */
-  bench: { length: 2.4, depth: 0.5, height: 0.45 },
-  /** Three groups of 2–3 benches facing the water wall, the onyx wall, and the open floor under the bridge. */
-  benches: [
-    // Group 1: west end facing the water wall (clear of F6 mouth z 66..69.6 and waterwall preset x -40)
-    { x: -51.5, z: 74.0, axis: 'z' },
-    { x: -51.5, z: 78.2, axis: 'z' },
-    // Group 2: east end facing the onyx wall (flanking the funicular approach z 74, ahead of skyhole/funicular presets)
-    { x: 46.5, z: 68.5, axis: 'z' },
-    { x: 46.5, z: 79.5, axis: 'z' },
-    // Group 3: open floor east of the bridge shadow (facing the open Crossing / disc well, clear of (20,74))
-    { x: 14.5, z: 69.0, axis: 'x' },
-    { x: 18.5, z: 69.0, axis: 'x' },
-    { x: 16.5, z: 79.0, axis: 'x' },
-  ] as readonly CrossingBenchSpec[],
   /** Half-angle (rad) of the south gangway opening in the r = 4.06 Crossing well balustrade ring (clear >= 2.4 m). */
   wellGateHalfAngle: 0.3054, // 17.5 deg -> 2 * 4.06 * sin(17.5°) = 2.44 m
   /** Gap left in the east (x = +58) glass balustrade for the funicular bottom station (P3-8b). */
   funicularEdgeGapZ: [71.8, 76.2] as readonly [number, number],
 } as const;
-
-/** Collision circles for every Crossing monolith bench (level VESPER.topY), spaced <= r apart for src/obstacles.ts. */
-export function crossingBenchObstacleCircles(): Array<{ x: number; z: number; r: number }> {
-  const out: Array<{ x: number; z: number; r: number }> = [];
-  const r = CROSSING.bench.depth / 2; // 0.25 m
-  const span = CROSSING.bench.length - 2 * r; // 1.9 m
-  const steps = Math.ceil(span / r); // 8 segments -> 9 circles spaced 0.2375 m <= r
-  for (const b of CROSSING.benches) {
-    for (let k = 0; k <= steps; k++) {
-      const off = -span / 2 + (span * k) / steps;
-      out.push({
-        x: b.axis === 'x' ? b.x + off : b.x,
-        z: b.axis === 'z' ? b.z + off : b.z,
-        r,
-      });
-    }
-  }
-  return out;
-}
 
 const SQRT1_2 = Math.SQRT1_2;
 export const HALCYON = {
@@ -820,6 +779,230 @@ export function infoScreenObstacleCircles(): Array<{ x: number; z: number; r: nu
     for (const z of INFO_SCREENS.vesper.z) {
       for (const dz of [-0.3, 0, 0.3]) out.push({ x, z: z + dz, r: 0.2, level: VESPER.topY });
     }
+  }
+  return out;
+}
+
+// ---- Platform life + station kit (src/world/metro/platformKit.ts) -----------------------------------------------------------
+
+export type KitPlatformId = 'meridian' | 'vesper' | 'halcyon';
+/** Platform frame: origin o on the centre line, unit u along the platform, v = (-u.z, u.x) across it. PSD lines stand at v = +-psdHalf. */
+export interface KitFrame {
+  readonly id: KitPlatformId;
+  /** Walking surface y. */
+  readonly y: number;
+  readonly o: readonly [number, number];
+  readonly u: readonly [number, number];
+  readonly halfLen: number;
+  readonly psdHalf: number;
+}
+export const PLATFORM_KIT_FRAMES: Readonly<Record<KitPlatformId, KitFrame>> = {
+  meridian: { id: 'meridian', y: MERIDIAN.topY, o: [0, 74], u: [0, 1], halfLen: 45, psdHalf: MERIDIAN.island.xMax - PSD.inset },
+  vesper: { id: 'vesper', y: VESPER.topY, o: [0, 74], u: [1, 0], halfLen: 45, psdHalf: VESPER.floor.zMax - 74 - PSD.inset },
+  halcyon: { id: 'halcyon', y: HALCYON.topY, o: HALCYON.centre, u: HALCYON.dir, halfLen: HALCYON.halfLength, psdHalf: HALCYON.halfWidth - PSD.inset },
+};
+export const KIT_PLATFORMS: readonly KitPlatformId[] = ['meridian', 'vesper', 'halcyon'];
+
+export type KitKind = 'planter' | 'perch' | 'help' | 'fire' | 'mast' | 'charger' | 'fountain' | 'kiosk' | 'lounge' | 'monitor' | 'gate';
+/** Which way an item's front looks, in platform terms: 1 = +v, -1 = -v, 2 = +u, -2 = -u. */
+export type KitFace = 1 | -1 | 2 | -2;
+export interface KitItem {
+  readonly kind: KitKind;
+  readonly platform: KitPlatformId;
+  /** Position on the platform plane: along (u) and across (v) the platform. */
+  readonly u: number;
+  readonly v: number;
+  readonly face: KitFace;
+  /** planter length (m). */
+  readonly len?: number;
+}
+
+/**
+ * Platform kit dimensions shared by the renderer, navigation and tests. Item footprints are plan boxes in the item's own frame
+ * (x across the front, z along the front normal); the renderer builds everything to the same sizes.
+ */
+export const PLATFORM_KIT = {
+  /** Tactile warning strip inside the PSD line: from `from` to `from + width` metres off the line, `height` tall; a fine light line `lightW` wide starts at `light`. */
+  strip: { from: 0.12, width: 0.30, height: 0.006, light: 0.098, lightW: 0.012 },
+  /** Car-position plaques (square, side `size`) stand `d` m off the PSD line at every car centre; the stop ticks mark the train ends. */
+  plaque: { d: 1.05, size: 0.42 },
+  /** Clear zone in front of every PSD door: half-width along the platform and depth off the PSD line (items never enter it). */
+  doorKeep: { half: 1.4, depth: 2.0 },
+  /** Items on the edge zone stand this far off the PSD line (centre of the footprint). */
+  edgeD: 1.15,
+  planter: { width: 0.8, seat: 0.40, defaultLen: 5.4 },
+  perch: { len: 2.4 },
+  kiosk: { len: 3.6, depth: 2.4, height: 2.7 },
+  lounge: { len: 5.0, depth: 3.0, height: 2.6, door: 1.8 },
+} as const;
+
+/** Door centres along the platform (m from the platform centre): the same rule as src/metro/tracks.ts doorOffsets() (checked in nav-metro-test). */
+export function kitDoorOffsets(): number[] {
+  const { cars, carLength, gap, length, doorsPerSidePerCar: n } = METRO_TRAIN;
+  const out: number[] = [];
+  for (let c = 0; c < cars; c++) {
+    const start = -length / 2 + c * (carLength + gap);
+    for (let k = 0; k < n; k++) out.push(start + ((k + 0.5) * carLength) / n);
+  }
+  return out;
+}
+/** Centres of the cars along the platform. */
+export function kitCarCentres(): number[] {
+  const { cars, carLength, gap, length } = METRO_TRAIN;
+  return Array.from({ length: cars }, (_, c) => -length / 2 + c * (carLength + gap) + carLength / 2);
+}
+/** Mid-points between neighbouring doors (11): the free bays along the PSD line where edge furniture may stand. */
+export function kitGapSlots(): number[] {
+  const d = kitDoorOffsets();
+  return d.slice(1).map((x, i) => (x + d[i]!) / 2);
+}
+
+/** World (x, z) of platform coordinates (u, v). */
+export function kitWorld(f: KitFrame, u: number, v: number): [number, number] {
+  return [f.o[0] + u * f.u[0] - v * f.u[1], f.o[1] + u * f.u[1] + v * f.u[0]];
+}
+/** Unit world direction of a face code. */
+export function kitFaceDir(f: KitFrame, face: KitFace): [number, number] {
+  const s = face > 0 ? 1 : -1;
+  return Math.abs(face) === 1 ? [-s * f.u[1], s * f.u[0]] : [s * f.u[0], s * f.u[1]];
+}
+/** Yaw (about +y) that turns a local +z front onto the face direction. */
+export function kitYaw(f: KitFrame, face: KitFace): number {
+  const [fx, fz] = kitFaceDir(f, face);
+  return Math.atan2(fx, fz);
+}
+
+type Slot = readonly [slotIndex: number, kind: KitKind];
+/**
+ * Edge furniture per platform edge (e = +1 is the +v PSD line), as [gap slot index 0..10, kind]. The slots are the 11 bays between
+ * doors (kitGapSlots), so no item ever stands in a door zone. Slots 2 and 10 are left empty on Meridian (F4 passes over z 52..58, the
+ * F5 opening sits at z 107..114), slots 1..3 and 9 on Vesper (info pylons x -34.1 / 27.4, the glass floor x -30..-10), slots 3..7 on
+ * Halcyon (F6 landing, lift tubes).
+ */
+const KIT_EDGE: Readonly<Record<KitPlatformId, { readonly p: readonly Slot[]; readonly n: readonly Slot[] }>> = {
+  meridian: {
+    p: [[0, 'fire'], [1, 'mast'], [3, 'help'], [4, 'perch'], [6, 'fountain'], [7, 'mast'], [8, 'help'], [9, 'perch']],
+    n: [[0, 'mast'], [1, 'help'], [3, 'fire'], [5, 'fountain'], [6, 'perch'], [7, 'mast'], [8, 'fire'], [9, 'help']],
+  },
+  vesper: {
+    p: [[4, 'help'], [5, 'fountain'], [7, 'mast'], [8, 'perch'], [10, 'fire']],
+    n: [[4, 'mast'], [6, 'fire'], [7, 'help'], [8, 'perch'], [10, 'mast']],
+  },
+  halcyon: {
+    p: [[0, 'mast'], [1, 'help'], [2, 'perch'], [8, 'fire'], [10, 'mast']],
+    n: [[0, 'fire'], [2, 'mast'], [8, 'help'], [9, 'perch'], [10, 'mast']],
+  },
+};
+/** Centre-line bench-planters (u, length), one phone charger standing at the north end of each; plus the amenity boxes. */
+const KIT_CENTRE: Readonly<Record<KitPlatformId, { readonly planters: ReadonlyArray<readonly [number, number]>; readonly kiosk?: readonly [number, KitFace]; readonly lounge?: readonly [number, KitFace] }>> = {
+  // Clear of the canopy exit (z < 34), the disc-well ring, the info columns (z 46, 71, 96) and the F5 opening.
+  meridian: { planters: [[-36, 5.4], [-22.5, 5.4], [8.3, 5.4], [15.8, 5.4], [40.2, 5.4]], kiosk: [-13, 1], lounge: [31, 1] },
+  // Clear of the well and the F5 foot (x -8.2..8.2), the glass floor (x -30..-10) and the funicular pit (x > 50).
+  vesper: { planters: [[-43, 5.4], [-35.2, 5.4], [13, 5.4], [21, 5.4]], kiosk: [30.5, -1], lounge: [39.5, 1] },
+  halcyon: { planters: [] },
+};
+/** End-of-platform kit, in metres along the platform from the centre: staff gate on the PSD line, system monitor in front of the last doors. */
+const KIT_END = { gateU: 43.3, gateD: 0.10, monitorU: 40.9, monitorD: 1.7 } as const;
+
+let kitItemsCache: readonly KitItem[] | null = null;
+/** Every kit object of the three platforms (data-driven: add rows to KIT_EDGE / KIT_CENTRE to extend). */
+export function kitItems(): readonly KitItem[] {
+  if (kitItemsCache) return kitItemsCache;
+  const out: KitItem[] = [];
+  const slots = kitGapSlots();
+  for (const id of KIT_PLATFORMS) {
+    const f = PLATFORM_KIT_FRAMES[id];
+    for (const e of [1, -1] as const) {
+      for (const [si, kind] of KIT_EDGE[id][e > 0 ? 'p' : 'n']) {
+        out.push({ kind, platform: id, u: slots[si]!, v: e * (f.psdHalf - PLATFORM_KIT.edgeD), face: (-e) as KitFace });
+      }
+      for (const s of [1, -1] as const) {
+        out.push({ kind: 'gate', platform: id, u: s * KIT_END.gateU, v: e * (f.psdHalf - KIT_END.gateD), face: (-e) as KitFace });
+        out.push({ kind: 'monitor', platform: id, u: s * KIT_END.monitorU, v: e * (f.psdHalf - KIT_END.monitorD), face: (s > 0 ? -2 : 2) as KitFace });
+      }
+    }
+    const c = KIT_CENTRE[id];
+    for (const [u, len] of c.planters) {
+      out.push({ kind: 'planter', platform: id, u, v: 0, face: 1, len });
+      out.push({ kind: 'charger', platform: id, u: u + len / 2 + 0.5, v: 0, face: 1 });
+    }
+    if (c.kiosk) out.push({ kind: 'kiosk', platform: id, u: c.kiosk[0], v: 0, face: c.kiosk[1] });
+    if (c.lounge) out.push({ kind: 'lounge', platform: id, u: c.lounge[0], v: 0, face: c.lounge[1] });
+  }
+  kitItemsCache = out;
+  return out;
+}
+
+/** Plan footprint of a kit object in its own frame (x across the front, z along the front normal); null = no footprint (flush fittings). */
+export interface KitFoot { readonly shape: 'stadium' | 'box' | 'circle'; readonly hx: number; readonly hz: number; readonly cz: number }
+export function kitFootprint(it: KitItem): KitFoot | null {
+  switch (it.kind) {
+    case 'planter': return { shape: 'stadium', hx: (it.len ?? PLATFORM_KIT.planter.defaultLen) / 2, hz: PLATFORM_KIT.planter.width / 2 + PLATFORM_KIT.planter.seat, cz: 0 };
+    case 'perch': return { shape: 'stadium', hx: PLATFORM_KIT.perch.len / 2, hz: 0.3, cz: 0.12 };
+    case 'help': return { shape: 'circle', hx: 0.14, hz: 0.14, cz: 0 };
+    case 'fire': return { shape: 'box', hx: 0.3, hz: 0.15, cz: 0 };
+    case 'mast': return { shape: 'circle', hx: 0.1, hz: 0.1, cz: 0 };
+    case 'charger': return { shape: 'circle', hx: 0.13, hz: 0.13, cz: 0 };
+    case 'fountain': return { shape: 'box', hx: 0.3, hz: 0.22, cz: 0 };
+    case 'kiosk': return { shape: 'box', hx: PLATFORM_KIT.kiosk.len / 2, hz: PLATFORM_KIT.kiosk.depth / 2, cz: 0 };
+    case 'monitor': return { shape: 'box', hx: 0.75, hz: 0.15, cz: 0 };
+    case 'lounge': case 'gate': return null;
+  }
+}
+
+/** Inside the waiting lounge (local frame, x along the front, z toward the front): benches along the back and one end wall, and a planted corner. */
+export const KIT_LOUNGE_INTERIOR: ReadonlyArray<KitFoot & { readonly cx: number }> = [
+  { shape: 'box', cx: -0.5, cz: -1.15, hx: 1.4, hz: 0.25 },
+  { shape: 'box', cx: -2.25, cz: 0.1, hx: 0.25, hz: 1.05 },
+  { shape: 'circle', cx: 1.95, cz: -1.0, hx: 0.45, hz: 0.45 },
+];
+
+/** Local-frame collision circles of a footprint (x, z, r). Stadiums are a row of circles of the half-depth; boxes a ring of circles at most 0.5 m wide. */
+function footCircles(f: KitFoot, cx = 0): Array<[number, number, number]> {
+  if (f.shape === 'circle') return [[cx, f.cz, f.hx]];
+  const out: Array<[number, number, number]> = [];
+  if (f.shape === 'stadium') {
+    const r = Math.min(f.hz, f.hx), span = Math.max(0, f.hx - r) * 2;
+    const n = Math.max(1, Math.ceil(span / Math.min(r, 0.6)));
+    for (let k = 0; k <= n; k++) out.push([cx - span / 2 + (span * k) / n, f.cz, r]);
+    return out;
+  }
+  const r = Math.min(0.5, f.hx, f.hz), ax = f.hx - r, az = f.hz - r;
+  const nx = Math.max(1, Math.ceil((2 * ax) / 0.4)), nz = Math.max(1, Math.ceil((2 * az) / 0.4));
+  for (let i = 0; i <= nx; i++) for (const sz of az < 1e-6 ? [0] : [-1, 1]) out.push([cx - ax + (2 * ax * i) / nx, f.cz + sz * az, r]);
+  if (az >= 1e-6) for (let j = 1; j < nz; j++) for (const sx of [-1, 1]) out.push([cx + sx * ax, f.cz - az + (2 * az * j) / nz, r]);
+  return out;
+}
+
+/** Local-frame circles (x, z, r) of one kit object. The lounge is a walkable glass box: thin wall circles with a door gap, plus the furniture. */
+export function kitLocalCircles(it: KitItem): Array<[number, number, number]> {
+  if (it.kind === 'lounge') {
+    const L = PLATFORM_KIT.lounge, hx = L.len / 2, hz = L.depth / 2;
+    const out: Array<[number, number, number]> = [];
+    const wall = (x0: number, z0: number, x1: number, z1: number): void => {
+      const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.4));
+      for (let k = 0; k <= n; k++) out.push([x0 + ((x1 - x0) * k) / n, z0 + ((z1 - z0) * k) / n, 0.1]);
+    };
+    wall(-hx, -hz, hx, -hz);
+    wall(-hx, hz, -L.door / 2 - 0.1, hz);
+    wall(L.door / 2 + 0.1, hz, hx, hz);
+    wall(-hx, -hz, -hx, hz);
+    wall(hx, -hz, hx, hz);
+    for (const b of KIT_LOUNGE_INTERIOR) out.push(...footCircles(b, b.cx));
+    return out;
+  }
+  const f = kitFootprint(it);
+  return f ? footCircles(f) : [];
+}
+
+/** World collision circles of every kit object with their level, for src/obstacles.ts. */
+export function kitObstacleCircles(): Array<{ x: number; z: number; r: number; level: number }> {
+  const out: Array<{ x: number; z: number; r: number; level: number }> = [];
+  for (const it of kitItems()) {
+    const f = PLATFORM_KIT_FRAMES[it.platform];
+    const [px, pz] = kitWorld(f, it.u, it.v);
+    const yaw = kitYaw(f, it.face), c = Math.cos(yaw), s = Math.sin(yaw);
+    for (const [lx, lz, r] of kitLocalCircles(it)) out.push({ x: px + lx * c + lz * s, z: pz - lx * s + lz * c, r, level: f.y });
   }
   return out;
 }
@@ -1071,4 +1254,150 @@ export const ZONES = {
   lookTopY: -4, lookBottomY: -30,
   surfaceSunFade: [-4, -14] as const,
   deepSunFade: [-18, -28] as const,
+} as const;
+
+/**
+ * Halcyon makeover (user-approved 2026-11-24, src/world/metro/halcyon.ts + halcyonArt.ts). All coordinates are hall-local:
+ * s = metres along the hall axis from the hall centre (HALCYON.centre, +s = HALCYON.dir), t = metres across (+t = toward the NW wall,
+ * the F6 cutting side), y = world height. The island walking surface is HALCYON.topY and the PSD door line sits at t = +-4.65.
+ *
+ *  - ceiling: warm oak slat bays along the hall axis at HALCYON.ceilingY, recessed warm light lines between the bays.
+ *  - planter: kerbed oak beds down the island centre line, benches facing them on both sides. Beds stay out of the F6 landing
+ *    (s -23..-3) and the lift landings (s -1.5..9.5) and keep a 2.5 m walking lane each side of the benches; the gaps between beds
+ *    are the cross-overs between the two track sides.
+ *  - artWall: the SE long wall (t = -10) between the two light slots' courses becomes the light-art ribbon.
+ */
+export const HALCYON_ART = {
+  ceiling: {
+    /** Slat width / pitch across the hall, depth above the soffit (soffit = HALCYON.ceilingY), module length along the hall. */
+    slatW: 0.10, slatPitch: 0.175, slatDepth: 0.19, moduleLen: 3.0, jointGap: 0.008,
+    /** Light-line centres across the hall (t) and their width; bays run between them and the walls. */
+    lineT: [-8, -4, 0, 4, 8] as readonly number[], lineW: 0.16,
+    /** Inset of the outermost slats from the long walls, and how far slats stop short of a ceiling opening (along s). */
+    wallInset: 0.04, holePad: 0.34,
+    /** Oak trim band around the light-well and F6 openings (width outside the opening). */
+    trimW: 0.14,
+  },
+  planter: {
+    /** Outer half-width of a bed, kerb height above the platform, kerb wall thickness, recessed plinth height and inset. */
+    halfWidth: 1.0, kerbH: 0.56, wallT: 0.09, plinthH: 0.07, plinthInset: 0.05,
+    /** Beds (s ranges). W1 is west of the F6 landing, E1/E2 east of the lifts; the 2.4 m gap between E1 and E2 is a cross-over. */
+    beds: [
+      { id: 'W1', s0: -39.0, s1: -26.0 },
+      { id: 'E1', s0: 11.5, s1: 24.0 },
+      { id: 'E2', s0: 26.4, s1: 38.5 },
+    ] as ReadonlyArray<{ readonly id: string; readonly s0: number; readonly s1: number }>,
+    /** Bench: gap between kerb and seat (leg room), seat depth/length/height, spacing between benches, backrest top. */
+    bench: { gap: 0.35, depth: 0.45, length: 2.2, seatY: 0.45, spacing: 1.6, backTop: 0.8 },
+    /** Hand-placed plant specimens (bed centre line offsets t). Tree ferns and small trees keep clear of the ceiling-hung info boards. */
+    specimens: [
+      { kind: 'tree', s: -29.6, t: 0.12, h: 3.9, seed: 11 },
+      { kind: 'treeFern', s: -33.4, t: -0.30, h: 1.8, seed: 12 },
+      { kind: 'treeFern', s: -37.9, t: 0.25, h: 1.0, seed: 13 },
+      { kind: 'treeFern', s: -27.2, t: -0.35, h: 1.3, seed: 14 },
+      { kind: 'treeFern', s: 12.9, t: 0.30, h: 1.2, seed: 21 },
+      { kind: 'tree', s: 14.8, t: -0.15, h: 4.2, seed: 22 },
+      { kind: 'treeFern', s: 21.4, t: 0.25, h: 1.8, seed: 23 },
+      { kind: 'tree', s: 22.6, t: -0.30, h: 3.4, seed: 24 },
+      { kind: 'treeFern', s: 27.9, t: -0.25, h: 1.6, seed: 31 },
+      { kind: 'tree', s: 32.6, t: 0.10, h: 4.4, seed: 32 },
+      { kind: 'treeFern', s: 36.2, t: 0.30, h: 1.9, seed: 33 },
+      { kind: 'treeFern', s: 38.0, t: -0.20, h: 1.0, seed: 34 },
+    ] as ReadonlyArray<{ readonly kind: 'tree' | 'treeFern'; readonly s: number; readonly t: number; readonly h: number; readonly seed: number }>,
+    /** Specimens at least this tall stay this far (along s) from every ceiling-hung info board (trees: treeClear). */
+    boardClear: 1.9, treeClear: 3.0,
+  },
+  artWall: {
+    /** Wall side (-1 = SE, t = -10) and half length of the ribbon; the ends snap to the stack-bond joints of the wall. */
+    side: -1 as const, halfLength: 36,
+    /** Day/night: night weight multiplies the ribbon down to this fraction of its day light. */
+    nightGain: 0.16,
+  },
+} as const;
+
+/** World (x, z) of hall-local (s, t). */
+export function halcyonPoint(s: number, t: number): [number, number] {
+  const [ux, uz] = HALCYON.dir;
+  return [HALCYON.centre[0] + s * ux - t * uz, HALCYON.centre[1] + s * uz + t * ux];
+}
+
+/** Hall-local (s, t) of world (x, z). */
+export function halcyonLocal(x: number, z: number): [number, number] {
+  const [ux, uz] = HALCYON.dir;
+  const dx = x - HALCYON.centre[0], dz = z - HALCYON.centre[1];
+  return [dx * ux + dz * uz, -dx * uz + dz * ux];
+}
+
+/** Benches facing the beds: centre s and side (+1 = NW, -1 = SE). Centred in each bed, both sides mirrored. */
+export function halcyonBenches(): Array<{ s: number; side: 1 | -1; bed: string }> {
+  const { beds, bench } = HALCYON_ART.planter;
+  const out: Array<{ s: number; side: 1 | -1; bed: string }> = [];
+  for (const b of beds) {
+    const len = b.s1 - b.s0;
+    const n = Math.max(1, Math.floor((len - 1.0 + bench.spacing) / (bench.length + bench.spacing)));
+    const span = n * bench.length + (n - 1) * bench.spacing;
+    const first = (b.s0 + b.s1) / 2 - span / 2 + bench.length / 2;
+    for (let i = 0; i < n; i++) for (const side of [1, -1] as const) out.push({ s: first + i * (bench.length + bench.spacing), side, bed: b.id });
+  }
+  return out;
+}
+
+/** Collision circles (level HALCYON.topY) for every bed and bench (benches include the leg-room gap, so it is not a squeeze). */
+export function halcyonPlanterObstacleCircles(): Array<{ x: number; z: number; r: number }> {
+  const { beds, bench, halfWidth } = HALCYON_ART.planter;
+  const out: Array<{ x: number; z: number; r: number }> = [];
+  const row = (s0: number, s1: number, t: number, r: number): void => {
+    const n = Math.max(1, Math.ceil((s1 - s0) / 0.4));
+    for (let i = 0; i <= n; i++) {
+      const [x, z] = halcyonPoint(s0 + ((s1 - s0) * i) / n, t);
+      out.push({ x, z, r });
+    }
+  };
+  for (const b of beds) for (const sg of [-1, 1]) row(b.s0 + 0.4, b.s1 - 0.4, sg * (halfWidth - 0.5), 0.5);
+  for (const bn of halcyonBenches()) row(bn.s - bench.length / 2 + 0.25, bn.s + bench.length / 2 - 0.25, bn.side * (halfWidth + bench.gap + bench.depth - 0.5), 0.5);
+  return out;
+}
+
+/**
+ * Stream and koi pond (user-approved 2026-11-24). The stream leaves the west waterfall pool (x = -58.2, south segment, z 54..60.8) at
+ * the pool surface (WATERFALL.poolY), winds east through the south transept strip (west half: no boardwalk there), crosses into the
+ * south nave arm and ends in a dark koi pond 5 m west of the east boardwalk, in view of it. No culvert is needed.
+ * The height field (src/metro/forestGround.ts) carves the channel and basin from this data; the base floor slab is at CAVERN.baseFloorY,
+ * so every bed stays >= bedMinY above it and the water is shallow (<= maxDepth; the pond reads deep through its shading).
+ * Pure data; plan and carve live in src/metro/streamPlan.ts, geometry in src/world/metro/stream*.ts.
+ */
+export const STREAM = {
+  /** Water surface at the pool outlet, in the pond, and the extra drop of each riffle (the rest falls evenly along the channel). */
+  level: { start: WATERFALL.poolY, pond: -72.36, riffleDrop: 0.016 },
+  /** Lowest bed height (clear of the base floor slab) and deepest cut below the water surface. */
+  bedMinY: CAVERN.baseFloorY + 0.03, maxDepth: 0.17,
+  /** Bank crest above the water, its (lower) value at the pool outlet and the arc length over which it rises; bank ramp width; fade of the lifted mound. */
+  rimH: 0.26, inletRimH: 0.07, inletRimLen: 5.0, bankRamp: 1.15, liftFade: 3.2,
+  /** Centre line control points (x, z, half width of the water), Catmull-Rom. Weaves between the strip trees (z 55.9..59.0 in the strip). */
+  path: [
+    [-58.5, 57.6, 1.55], [-56.0, 56.9, 1.25], [-53.2, 56.0, 1.0], [-50.2, 55.9, 1.0], [-46.8, 56.1, 1.15], [-43.5, 57.5, 1.35],
+    [-41.0, 58.7, 1.15], [-38.2, 58.9, 1.0], [-35.0, 58.2, 1.2], [-32.3, 57.0, 1.3], [-29.3, 56.2, 1.0], [-26.5, 56.4, 1.0],
+    [-23.0, 57.4, 1.15], [-20.0, 58.3, 1.3], [-17.5, 58.8, 1.0], [-14.5, 58.9, 1.1], [-11.5, 58.4, 1.0], [-9.0, 56.8, 1.1],
+    [-7.4, 54.0, 1.05], [-6.2, 51.0, 1.15], [-4.5, 48.3, 1.3], [-2.2, 47.0, 1.6],
+  ] as ReadonlyArray<readonly [number, number, number]>,
+  /** Riffles (water steps over stone clusters, foam): approximate points on the centre line. */
+  riffles: [[-52.0, 55.95], [-40.0, 58.8], [-28.5, 56.25], [-15.0, 58.9], [-6.6, 52.4]] as ReadonlyArray<readonly [number, number]>,
+  /** Koi pond: ellipse (semi-axes a along the local u axis, b along v, rotated by rot about +y) with soft lobes [amplitude, lobes, phase]. */
+  pond: { cx: 0.0, cz: 46.0, a: 5.0, b: 3.4, rot: -0.28, lobes: [[0.045, 3, 0.7], [0.03, 5, 2.1]] as ReadonlyArray<readonly [number, number, number]> },
+  /** Stepping stones: a line across the pond at local u = u, spanning v in [-span, span]. */
+  steps: { count: 7, u: 2.9, span: 2.9 },
+  /** Koi: Lissajous paths in the pond's local frame [cu, cv, ru, rv, w1, w2, phase1, phase2, length (m), kind 0 kohaku 1 sanke 2 ogon 3 shiro utsuri]. */
+  koi: [
+    [-0.9, 0.1, 2.1, 1.5, 0.050, 0.083, 0.3, 1.1, 0.62, 0],
+    [-1.1, -0.2, 1.9, 1.7, 0.067, 0.041, 2.4, 0.2, 0.55, 1],
+    [-0.6, 0.3, 2.1, 1.1, 0.037, 0.071, 4.1, 3.3, 0.7, 2],
+    [-1.3, 0.0, 1.6, 1.8, 0.058, 0.047, 5.0, 4.4, 0.5, 0],
+    [-0.4, -0.4, 1.9, 1.2, 0.044, 0.061, 1.2, 5.2, 0.58, 3],
+    [-1.0, 0.4, 1.9, 1.45, 0.071, 0.053, 3.3, 2.0, 0.46, 1],
+    [-0.7, -0.1, 2.2, 1.2, 0.033, 0.049, 0.9, 3.9, 0.66, 0],
+    [-1.2, 0.2, 1.8, 1.35, 0.061, 0.077, 4.7, 0.7, 0.42, 2],
+  ] as ReadonlyArray<readonly [number, number, number, number, number, number, number, number, number, number]>,
+  /** Lily pads / lotus blooms on the pond (radius range in m). */
+  lilies: { pads: 36, flowers: 4, radius: [0.1, 0.22] as readonly [number, number] },
+  seed: 3141,
 } as const;

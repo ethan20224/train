@@ -29,7 +29,9 @@ import { createTrainsView } from './metro/trainsView';
 import { buildDroplets } from './metro/droplets';
 import { buildMapWall } from './metro/mapWall';
 import { buildForest } from './metro/forest';
+import { buildStream } from './metro/stream';
 import { buildInfoScreens } from './metro/infoScreens';
+import { buildPlatformKit } from './metro/platformKit';
 import { setPsdClock } from './metro/psd';
 import { buildWalks } from './metro/walks';
 
@@ -64,13 +66,15 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const droplets = buildDroplets(kit);
   const mapWall = buildMapWall(ctx.materials, kit, ctx.renderer);
   const infoScreens = buildInfoScreens(ctx.materials, kit);
+  const platformKit = buildPlatformKit(ctx.materials, kit, ctx.renderer);
   const forest = buildForest(ctx.renderer);
+  const stream = buildStream();
   const walks = buildWalks(ctx.renderer, kit);
   const rootWall = buildRootWall(ctx.renderer);
   voidGroup.add(liftsView.voidGroup, funicularView.voidGroup);
   deepGroup.add(
     shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group,
-    waterWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group, mapWall.group, forest.group, walks.group, rootWall.group, infoScreens.group,
+    waterWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group, mapWall.group, forest.group, stream.group, walks.group, rootWall.group, infoScreens.group, platformKit.group,
   );
   // 6 PSD row controllers ordered identically to TRACKS [meridian0, meridian1, vesper0, vesper1, halcyon0, halcyon1]
   const psdRows = [
@@ -159,6 +163,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     droplets.updateReal(realClock);
     mapWall.updateReal(realClock);
     waterWall.update(realClock);
+    stream.update(realClock);
     forest.update(realClock);
     updateSensingHalo(dt, feet);
   });
@@ -168,7 +173,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     ...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...meridian.deepMaterials,
     ...crossing.deepMaterials, ...halcyon.deepMaterials, ...portals.deepMaterials,
     ...waterWall.deepMaterials, ...liftsView.deepMaterials, ...funicularView.deepMaterials,
-    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials, ...mapWall.deepMaterials, ...forest.deepMaterials, ...walks.deepMaterials, ...infoScreens.deepMaterials, ...rootWall.deepMaterials,
+    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials, ...mapWall.deepMaterials, ...forest.deepMaterials, ...stream.deepMaterials, ...walks.deepMaterials, ...infoScreens.deepMaterials, ...platformKit.deepMaterials, ...rootWall.deepMaterials,
   ];
   root.userData.bothZoneMaterials = [...liftsView.bothZoneMaterials, ...funicularView.bothZoneMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
