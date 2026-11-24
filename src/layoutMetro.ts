@@ -624,6 +624,33 @@ export const PSD = {
   trackToDoorLine: 1.9,
 } as const;
 
+/**
+ * Detailed slab track + trackside equipment (src/world/metro/track.ts, trackside.ts): cross-module dimensions.
+ * Lateral values are metres from the track centre line; y values are metres relative to the rail-head height (railY).
+ * Contract with the train: rail head top = railY, gauge 1435 mm (wheel treads 0.62..0.76 in trainModel.ts), and nothing but rails,
+ * fastenings and balises above y = -0.05 inside |lateral| < envelopeHalfWidth.
+ */
+export const TRACK_DETAIL = {
+  halfGauge: 1.435 / 2,
+  /** Train dynamic envelope half-width (the PSD edge): equipment above y = -0.05 stays outside it. */
+  envelopeHalfWidth: PSD.trackToDoorLine - PSD.inset,
+  /** Bore inspection benches (mirrors portals.ts: 0.42 m wide, 0.55 m above the bore bed = 0.05 m below rail-head height). */
+  boreBench: { width: 0.42, height: 0.55 },
+  /** Lateral of the platform-end signal masts (outboard side); the 0.15 m head's inner edge sits at 1.595 m. */
+  mastLat: 1.67,
+  /**
+   * Per line: which side the platform is on (same sign as the PSD row `side`: +1 = the track's right-hand normal (-dz, dx)),
+   * platform length, the lateral of the platform-edge wall face (Vesper's retaining wall is 0.16 m thick about the 1.55 m edge),
+   * and the y (rel. rail head) of the surfaces outboard equipment stands on: the trench/bed floor, and the mast foot
+   * (Meridian: bridge wing kerb ledge at railY - 0.32; Vesper: trench coping at -0.44; Halcyon: the hall invert).
+   */
+  sites: {
+    meridian: { platformSide: -1, platformHalfLen: 45, platformWallLat: 1.55, outboardFloorY: -0.32, mastBaseY: -0.32 },
+    vesper: { platformSide: 1, platformHalfLen: 45, platformWallLat: 1.47, outboardFloorY: -0.58, mastBaseY: -0.44 },
+    halcyon: { platformSide: -1, platformHalfLen: 45, platformWallLat: 1.55, outboardFloorY: -0.6, mastBaseY: -0.6 },
+  },
+} as const;
+
 export const MERIDIAN = {
   island: { xMin: -9, xMax: 9, zMin: 29, zMax: 119 } as Rect,
   topY: -46, railY: -47.1, deckThickness: 1.5,
@@ -739,6 +766,63 @@ export const HALCYON = {
 } as const;
 
 export const GLASS_FLOOR = { xMin: -30, xMax: -10, zMin: 65, zMax: 83 } as const;
+
+/**
+ * Live platform info screens (src/world/metro/infoScreens.ts): double-sided boards showing next train, crowding per car, a line map strip
+ * and the line status. Meridian: one slim stainless column (90 mm) beside the island centre line with a cantilevered arm, board hung below it.
+ * Halcyon: ceiling-hung on two rods along the island centre line (s = metres along the hall axis from the hall centre; clear of the F6 landing
+ * s -20..-4 and the lift tubes s 0..8, and outside the glass-floor light well). Vesper: floor pylons beside the screen doors, between two door
+ * pairs (x -34.1 and 27.4, clear of the glass floor, the F6 mouth and the benches). `tracks` index src/metro/tracks.ts TRACKS.
+ */
+export const INFO_SCREENS = {
+  /** Overhead board (Meridian, Halcyon): 2:1, hung so its underside is `bottomAbove` m over the platform. */
+  hang: { w: 1.9, h: 0.95, depth: 0.07, bottomAbove: 2.45 },
+  /** Floor pylon (Vesper): portrait slab on a slim stem. */
+  pylon: { w: 0.8, h: 1.6, depth: 0.08, bottomAbove: 0.45 },
+  /** Meridian: column offset from the board centre along the board's width (m), column radius (90 mm dia), arm centre height over the platform, base plate radius. */
+  meridian: { z: [46, 71, 96] as readonly number[], columnOffset: 1.35, columnR: 0.045, armAbove: 3.62, basePlateR: 0.2 },
+  halcyon: { s: [-36, 18, 40] as readonly number[], rodHalfSpan: 0.7 },
+  vesper: { x: [-34.1, 27.4] as readonly number[], z: [66.3, 81.7] as readonly number[] },
+} as const;
+
+export interface InfoScreenSpec {
+  readonly id: string;
+  readonly kind: 'hang' | 'pylon';
+  readonly mount: 'masts' | 'ceiling' | 'floor';
+  /** Board centre on the platform plane (world x, z). */
+  readonly x: number;
+  readonly z: number;
+  /** Platform walking surface y. */
+  readonly platformY: number;
+  /** Unit horizontal normal of face A (face B faces the other way). */
+  readonly normal: readonly [number, number];
+  /** Indices into TRACKS this board describes (one or two). */
+  readonly tracks: readonly number[];
+}
+
+export function infoScreenSpecs(): InfoScreenSpec[] {
+  const out: InfoScreenSpec[] = [];
+  INFO_SCREENS.meridian.z.forEach((z, i) => out.push({ id: `meridian${i}`, kind: 'hang', mount: 'masts', x: 0, z, platformY: MERIDIAN.topY, normal: [0, 1], tracks: [0, 1] }));
+  INFO_SCREENS.vesper.x.forEach((x, i) => INFO_SCREENS.vesper.z.forEach((z, j) =>
+    out.push({ id: `vesper${i}${j}`, kind: 'pylon', mount: 'floor', x, z, platformY: VESPER.topY, normal: [1, 0], tracks: [2 + j] })));
+  INFO_SCREENS.halcyon.s.forEach((s, i) => out.push({
+    id: `halcyon${i}`, kind: 'hang', mount: 'ceiling', platformY: HALCYON.topY, normal: [HALCYON.dir[0], HALCYON.dir[1]], tracks: [4, 5],
+    x: HALCYON.centre[0] + HALCYON.dir[0] * s, z: HALCYON.centre[1] + HALCYON.dir[1] * s,
+  }));
+  return out;
+}
+
+/** Collision circles for the Meridian screen columns (island level) and Vesper floor pylons, with their `level`, for src/obstacles.ts. */
+export function infoScreenObstacleCircles(): Array<{ x: number; z: number; r: number; level: number }> {
+  const out: Array<{ x: number; z: number; r: number; level: number }> = [];
+  for (const z of INFO_SCREENS.meridian.z) out.push({ x: INFO_SCREENS.meridian.columnOffset, z, r: INFO_SCREENS.meridian.basePlateR, level: MERIDIAN.topY });
+  for (const x of INFO_SCREENS.vesper.x) {
+    for (const z of INFO_SCREENS.vesper.z) {
+      for (const dz of [-0.3, 0, 0.3]) out.push({ x, z: z + dz, r: 0.2, level: VESPER.topY });
+    }
+  }
+  return out;
+}
 
 /** All 12 single-track tunnel bores (in pairs on Meridian, Vesper, and Halcyon end walls), aligned to src/metro/tracks.ts. */
 export const PORTALS: readonly PortalBoreSpec[] = (() => {
@@ -864,6 +948,121 @@ export const FOREST = {
   mist: { yBottom: CAVERN.baseFloorY, yTop: -66.8, strength: 0.34, color: [0.80, 0.86, 0.86] as readonly [number, number, number] },
   /** Placement seed (deterministic forest). */
   seed: 2035,
+} as const;
+
+/**
+ * The Root Wall (user ruling 2026-11-23): a colossal strangler fig grows out of the east end wall (x = +60), its trunks braided
+ * against the wall under the sky and its roots pouring ~35 m down to the base floor, arching over both Vesper east bores.
+ * Pure data; plan and relief field live in src/metro/rootWallLayout.ts, geometry in src/world/metro/rootWall.ts.
+ */
+export const ROOT_WALL = {
+  /** Wall face the relief stands on (the shell's stone panels face at x = 60 - SHELL.proud). */
+  faceX: 59.95,
+  /** Relief extent on the wall (the 0.6 m corner chamfers excluded) and trunk top / floor. */
+  zMin: 54.7, zMax: 93.3, yTop: -33.3, yFloor: CAVERN.baseFloorY,
+  /** Nothing of the fig may come nearer than boreMargin to a portal opening (z +-PORTAL.w/2, bed to bed + PORTAL.h); the relief fades out over boreSoft. */
+  boreMargin: 0.15, boreSoft: 0.45,
+  /** Relief depth caps (m in front of the face): roots below capRampY[0] stay within 58.6 <= x; the trunk mass may reach 57.0 above capRampY[1]. */
+  depthCapLow: 1.28, depthCapHigh: 2.7, capRampY: [-58, -48] as readonly [number, number],
+  /** Hard floor on x for any part of the fig below y = lowY (the Crossing floor edge is x = 58). */
+  minXBelow: 57.0, lowY: -60, rootMinX: 58.6,
+  /** Crown: foliage x range, clump top cap (below the sky plane), mirrors the droplet ring clearance. */
+  crown: { xMin: 49.0, yMin: -45.5, yMax: -34.0, topCapY: -32.8, dropletClear: 0.5 },
+  /** Aerial root strand length range (m) and the lowest point they may reach. */
+  aerial: { lenMin: 10, lenMax: 20, yMin: -60 },
+  /** Relief grid pitch (m) and placement seed. */
+  gridPitch: 0.18, seed: 7731,
+} as const;
+
+/** A straight walkable run of a timber walk: axis-aligned, flat or sloped, `across` is the centre line's fixed coordinate. */
+export interface WalkSeg {
+  readonly id: string;
+  /** stair = ramp <= 30 deg built as steps; bridge/deck/ramp = timber deck (ramp <= 1:12). */
+  readonly kind: 'stair' | 'bridge' | 'deck' | 'ramp';
+  readonly axis: 'x' | 'z';
+  readonly across: number;
+  readonly from: number;
+  readonly to: number;
+  readonly yFrom: number;
+  readonly yTo: number;
+}
+/** Flat landing / corner pad of a walk. `open` lists the sides where a run joins (mouth centred on `c`, half `half`). */
+export interface WalkPad {
+  readonly id: string;
+  readonly x: number;
+  readonly z: number;
+  readonly hx: number;
+  readonly hz: number;
+  readonly y: number;
+  readonly open: ReadonlyArray<{ readonly side: 'n' | 's' | 'e' | 'w'; readonly c: number; readonly half: number }>;
+}
+
+/**
+ * Canopy walk (user-approved 2026-11-23). Leaves the floating Meridian island through a gap in its SOUTH end balustrade
+ * (x +-gapHalf, z = island.zMin), so no platform screen door is touched. South of the island (z 20..29, between the two
+ * train lines, x within +-9) it is flat at the island deck level, climbs a 28 deg stair EAST to yCross, crosses OVER the east
+ * train envelope (x 9.0..12.1, top y -43; deck underside >= 0.6 m above it) at z = 25.8 (south of the island, so clear of
+ * every screen door, the hangers at z = 29 and the droplets), then turns NORTH and descends at 1:12 along x = 14.6 beside the
+ * bridge (hangers at x = 12.22) through the east treetops to a viewing platform over the south nave arm at z 55.6..59.8.
+ * Droplets (bottom >= -42, ring r 21..38 about (0, 74)) never come within 0.6 m of a walker's head (deck <= -44.4 there).
+ * Hung from the buried sky on hairline stainless rods every ~4.6 m (like the bridge hangers). Width 2.0 m, rail line +-1.0.
+ */
+export const CANOPY_WALK = {
+  halfWidth: 1.0,
+  /** Gap half-width cut into the island south end balustrade (x = +-gapHalf). */
+  gapHalf: 1.0,
+  /** Deck level over the train envelope (envelope top is -43.0). */
+  yCross: -42.0,
+  /** Hairline rod pitch (m) and offset outside the rail line. */
+  rodPitch: 4.6, rodOffset: 0.07,
+  segs: [
+    { id: 'exit', kind: 'deck', axis: 'z', across: 0, from: 29.0, to: 26.8, yFrom: -46, yTo: -46 },
+    { id: 'stair', kind: 'stair', axis: 'x', across: 25.8, from: 1.0, to: 8.4, yFrom: -46, yTo: -42.0 },
+    { id: 'cross', kind: 'bridge', axis: 'x', across: 25.8, from: 8.4, to: 13.6, yFrom: -42.0, yTo: -42.0 },
+    { id: 'walk', kind: 'ramp', axis: 'z', across: 14.6, from: 26.8, to: 55.6, yFrom: -42.0, yTo: -44.4 },
+  ] as readonly WalkSeg[],
+  pads: [
+    { id: 'turnS', x: 0, z: 25.8, hx: 1, hz: 1, y: -46, open: [{ side: 'n', c: 0, half: 1 }, { side: 'e', c: 25.8, half: 1 }] },
+    { id: 'turnE', x: 14.6, z: 25.8, hx: 1, hz: 1, y: -42.0, open: [{ side: 'w', c: 25.8, half: 1 }, { side: 'n', c: 14.6, half: 1 }] },
+    { id: 'view', x: 15.2, z: 57.7, hx: 2.1, hz: 2.1, y: -44.4, open: [{ side: 's', c: 14.6, half: 1 }] },
+  ] as readonly WalkPad[],
+} as const;
+
+/**
+ * Forest boardwalk (user-approved 2026-11-23), one route per side: EAST as written (south transept strip + south nave arm),
+ * WEST is its point reflection about the cavern centre (x -> -x, z -> 148 - z: north strip + north nave arm), so no stair
+ * ever sits near the F6 escalator mouth (west end of the Crossing floor, z 66..69.6). From the Crossing floor (y -70)
+ * beyond the boarding zone: a 29 deg stair climbs along x just inside the Vesper screens to a landing at bridgeY, a
+ * footbridge crosses OVER the Vesper track (screen doors top out at -67.4, trains at -67.1; deck top -66.0, underside -66.35,
+ * 4.75 m above the rails) to a second landing in the strip, and a ~26 deg stair descends along the strip to ground level.
+ * The boardwalk then flows along a Catmull-Rom spline (radius >= 4 m) through the strip, bends into the nave arm and runs
+ * under the Meridian bridge to a round belvedere pad. Deck 0.4-0.7 m above the (mounded) forest floor, 1.8 m wide, timber
+ * kerbs. Every rail line within nearTrack of a train centre line (same level +-6 m) is a full-height (2.65 m, 28 mm laminated) glass screen;
+ * elsewhere a 1.1 m balustrade (plank level: only where the floor drops away more than dropRail). Trees, ferns and boulders are
+ * kept off the route by forestLayout.planForest (see src/metro/walks.ts walkSamples).
+ */
+export const BOARDWALK = {
+  halfWidth: 0.9, stairHalfWidth: 1.0,
+  /** Deck above the forest floor, kerb height above the deck, steepest slope along the spline, station pitch, drop that needs a balustrade. */
+  clearance: 0.38, kerbH: 0.1, slopeMax: 0.16, stationPitch: 0.6, dropRail: 0.8,
+  bridgeY: -66.0,
+  /** Rail lines nearer than this (m, horizontal) to a train centre line on the same level get the full-height screen. */
+  nearTrack: 4.5, highScreen: 2.65,
+  /** East-side coordinates (west reflects). */
+  floorStair: { z: 66.2, xFoot: 48.0, xTop: 55.2 },
+  bridge: { x: 56.2, zFloor: 65.2, zForest: 59.0 },
+  descent: { z: 58.0, xTop: 55.2, xFoot: 43.6 },
+  /** Spline control points (east) starting at the descent foot; the first leg is straight west so it continues the stair. */
+  curve: [
+    [43.6, 58.0], [40.4, 58.0], [37.0, 57.1], [31.5, 56.0], [25.5, 56.8], [20.0, 57.8], [15.5, 57.0], [12.3, 54.4],
+    [10.7, 50.0], [10.9, 44.5], [10.1, 39.5], [10.5, 35.5],
+  ] as ReadonlyArray<readonly [number, number]>,
+  /** Round belvedere pad at the end of the curve. */
+  endPadR: 1.5,
+  /** Crossing-floor region hole under the stair, landing and bridge mouth (east side; west reflects). */
+  floorHole: { xMin: 48.0, xMax: 58.5, zMin: 64.0, zMax: 67.6 },
+  /** z of the reflection: west z = zMirror - east z. */
+  zMirror: 148,
 } as const;
 
 /** Depth zones (camera eye y). */

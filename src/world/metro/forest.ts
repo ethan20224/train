@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-import { CAVERN, FOREST, VESPER, TRENCH } from '../../layoutMetro';
+import { CAVERN, FOREST, VESPER } from '../../layoutMetro';
 import { crownBottomLimit, crownTopLimit, planForest, type ForestTree } from '../../metro/forestLayout';
 import { dayNight } from '../../metro/dayNight';
+import { buildForestLife } from './forestLife';
+import { GROUND, forestGroundY, hash2, vnoise } from '../../metro/forestGround';
 
 /**
  * The cloud forest (user ruling 2026-11-23, docs/meridian-deep-handoff/CLOUD-FOREST-PLAN.md): buttressed canopy trees draped
@@ -44,42 +46,8 @@ function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function hash2(x: number, y: number): number {
-  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
-}
-function vnoise(x: number, y: number): number {
-  const xi = Math.floor(x), yi = Math.floor(y);
-  const fx = x - xi, fy = y - yi;
-  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-  const a = hash2(xi, yi), b = hash2(xi + 1, yi), c = hash2(xi, yi + 1), d = hash2(xi + 1, yi + 1);
-  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
-}
-
-interface GroundRect { xMin: number; xMax: number; zMin: number; zMax: number }
-/** Forest floor patches, wall to wall (the transept strips exclude the nave arms; the west/east ends stop clear of the waterfall pool and onyx reveal). */
-const zS = VESPER.trackZ[0] - TRENCH.halfWidth - 0.3, zN = VESPER.trackZ[1] + TRENCH.halfWidth + 0.3;
-const GROUND: readonly GroundRect[] = [
-  { xMin: CAVERN.nave.xMin, xMax: CAVERN.nave.xMax, zMin: CAVERN.nave.zMin, zMax: zS },
-  { xMin: CAVERN.nave.xMin, xMax: CAVERN.nave.xMax, zMin: zN, zMax: CAVERN.nave.zMax },
-  { xMin: -58.0, xMax: CAVERN.nave.xMin, zMin: CAVERN.transept.zMin, zMax: zS },
-  { xMin: CAVERN.nave.xMax, xMax: 58.0, zMin: CAVERN.transept.zMin, zMax: zS },
-  { xMin: -58.0, xMax: CAVERN.nave.xMin, zMin: zN, zMax: CAVERN.transept.zMax },
-  { xMin: CAVERN.nave.xMax, xMax: 58.0, zMin: zN, zMax: CAVERN.transept.zMax },
-];
-
-/** Forest floor height at (x, z): soft mounds, low against the walls and the track plinths. */
-export function forestGroundY(x: number, z: number): number {
-  const n = vnoise(x * 0.11 + 17, z * 0.11 - 5) * 0.7 + vnoise(x * 0.31 - 3, z * 0.31 + 9) * 0.3;
-  let edge = 1;
-  for (const r of GROUND) {
-    if (x < r.xMin - 0.01 || x > r.xMax + 0.01 || z < r.zMin - 0.01 || z > r.zMax + 0.01) continue;
-    const d = Math.min(x - r.xMin, r.xMax - x, z - r.zMin, r.zMax - z);
-    edge = Math.min(1, Math.max(0, d / 3.0));
-  }
-  return Y0 + 0.06 + FOREST.groundRise * n * (0.25 + 0.75 * edge);
-}
+// Floor height field, noise and floor patches live in src/metro/forestGround.ts (shared with the walk planner).
+export { forestGroundY };
 
 // ---- geometry accumulator -----------------------------------------------------------------------------------------
 
@@ -167,7 +135,8 @@ function bezier(p0: THREE.Vector3, p1: THREE.Vector3, p2: THREE.Vector3, n: numb
 export const CELL = {
   leafA: [0, 0.5, 0.5, 1], leafB: [0.5, 0.5, 1, 1],
   frondA: [0, 0, 0.25, 0.5], frondB: [0.25, 0, 0.5, 0.5],
-  mossA: [0.5, 0, 0.75, 0.5], mossB: [0.75, 0, 1, 0.5],
+  mossA: [0.5, 0, 0.75, 0.5], mossB: [0.5, 0, 0.75, 0.5],
+  bromeliad: [0.75, 0.25, 1, 0.5], orchid: [0.75, 0, 1, 0.25],
 } as const;
 export type Cell = readonly [number, number, number, number];
 
@@ -301,6 +270,43 @@ function paintMoss(g: CanvasRenderingContext2D, ox: number, oy: number, W: numbe
   }
 }
 
+/** Bromeliad rosette seen from the side: stiff arching green leaves around a scarlet-pink bract spike. */
+function paintBromeliad(g: CanvasRenderingContext2D, ox: number, oy: number, S: number, rnd: () => number): void {
+  const cx = ox + S / 2, base = oy + S * 0.92;
+  for (let k = 0; k < 22; k++) {
+    const a = -Math.PI / 2 + (rnd() - 0.5) * 2.6;
+    const L = S * (0.28 + rnd() * 0.18);
+    const light = 0.7 + rnd() * 0.35;
+    g.strokeStyle = `rgb(${Math.round(52 * light)},${Math.round(112 * light)},${Math.round(40 * light)})`;
+    g.lineWidth = 14 + rnd() * 10; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(cx, base);
+    g.quadraticCurveTo(cx + Math.cos(a) * L * 0.6, base + Math.sin(a) * L * 0.9, cx + Math.cos(a) * L, base + Math.sin(a) * L * 0.55 + L * 0.25);
+    g.stroke();
+  }
+  for (let k = 0; k < 9; k++) {
+    const y = base - S * (0.12 + k * 0.045), w = S * (0.07 - k * 0.005);
+    g.fillStyle = k % 2 ? 'rgb(214,38,74)' : 'rgb(236,70,96)';
+    g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 6, y, w, S * 0.035, 0, 0, Math.PI * 2); g.fill();
+  }
+}
+
+/** Arching orchid spray: a thin stem with white-to-magenta blooms. */
+function paintOrchid(g: CanvasRenderingContext2D, ox: number, oy: number, S: number, rnd: () => number): void {
+  g.strokeStyle = 'rgb(70,90,40)'; g.lineWidth = 5;
+  g.beginPath(); g.moveTo(ox + S * 0.15, oy + S * 0.9); g.quadraticCurveTo(ox + S * 0.4, oy + S * 0.1, ox + S * 0.9, oy + S * 0.35); g.stroke();
+  for (let k = 0; k < 9; k++) {
+    const t = 0.25 + k * 0.085;
+    const x = ox + S * (0.15 + 0.75 * t) + (rnd() - 0.5) * 10, y = oy + S * (0.9 - 1.1 * t + 0.9 * t * t) + (rnd() - 0.5) * 10;
+    const r = S * 0.055;
+    for (let p = 0; p < 5; p++) {
+      const a = (p / 5) * Math.PI * 2 + rnd() * 0.3;
+      g.fillStyle = p === 0 ? 'rgb(150,30,110)' : (p % 2 ? 'rgb(214,74,168)' : 'rgb(236,150,206)');
+      g.beginPath(); g.ellipse(x + Math.cos(a) * r * 0.7, y + Math.sin(a) * r * 0.7, r * 0.75, r * 0.42, a, 0, Math.PI * 2); g.fill();
+    }
+    g.fillStyle = 'rgb(232,170,40)'; g.beginPath(); g.arc(x, y, r * 0.22, 0, Math.PI * 2); g.fill();
+  }
+}
+
 function makeFoliageAtlas(renderer: THREE.WebGLRenderer): THREE.CanvasTexture {
   const S = 2048;
   const [c, g] = canvas(S, S);
@@ -311,7 +317,8 @@ function makeFoliageAtlas(renderer: THREE.WebGLRenderer): THREE.CanvasTexture {
   paintFrond(g, 0, 1024, 512, 1024, rnd, 1);
   paintFrond(g, 512, 1024, 512, 1024, rnd, 0.82);
   paintMoss(g, 1024, 1024, 512, 1024, rnd);
-  paintMoss(g, 1536, 1024, 512, 1024, rnd);
+  paintBromeliad(g, 1536, 1024, 512, rnd);
+  paintOrchid(g, 1536, 1536, 512, rnd);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
@@ -545,6 +552,27 @@ function buildTree(t: ForestTree, bark: Mesher, fol: Mesher): void {
   }
 
   // Hanging moss ("old man's beard"): crossed vertical cards under the branches.
+  // Epiphytes: bromeliads sitting in branch crotches, orchid sprays on the trunk (colour and life, cloud forest ruling).
+  for (let k = 0; k < mossPts.length; k++) {
+    const p = mossPts[k]!;
+    const sz = 0.85 + rnd() * 0.45, yaw = rnd() * TAU;
+    const a = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw)).multiplyScalar(sz / 2);
+    const b = new THREE.Vector3(0, sz / 2, 0);
+    const n = new THREE.Vector3(0, 1, 0);
+    for (const off of [0, Math.PI / 2]) {
+      const a2 = new THREE.Vector3(Math.cos(yaw + off), 0, Math.sin(yaw + off)).multiplyScalar(sz / 2);
+      card(fol, p.clone().add(new THREE.Vector3(0, sz * 0.4, 0)), off ? a2 : a, b, CELL.bromeliad, [1, 1, 1], () => n, 0.1, 0.3, rnd() * TAU);
+    }
+  }
+  for (let k = 0; k < 2; k++) {
+    const s0 = 0.25 + rnd() * 0.3;
+    const sp = spine[Math.round(s0 * (spine.length - 1))]!;
+    const az = rnd() * TAU, r = trunkR * (1.05 - 0.62 * s0) + 0.05;
+    const c = new THREE.Vector3(sp.x + Math.cos(az) * (r + 0.25), sp.y, sp.z + Math.sin(az) * (r + 0.25));
+    const out = new THREE.Vector3(Math.cos(az), 0, Math.sin(az));
+    const side = new THREE.Vector3(-Math.sin(az), 0, Math.cos(az));
+    card(fol, c, side.multiplyScalar(0.24), new THREE.Vector3(0, 0.24, 0).addScaledVector(out, 0.08), CELL.orchid, [1, 1, 1], () => out.clone().add(new THREE.Vector3(0, 0.3, 0)).normalize(), 0.1, 0.4, rnd() * TAU);
+  }
   for (const p of mossPts) {
     const len = FD.mossLen[0] + rnd() * (FD.mossLen[1] - FD.mossLen[0]);
     const w = FD.mossW[0] + rnd() * (FD.mossW[1] - FD.mossW[0]);
@@ -704,13 +732,13 @@ export function buildForest(renderer: THREE.WebGLRenderer): ForestBuild {
     const topP = new THREE.Vector3(f.x + (rnd() - 0.5) * 0.5, gy + f.height, f.z + (rnd() - 0.5) * 0.5);
     const spine = bezier(new THREE.Vector3(f.x, gy - 0.2, f.z), new THREE.Vector3(f.x, gy + f.height * 0.5, f.z), topP, 6);
     // fibrous trunk tapering into a closed, rounded crown knuckle (never a cut post end)
-    tube(bark, spine, 8, (s) => (s > 0.9 ? 0.16 * Math.sqrt(Math.max(0, 1 - (s - 0.9) / 0.1)) + 0.004 : 0.24 - 0.08 * s), (s) => mixc([0.15, 0.10, 0.07], MOSS, 0.3 * (1 - s)), 0);
+    tube(bark, spine, 8, (s) => (s > 0.94 ? 0.165 * (0.55 + 0.45 * Math.sqrt(Math.max(0, 1 - (s - 0.94) / 0.06))) : 0.24 - 0.08 * s), (s) => mixc([0.15, 0.10, 0.07], MOSS, 0.3 * (1 - s)), 0);
     const ph = rnd() * TAU;
     for (let k = 0; k < FD.treeFernFronds; k++) {
       const az = (k / FD.treeFernFronds) * TAU + (rnd() - 0.5) * 0.4;
       const len = FD.treeFernFrondLen[0] + rnd() * (FD.treeFernFrondLen[1] - FD.treeFernFrondLen[0]);
       const tone = 0.85 + rnd() * 0.25;
-      frond(fol, topP, az, 0.75 + rnd() * 0.3, -0.45 - rnd() * 0.35, len, FD.frondW, FD.frondSegs, rnd() < 0.5 ? CELL.frondA : CELL.frondB, [tone, tone, tone * 0.95], 0.7, ph + k);
+      frond(fol, topP.clone().add(new THREE.Vector3(0, -0.12, 0)), az, 0.75 + rnd() * 0.3, -0.45 - rnd() * 0.35, len, FD.frondW, FD.frondSegs, rnd() < 0.5 ? CELL.frondA : CELL.frondB, [tone, tone, tone * 0.95], 0.7, ph + k);
     }
   }
 
@@ -796,6 +824,8 @@ export function buildForest(renderer: THREE.WebGLRenderer): ForestBuild {
   }
   const fireflies = buildFireflies(plan.trees.length * 26);
   group.add(fireflies);
+  const life = buildForestLife(forestGroundY);
+  group.add(life.group);
   const tris = (barkGeo.index!.count + groundGeo.index!.count + folGeo.index!.count) / 3;
   return {
     group,
@@ -809,7 +839,8 @@ export function buildForest(renderer: THREE.WebGLRenderer): ForestBuild {
       const [mr, mg, mb] = FOREST.mist.color;
       uMistCol.value.set(mr * k * (1 + 0.25 * dn.golden), mg * k * (1 + 0.02 * dn.golden), mb * k * (1 - 0.2 * dn.golden));
       fireflies.visible = dn.night > 0.01;
+      life.update(realTimeSec);
     },
-    stats: { calls: meshes.length + 1, triangles: tris },
+    stats: { calls: meshes.length + 3, triangles: tris },
   };
 }

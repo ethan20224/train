@@ -5,6 +5,12 @@ import assert from 'node:assert/strict';
 import { METRO_TRAIN } from '../src/layoutMetro';
 import {
   alignedPsdDoorOpen,
+  carCrowding,
+  createClarityTracker,
+  formatCountdown,
+  nextTrainFor,
+  PSD_CLARITY,
+  wantsClearGlass,
   arrivalWaveIntensity,
   DEPARTURE_WAKE_PEAK,
   departureWakeIntensity,
@@ -167,6 +173,61 @@ test('shared destination list covers all 8 canonical names and transom states fo
   assert.equal(formatTransomText('vesper', 0, open, true), 'VESPER · ELSEWHERE · DOORS OPENING');
   assert.equal(formatTransomText('vesper', 0, closingDone, true), 'VESPER · ELSEWHERE · DEPARTING');
   assert.equal(formatTransomText('vesper', 0, departing, false), 'VESPER · ELSEWHERE · DEPARTING');
+});
+
+test('smart glass: frosted idle, clears over 1.2 s within 8 s of arrival, holds 3 s after departure, then frosts', () => {
+  const base: TrainState = { id: 5, line: 'vesper', track: 0, s: -200, v: 20, phase: 'approaching', doors01: 0, eta: 30 };
+  const tr = createClarityTracker();
+  for (let i = 0; i < 100; i++) assert.equal(tr.update(0.05, base), 0, 'far train keeps the glass frosted');
+  const near: TrainState = { ...base, eta: PSD_CLARITY.leadSec - 0.01 };
+  assert.ok(wantsClearGlass(near) && !wantsClearGlass(base) && !wantsClearGlass(null));
+  let t = 0;
+  while (tr.value < 1 && t < 5) { tr.update(0.01, near); t += 0.01; }
+  assert.ok(Math.abs(t - PSD_CLARITY.riseSec) < 0.03, `rise took ${t.toFixed(2)} s`);
+  const stopped: TrainState = { ...base, phase: 'stopped', s: 0, v: 0, eta: 0, doors01: 1 };
+  for (let i = 0; i < 300; i++) assert.equal(tr.update(0.1, stopped), 1);
+  const departing: TrainState = { ...stopped, phase: 'departing', doors01: 0 };
+  let held = 0;
+  while (tr.update(0.01, departing) === 1 && held < 10) held += 0.01;
+  assert.ok(Math.abs(held - PSD_CLARITY.holdSec) < 0.03, `hold lasted ${held.toFixed(2)} s`);
+  let fall = 0;
+  while (tr.value > 0 && fall < 10) { tr.update(0.01, null); fall += 0.01; }
+  assert.ok(Math.abs(fall - PSD_CLARITY.fallSec) < 0.05, `fall took ${fall.toFixed(2)} s`);
+  const snapped = createClarityTracker();
+  assert.equal(snapped.update(0, stopped, true), 1, 'snap jumps to the target');
+  assert.equal(snapped.update(0, null, true), 1, 'snap still honours the hold window');
+});
+
+test('countdown copy and next-train selection', () => {
+  const mk = (over: Partial<TrainState>): TrainState => ({ id: 1, line: 'meridian', track: 1, s: -100, v: 20, phase: 'approaching', doors01: 0, eta: 100, ...over });
+  assert.equal(formatCountdown(null), '-- min');
+  assert.equal(formatCountdown(mk({ eta: 100 })), '2 min');
+  assert.equal(formatCountdown(mk({ eta: 59 })), '1 min');
+  assert.equal(formatCountdown(mk({ eta: 20 })), 'Arriving');
+  assert.equal(formatCountdown(null, 185), '4 min');
+  assert.equal(formatCountdown(null, 12), 'Arriving');
+  assert.equal(formatCountdown(mk({ phase: 'departing', eta: 0 }), 70), '2 min');
+  assert.equal(formatCountdown(mk({ phase: 'stopped', eta: 0 })), 'Now');
+  assert.equal(formatCountdown(mk({ phase: 'departing', eta: 0 })), '-- min', 'no forecast, no number');
+  const a = mk({ id: 1, eta: 90 });
+  const b = mk({ id: 2, eta: 40 });
+  const other = mk({ id: 3, line: 'vesper', track: 0, phase: 'stopped', eta: 0 });
+  assert.equal(nextTrainFor([a, b, other], trackIndexOf('meridian', 1))?.id, 2, 'soonest approaching wins');
+  assert.equal(nextTrainFor([a, mk({ id: 4, phase: 'stopped', eta: 0 })], trackIndexOf('meridian', 1))?.id, 4, 'a standing train wins');
+  assert.equal(nextTrainFor([other], trackIndexOf('meridian', 1)), null);
+});
+
+test('carCrowding is deterministic, bounded and varies between trains and cars', () => {
+  const seen = new Set<string>();
+  for (let id = 1; id <= 40; id++) {
+    for (let car = 0; car < 4; car++) {
+      const v = carCrowding(id, car);
+      assert.equal(v, carCrowding(id, car), 'stable per train and car');
+      assert.ok(v >= 0.06 && v <= 0.97, `crowding ${v}`);
+      seen.add(v.toFixed(3));
+    }
+  }
+  assert.ok(seen.size > 100, `only ${seen.size} distinct values across 160 cars`);
 });
 
 console.log(`\n${passed} choreography checks passed`);

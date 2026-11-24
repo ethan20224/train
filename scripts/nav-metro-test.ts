@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { heightAt, resolve } from '../src/player/navigation';
 import { FLIGHTS, HALCYON, LANDINGS, MERIDIAN, OCULUS, PLAYER, THRESHOLD, VESPER, escalatorUnits } from '../src/layout';
-import { CROSSING, DISC, FUNICULAR, LIFTS, SPEED_GATES, TICKET_HALL, fareLines, speedGateCabinets, speedGateLanes, totemObstacleCircles } from '../src/layoutMetro';
+import { BOARDWALK, CANOPY_WALK, CROSSING, DISC, FOREST, FUNICULAR, LIFTS, METRO_TRAIN, SPEED_GATES, TICKET_HALL, fareLines, speedGateCabinets, speedGateLanes, totemObstacleCircles } from '../src/layoutMetro';
+import { forestGroundY } from '../src/metro/forestGround';
+import { allWalkPlans, boardwalkPlan, minPathRadius, trackDistance, type WalkPlan, type WalkRun } from '../src/metro/walks';
 import { liftCallButtonPos, liftDoorDir } from '../src/metro/lifts';
 
 let passed = 0;
@@ -276,4 +278,225 @@ test('fuzz: 100k random moves on every metro level never leave the walkable set'
     }
   }
 });
+
+// ---- canopy walk + forest boardwalks (src/metro/walks.ts) -----------------------------------------------------------------
+
+const Cl = PLAYER.wallClearance;
+const dist2 = (a: readonly [number, number], b: readonly [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+/** Walk `route` with the real collision resolver in <= 0.1 m moves, asserting arrival at every waypoint; returns the trail. */
+function walkRoute(label: string, start: Vector3, route: ReadonlyArray<readonly [number, number]>): Vector3[] {
+  const trail: Vector3[] = [start.clone()];
+  let p = start.clone();
+  for (const [x, z] of route) {
+    for (let i = 0; i < 4000; i++) {
+      const d = Math.hypot(x - p.x, z - p.z);
+      if (d < 1e-3) break;
+      const q = resolve(p, new Vector3(p.x + ((x - p.x) / d) * Math.min(0.1, d), 0, p.z + ((z - p.z) / d) * Math.min(0.1, d)));
+      if (Math.hypot(q.x - p.x, q.z - p.z) < 1e-7) break;
+      p = q; trail.push(p.clone());
+    }
+    assert.ok(Math.hypot(p.x - x, p.z - z) < 0.05, `${label}: stopped at (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}) before waypoint (${x.toFixed(2)}, ${z.toFixed(2)})`);
+  }
+  return trail;
+}
+const maxStep = (trail: readonly Vector3[]): number => trail.reduce((m, p, i) => (i === 0 ? m : Math.max(m, Math.abs(p.y - trail[i - 1]!.y))), 0);
+
+const canopyRoute: Array<[number, number]> = [[0, 29.8], [0, 25.8], [14.6, 25.8], [14.6, 55.6], [15.2, 57.7]];
+const bwRoute = (side: 1 | -1): Array<[number, number]> => {
+  const plan = boardwalkPlan(side);
+  const fs = plan.runs[0]!, br = plan.runs[1]!, ds = plan.runs[2]!;
+  const st = plan.path!.stations;
+  return [
+    [fs.from + side * -1.5, fs.across], [br.across, fs.across], [br.across, ds.across],
+    ...st.filter((_, i) => i % 2 === 0).map((q): [number, number] => [q.x, q.z]),
+    [plan.path!.endPad.x, plan.path!.endPad.z],
+  ];
+};
+
+test('canopy walk: island south end -> stair -> bridge over the east train -> 1:12 descent -> viewing platform, and all the way back', () => {
+  const start = at(0, 31, MERIDIAN.topY);
+  const trail = walkRoute('canopy out', start, canopyRoute);
+  const end = trail[trail.length - 1]!;
+  near(end.y, CANOPY_WALK.pads.find((p) => p.id === 'view')!.y, 0.02, 'viewing platform height');
+  assert.ok(maxStep(trail) <= 0.35, `canopy out: max y step ${maxStep(trail).toFixed(3)}`);
+  near(Math.max(...trail.map((p) => p.y)), CANOPY_WALK.yCross, 0.02, 'crosses the train envelope at yCross');
+  // over the east train (x 9..12.1) the deck underside clears the train top (-43) with >= 0.5 m
+  for (const p of trail) if (p.x > 8.9 && p.x < 12.2) assert.ok(p.y - 0.3 >= MERIDIAN.railY + METRO_TRAIN.height + 0.5, `deck over the train at x=${p.x.toFixed(2)} is too low (${p.y})`);
+  const back = walkRoute('canopy back', end, [...canopyRoute].reverse().slice(1).concat([[0, 31]]));
+  near(back[back.length - 1]!.y, MERIDIAN.topY, 0.02, 'back on the island');
+  assert.ok(maxStep(back) <= 0.35, `canopy back: max y step ${maxStep(back).toFixed(3)}`);
+});
+
+for (const side of [1, -1] as const) {
+  test(`boardwalk ${side > 0 ? 'east' : 'west'}: Crossing floor -> stair -> footbridge over the Vesper track -> descent -> spline boardwalk -> belvedere, and back`, () => {
+    const plan = boardwalkPlan(side);
+    const fs = plan.runs[0]!;
+    const start = at(fs.from - side * 1.5, fs.across, VESPER.topY);
+    assert.ok(!Number.isNaN(start.y), 'start on the Crossing floor is walkable');
+    const route = bwRoute(side);
+    const trail = walkRoute(`boardwalk ${side} out`, start, route);
+    assert.ok(maxStep(trail) <= 0.35, `max y step ${maxStep(trail).toFixed(3)}`);
+    near(Math.max(...trail.map((p) => p.y)), BOARDWALK.bridgeY, 0.02, 'footbridge level');
+    const end = trail[trail.length - 1]!;
+    near(end.y, plan.path!.endPad.y, 0.1, 'belvedere height');
+    // over the Vesper track the deck underside (top - 0.35) is >= 4.6 m above the rails (train roof -67.1, screen doors -67.4)
+    for (const p of trail) if (Math.abs(p.z - VESPER.trackZ[side > 0 ? 0 : 1]) < 1.6 && p.y > -69) assert.ok(p.y - 0.35 >= VESPER.railY + 4.6, `bridge too low over the track at z=${p.z.toFixed(2)} (${p.y})`);
+    const back = walkRoute(`boardwalk ${side} back`, end, [...route].reverse().slice(1).concat([[start.x, start.z]]));
+    near(back[back.length - 1]!.y, VESPER.topY, 0.02, 'back on the Crossing floor');
+    assert.ok(maxStep(back) <= 0.35, `back: max y step ${maxStep(back).toFixed(3)}`);
+  });
+}
+
+test('walk geometry rules: stairs <= 30 deg, canopy ramp <= 1:12, spline radius >= 4 m and slope <= 0.16', () => {
+  for (const plan of allWalkPlans()) {
+    for (const r of plan.runs) {
+      const slope = Math.abs(r.yTo - r.yFrom) / Math.abs(r.to - r.from);
+      if (r.kind === 'stair') assert.ok(Math.atan(slope) <= Math.PI / 6 + 1e-6, `${r.id}: ${(Math.atan(slope) * 180 / Math.PI).toFixed(2)} deg`);
+      else if (r.kind === 'ramp') assert.ok(slope <= 1 / 12 + 1e-6, `${r.id}: 1:${(1 / slope).toFixed(1)}`);
+      else assert.equal(r.yFrom, r.yTo, `${r.id} is flat`);
+    }
+    if (plan.path) {
+      const st = plan.path.stations;
+      assert.ok(minPathRadius(st) >= 4, `boardwalk radius ${minPathRadius(st).toFixed(2)}`);
+      for (let i = 0; i + 1 < st.length; i++) assert.ok(Math.abs(st[i + 1]!.y - st[i]!.y) / Math.hypot(st[i + 1]!.x - st[i]!.x, st[i + 1]!.z - st[i]!.z) <= 0.1601, `slope at station ${i}`);
+    }
+  }
+});
+
+test('train protection: every rail line within nearTrack of a same-level train is a full-height screen, and every elevated side has at least a balustrade', () => {
+  let high = 0;
+  for (const plan of allWalkPlans()) {
+    for (const r of plan.runs) for (let s = 0; s < 2; s++) {
+      assert.notEqual(r.rails[s], 'none', `${r.id} side ${s} has a balustrade`);
+      const off = (s === 0 ? -1 : 1) * r.halfWidth;
+      let near4 = false;
+      for (let t = 0; t <= 1.0001; t += 0.1) {
+        const c = r.from + (r.to - r.from) * t, y = r.yFrom + (r.yTo - r.yFrom) * t;
+        const [x, z] = r.axis === 'x' ? [c, r.across + off] : [r.across + off, c];
+        if (trackDistance(x, z, y) < BOARDWALK.nearTrack) near4 = true;
+      }
+      if (near4) { assert.equal(r.rails[s], 'high', `${r.id} side ${s} is near a train and must be a full-height screen`); high++; }
+    }
+    if (plan.path) {
+      const st = plan.path.stations;
+      for (let i = 0; i + 1 < st.length; i++) for (const [k, sg] of [[0, 1], [1, -1]] as const) {
+        const x = st[i]!.x - st[i]!.tz * sg * plan.path.halfWidth, z = st[i]!.z + st[i]!.tx * sg * plan.path.halfWidth;
+        if (trackDistance(x, z, st[i]!.y) < BOARDWALK.nearTrack) { assert.equal(plan.path.rails[i]![k], 'high', `boardwalk station ${i} side ${k} near a train`); high++; }
+      }
+    }
+  }
+  assert.ok(high >= 12, `screens near trains: ${high}`);
+  assert.ok(BOARDWALK.highScreen >= 2.6, 'screens are at least 2.6 m tall');
+});
+
+test('escalator clearance: nothing walkable within 2.5 m (plan view, same level +-5 m) of any escalator unit footprint', () => {
+  const unitsAll = escalatorUnits();
+  let checked = 0;
+  const check = (x: number, z: number, y: number, tag: string): void => {
+    for (const u of unitsAll) {
+      const lo = Math.min(u.from, u.to) - 0.6, hi = Math.max(u.from, u.to) + 0.6;
+      const [a, c] = u.axis === 'z' ? [x, z] : [z, x];
+      if (c < lo - 2.5 || c > hi + 2.5 || Math.abs(a - u.across) > 0.8 + 2.5) continue;
+      const t = Math.min(1, Math.max(0, (c - u.from) / (u.to - u.from)));
+      const uy = u.yFrom + (u.yTo - u.yFrom) * t;
+      if (Math.abs(uy - y) > 5) continue;
+      assert.fail(`${tag} at (${x.toFixed(2)}, ${z.toFixed(2)}, y ${y.toFixed(2)}) is within 2.5 m of escalator ${u.id}`);
+    }
+    checked++;
+  };
+  for (const plan of allWalkPlans()) {
+    for (const r of plan.runs) for (let t = 0; t <= 1.0001; t += 0.05) {
+      const c = r.from + (r.to - r.from) * t, y = r.yFrom + (r.yTo - r.yFrom) * t;
+      for (const off of [-r.halfWidth, 0, r.halfWidth]) check(r.axis === 'x' ? c : r.across + off, r.axis === 'x' ? r.across + off : c, y, r.id);
+    }
+    for (const p of plan.pads) for (const dx of [-p.hx, 0, p.hx]) for (const dz of [-p.hz, 0, p.hz]) check(p.x + dx, p.z + dz, p.y, p.id);
+    if (plan.path) for (const q of plan.path.stations) check(q.x, q.z, q.y, 'boardwalk');
+  }
+  assert.ok(checked > 300, `clearance probes: ${checked}`);
+});
+
+/** True if (x, z, y) lies inside the walkable footprint of any OTHER element of the plans (joints are not edges). */
+function otherCovers(x: number, z: number, y: number, except: WalkRun | null): boolean {
+  for (const plan of allWalkPlans() as readonly WalkPlan[]) {
+    for (const r of plan.runs) {
+      if (r === except) continue;
+      const hn = r.halfWidth - Cl;
+      const lo = Math.min(r.from, r.to) - 0.5, hi = Math.max(r.from, r.to) + 0.5;
+      const [a, c] = r.axis === 'x' ? [z, x] : [x, z];
+      if (Math.abs(a - r.across) <= hn + 0.001 && c >= lo && c <= hi) return true;
+    }
+    for (const p of plan.pads) if (Math.abs(x - p.x) <= p.hx - Cl + 0.001 && Math.abs(z - p.z) <= p.hz - Cl + 0.001 && Math.abs(y - p.y) < 0.6) return true;
+  }
+  return false;
+}
+
+test('walk edges hold: just outside every run, pad side and spline station (clear of joints) is NOT walkable at the deck level', () => {
+  let probes = 0;
+  for (const plan of allWalkPlans()) {
+    for (const r of plan.runs) {
+      const hn = r.halfWidth - Cl;
+      const lo = Math.min(r.from, r.to), hi = Math.max(r.from, r.to);
+      for (const sgn of [-1, 1]) for (let f = 0.1; f <= 0.9001; f += 0.1) {
+        const c = lo + (hi - lo) * f;
+        const y = r.yFrom + (r.yTo - r.yFrom) * ((c - r.from) / (r.to - r.from));
+        const a = r.across + sgn * (hn + 0.04);
+        const [x, z] = r.axis === 'x' ? [c, a] : [a, c];
+        if (otherCovers(x, z, y, r)) continue;
+        assert.equal(heightAt(x, z, y), null, `${r.id}: (${x.toFixed(2)}, ${z.toFixed(2)}) beside the deck at y=${y.toFixed(2)} must not be walkable`);
+        probes++;
+      }
+    }
+    if (plan.path) {
+      const st = plan.path.stations, hn = plan.path.halfWidth - Cl;
+      for (let i = 3; i + 3 < st.length; i++) for (const sg of [-1, 1]) {
+        const q = st[i]!;
+        const x = q.x - q.tz * sg * (hn + 0.05), z = q.z + q.tx * sg * (hn + 0.05);
+        assert.equal(heightAt(x, z, q.y), null, `boardwalk station ${i}: (${x.toFixed(2)}, ${z.toFixed(2)}) beside the deck must not be walkable`);
+        probes++;
+      }
+    }
+  }
+  assert.ok(probes > 250, `edge probes: ${probes}`);
+  assert.notEqual(heightAt(0, 28.9, MERIDIAN.topY), null, 'island south edge: the gap in the balustrade is walkable');
+  assert.equal(heightAt(1.5, 28.9, MERIDIAN.topY), null, 'island south edge beside the gap is sealed');
+  assert.equal(heightAt(-1.5, 28.2, MERIDIAN.topY), null, 'no floor south of the island beside the canopy exit');
+  assert.equal(heightAt(10.55, 25.8, MERIDIAN.railY), null, 'train track under the canopy bridge is not walkable');
+  assert.equal(heightAt(10.55, 25.8, MERIDIAN.topY), null, 'no step down from the canopy stair onto the track');
+  assert.equal(heightAt(40, VESPER.trackZ[0], VESPER.topY), null, 'Vesper track under the footbridge is not walkable at the floor level');
+  assert.equal(heightAt(BOARDWALK.bridge.x, VESPER.trackZ[0], VESPER.railY), null, 'Vesper track under the bridge is not walkable');
+});
+
+test('forest floor: nowhere in the beds is walkable except on the boardwalks themselves', () => {
+  let walkable = 0, off = 0;
+  const stations = allWalkPlans().flatMap((pl) => (pl.path ? pl.path.stations.map((q): [number, number] => [q.x, q.z]) : []));
+  const stairs = allWalkPlans().flatMap((pl) => pl.runs.filter((r) => r.group === 'boardwalk'));
+  for (const bed of FOREST.beds) {
+    for (let x = bed.xMin; x <= bed.xMax; x += 0.3) for (let z = bed.zMin; z <= bed.zMax; z += 0.3) {
+      const h = heightAt(x, z, forestGroundY(x, z) + 0.4);
+      if (h === null) continue;
+      walkable++;
+      const nearPath = stations.some(([sx, sz]) => dist2([x, z], [sx, sz]) < 1.2);
+      const nearStair = stairs.some((r) => (r.axis === 'x' ? Math.abs(z - r.across) < 1.2 && x >= Math.min(r.from, r.to) - 1 && x <= Math.max(r.from, r.to) + 1 : Math.abs(x - r.across) < 1.2 && z >= Math.min(r.from, r.to) - 1 && z <= Math.max(r.from, r.to) + 1));
+      if (!nearPath && !nearStair) off++;
+    }
+  }
+  assert.ok(walkable > 300, `boardwalk cells are walkable (${walkable})`);
+  assert.equal(off, 0, `${off} walkable forest cells away from the boardwalks`);
+});
+
+test('canopy + boardwalk fuzz: random moves from every walk never leave the walkable set', () => {
+  const starts = [at(0, 31, MERIDIAN.topY), at(46.5, BOARDWALK.floorStair.z, VESPER.topY), at(-46.5, BOARDWALK.zMirror - BOARDWALK.floorStair.z, VESPER.topY)];
+  let seed = 99;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (const s of starts) {
+    let p = s.clone();
+    for (let i = 0; i < 20000; i++) {
+      const a = rnd() * Math.PI * 2; const len = rnd() < 0.05 ? rnd() * 12 : rnd() * 0.4;
+      p = resolve(p, new Vector3(p.x + Math.cos(a) * len, 0, p.z + Math.sin(a) * len));
+      assert.notEqual(heightAt(p.x, p.z, p.y), null, `left the walkable set at (${p.x}, ${p.y}, ${p.z})`);
+    }
+  }
+});
+
 console.log(`\n${passed} metro nav checks passed (flights: ${FLIGHTS.length})`);

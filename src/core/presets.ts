@@ -30,6 +30,8 @@ import {
   TRACKS,
   type Vec3,
 } from '../layout';
+import { BOARDWALK } from '../layoutMetro';
+import { boardwalkPlan } from '../metro/walks';
 
 /**
  * Camera presets for `?cam=<name>` (fixed camera, no pointer lock). All coordinates derive from layout.ts.
@@ -53,11 +55,11 @@ export const PRESET_NAMES = [
   'bridge',
   'bridgedeck',
   'platformend',
-  'shops',
+  'rootfloor', 'rootfloorw', 'shops',
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'droplets', 'escalator', 'speedgates', 'tickethall', 'disc', 'lifts', 'lift', 'twin', 'wellgate',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'droplets', 'escalator', 'speedgates', 'tickethall', 'disc', 'lifts', 'lift', 'twin', 'wellgate', 'canopy', 'boardwalk', 'walkbridge',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -213,7 +215,9 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   glassup: { position: [HALCYON.centre[0], HALCYON.topY + EYE, HALCYON.centre[1]], target: [-10, -40, 80], fov: 72, intent: 'From the Halcyon platform looking up through the glass: bridge, droplets, sky.' },
   mapwall: { position: [0, MERIDIAN.topY + EYE, 70], target: [0, (MAP_WALL.yMin + MAP_WALL.yMax) / 2, MAP_WALL.z], intent: 'From the Meridian island facing the map wall and running clock under the sky.' },
   waterwall: { position: [-35, VESPER.topY + EYE, 74], target: [WATER_WALL.x, -56, 74], fov: 66, intent: 'Crossing floor west end facing the 36 m living water wall, top specular weir glint, parted Vesper portals, monolith benches and stainless foot trough.' },
-  onyx: { position: [34, VESPER.topY + EYE, 68.0], target: [60, -54, 76.5], fov: 66, intent: 'Crossing floor east end (clear of the funicular) facing the 40 m backlit book-matched white onyx wall, slim stainless joint grid, Vesper east portals and lit 2 m floor reveal.' },
+  rootfloor: { position: [50.0, VESPER.topY + 0.9, 79.0], target: [60, -69.5, 88.5], fov: 62, intent: 'tmp' },
+  rootfloorw: { position: [50.0, VESPER.topY + 0.9, 69.0], target: [60, -69.5, 59.5], fov: 62, intent: 'tmp' },
+  onyx: { position: [34, VESPER.topY + EYE, 68.0], target: [60, -54, 76.5], fov: 66, intent: 'Crossing floor east end (clear of the funicular) facing the Root Wall: the colossal strangler fig pouring its roots over the east wall and wrapping both Vesper east portals, crown spreading under the sky.' },
   funicular: { position: [51.0, VESPER.topY + EYE + 0.3, 81.2], target: [31.5, -45.5, FUNICULAR.z], fov: 66, intent: 'From the east Crossing floor beside the bottom station looking up the 50.7 deg brushed-stainless rack incline as the glass funicular cabin glides out of the buried blue sky slot toward the camera.' },
   escalator: { position: [5.0, LANDINGS.L1.y + EYE, 80.7], target: [5.6, -17.5, 66], fov: 62, intent: 'At the top of F2 looking down the flight: steps flowing away, glass balustrades, handrails, warm skirt lines.' },
   speedgates: { position: [10.9, THRESHOLD.y + EYE, 80.9], target: [8.1, THRESHOLD.y + 0.7, 87.5], fov: 62, intent: 'Threshold: the whole east fare line from the F3 landing, receding along z: satin stainless cabinets, glass leaves, the glass run to the drum wall.' },
@@ -235,6 +239,30 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
     target: [-23.0, -33.2, 74.0],
     fov: 66,
     intent: 'From the Meridian island near its north end looking up and outward across the champagne kinetic droplet ceiling with the buried noon sky behind it and the eclipse at the upper-right frame edge.',
+  },
+  canopy: {
+    // On the canopy walk's 1:12 descent beside the floating bridge, looking along it through the east treetops.
+    position: [14.6, -42.0 - (36 - 26.8) / 12 + EYE, 36],
+    target: [15.2, -44.2, 58],
+    fov: 62,
+    intent: 'On the canopy walk among the treetops beside the Meridian bridge, looking along the deck to the viewing platform.',
+  },
+  boardwalk: {
+    // On the east boardwalk where it bends into the south nave arm, looking ahead along the path among trunks and ferns.
+    ...(() => {
+      const st = boardwalkPlan(1).path!.stations;
+      const a = st[58]!, b = st[72]!;
+      return { position: [a.x, a.y + EYE, a.z] as Vec3, target: [b.x, b.y + 1.1, b.z] as Vec3 };
+    })(),
+    fov: 66,
+    intent: 'On the forest boardwalk winding between the trunks and ferns under the floating bridge.',
+  },
+  walkbridge: {
+    // On the footbridge landing at the Crossing floor end looking over the glazed bridge across the Vesper track.
+    position: [boardwalkPlan(1).pads[0]!.x, BOARDWALK.bridgeY + EYE, boardwalkPlan(1).pads[0]!.z - 0.6],
+    target: [56.2, BOARDWALK.bridgeY + 1.0, 56],
+    fov: 70,
+    intent: 'On the glazed footbridge over the Vesper track: full-height laminated screens, oak deck, the forest beyond.',
   },
 };
 

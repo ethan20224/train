@@ -23,7 +23,8 @@
     "metro-choreography-test": "tsx scripts/metro-choreography-test.ts",
     "metro-map-test": "tsx scripts/metro-map-test.ts",
     "metro-forest-test": "tsx scripts/metro-forest-test.ts",
-    "metro-test": "npm run metro-layout-test && npm run nav-regions-test && npm run nav-metro-test && npm run metro-runtime-test && npm run zones-test && npm run escalator-phase-test && npm run metro-train-test && npm run metro-trainmodel-test && npm run metro-choreography-test && npm run metro-map-test && npm run metro-forest-test"
+    "metro-rootwall-test": "tsx scripts/metro-rootwall-test.ts",
+    "metro-test": "npm run metro-layout-test && npm run nav-regions-test && npm run nav-metro-test && npm run metro-runtime-test && npm run zones-test && npm run escalator-phase-test && npm run metro-train-test && npm run metro-trainmodel-test && npm run metro-choreography-test && npm run metro-map-test && npm run metro-forest-test && npm run metro-rootwall-test"
   },
   "dependencies": {
     "n8ao": "2.0.1",

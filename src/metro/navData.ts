@@ -4,6 +4,7 @@ import {
 } from '../layoutMetro';
 import { boundsOf, circleShape, obbShape, rectShape, type Region, type Shape } from '../player/regions';
 import { escalators } from './escalators';
+import { walkFloorHoles, walkRegions } from './walks';
 
 /** Static metro walkability (spec §2). Movers and their gangways are dynamic (src/metro/disc.ts). */
 const C = PLAYER.wallClearance;
@@ -93,10 +94,14 @@ export function metroStaticRegions(): Region[] {
         // Funicular bottom pit + under-incline headroom guard (< 2.3 m under rail/chassis)
         rectShape(FUNICULAR.underTrackGuardXMin - C, FUNICULAR.pit.xMax + C, FUNICULAR.pit.zMin - C, FUNICULAR.pit.zMax + C),
         ...liftHoles(),
+        // Boardwalk footbridge: the floor under its stair, landing and bridge mouth is not walkable (src/metro/walks.ts)
+        ...walkFloorHoles(),
       ],
     },
     { ...boundsOf(deep), y: HALCYON.topY, obb: deep, holes: [...liftHoles(), rectShape(-60, -26.52, VESPER.f6OpeningZ[0] - C, VESPER.f6OpeningZ[1] + C)] },
     ...escalatorRegions(),
+    // Canopy walk off the Meridian island, forest boardwalks off the Crossing floor (src/metro/walks.ts)
+    ...walkRegions(),
   ];
 }
 // The glass floor (GLASS_FLOOR) is part of the Crossing floor: walkable, no separate region.

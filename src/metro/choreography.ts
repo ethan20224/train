@@ -238,3 +238,100 @@ export function formatTransomText(
   }
   return prefix;
 }
+
+// ---- 5. Smart-glass clarity, countdown copy, per-train crowding (pure; consumed by psd.ts / infoScreens.ts) ----
+
+/** Electrochromic screen-door glass timing (real seconds of simulation time). */
+export const PSD_CLARITY = {
+  /** Glass starts clearing when the train on the track is this close to stopping (or already stopped). */
+  leadSec: 8,
+  /** Frosted -> crystal clear. */
+  riseSec: 1.2,
+  /** Stays clear this long after the train has departed, then frosts again. */
+  holdSec: 3,
+  /** Clear -> frosted. */
+  fallSec: 2.0,
+} as const;
+
+/** The train a platform edge is waiting for: the one standing in, else the soonest approaching one. Null if none. */
+export function nextTrainFor(trains: readonly TrainState[], trackIdx: number): TrainState | null {
+  let best: TrainState | null = null;
+  for (let i = 0; i < trains.length; i++) {
+    const t = trains[i]!;
+    if (trackIndexOf(t.line, t.track) !== trackIdx) continue;
+    if (t.phase === 'stopped') return t;
+    if (t.phase === 'approaching' && (!best || t.eta < best.eta)) best = t;
+  }
+  return best;
+}
+
+/** True while the glass should be crystal clear for this train. */
+export function wantsClearGlass(train: TrainState | null): boolean {
+  if (!train) return false;
+  if (train.phase === 'stopped') return true;
+  return train.phase === 'approaching' && train.eta <= PSD_CLARITY.leadSec;
+}
+
+export interface ClarityTracker {
+  /** Advances by `dt` and returns clarity 0 (frosted) .. 1 (clear). `snap` jumps straight to the target (scene staging). */
+  update(dt: number, train: TrainState | null, snap?: boolean): number;
+  readonly value: number;
+}
+
+/** One tracker per track: ramps up over riseSec, holds holdSec after the train stops being wanted, ramps down over fallSec. */
+export function createClarityTracker(): ClarityTracker {
+  let value = 0;
+  let hold = 0;
+  return {
+    get value() { return value; },
+    update(dt, train, snap = false) {
+      if (wantsClearGlass(train)) hold = PSD_CLARITY.holdSec;
+      else if (hold > 0) hold = Math.max(0, hold - dt);
+      const target = hold > 0 ? 1 : 0;
+      if (snap) value = target;
+      else {
+        const rate = dt / (target > value ? PSD_CLARITY.riseSec : PSD_CLARITY.fallSec);
+        value = target > value ? Math.min(target, value + rate) : Math.max(target, value - rate);
+      }
+      return value;
+    },
+  };
+}
+
+/** Countdown copy for a time to arrival: whole minutes while far, `Arriving` in the last 20 s. */
+export function formatEtaSeconds(sec: number): string {
+  return sec <= 20 ? 'Arriving' : `${Math.max(1, Math.ceil(sec / 60))} min`;
+}
+
+/**
+ * Big countdown copy for headers and boards: `Now` while a train stands in, otherwise the exact eta of the approaching train, otherwise
+ * `forecastSec` (the timetable lookahead, `Timetable.nextArrivalIn`). `-- min` only if no forecast exists.
+ */
+export function formatCountdown(train: TrainState | null, forecastSec: number | null = null): string {
+  if (train?.phase === 'stopped') return 'Now';
+  if (train?.phase === 'approaching') return formatEtaSeconds(train.eta);
+  return forecastSec === null ? '-- min' : formatEtaSeconds(forecastSec);
+}
+
+/** Whole minutes to arrival, or null when no train is due (boards use it for the map strip and the compact label). */
+export function minutesToArrival(train: TrainState | null): number | null {
+  if (!train || train.phase === 'gone' || train.phase === 'departing') return null;
+  if (train.phase === 'stopped') return 0;
+  return Math.max(0, Math.ceil(train.eta / 60));
+}
+
+/**
+ * Plausible, stable crowding of one car (0 = empty .. 1 = packed). Pure function of the train id and car index, so it
+ * never flickers while a train dwells, differs train to train, and keeps the middle cars a little busier.
+ */
+export function carCrowding(trainId: number, car: number): number {
+  const hash = (a: number, b: number): number => {
+    let h = (Math.imul(a + 1, 374761393) + Math.imul(b + 7, 668265263)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+  };
+  const base = 0.22 + 0.5 * hash(trainId, 99);
+  const bias = car === 1 || car === 2 ? 0.07 : -0.03;
+  const v = base + bias + (hash(trainId, car) - 0.5) * 0.4;
+  return Math.min(0.97, Math.max(0.06, v));
+}

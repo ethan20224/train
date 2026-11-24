@@ -103,7 +103,7 @@ export function buildMist(uTime: { value: number }, rockTex: THREE.Texture): Mis
           float bm = max(smoothstep(3.4, 2.4, abs(vMW.z - ${VESPER.trackZ[0].toFixed(2)})), smoothstep(3.4, 2.4, abs(vMW.z - ${VESPER.trackZ[1].toFixed(2)})));
           bm *= 1.0 - smoothstep(-66.5, -64.5, vMW.y);
           float ma = soft * smoothstep(0.12, 0.85, mn) * 0.36 * dens * fRock * fX * fCam * (1.0 - 0.6 * bm);
-          diffuseColor = vec4(mix(vec3(0.56, 0.66, 0.76), vec3(0.86, 0.92, 0.98), mn), ma);
+          diffuseColor = vec4(mix(vec3(0.56, 0.66, 0.76), vec3(0.86, 0.92, 0.98), mn) * diffuse, ma);
         }
       `);
   };

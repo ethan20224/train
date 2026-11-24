@@ -6,7 +6,7 @@ import { disc } from '../metro/disc';
 import { onMetroFrame } from '../metro/runtime';
 import { createTimetable, type TrainState } from '../metro/timetable';
 import { TRACKS, trackOf } from '../metro/tracks';
-import { alignedPsdDoorOpen, evaluatePortalWaves, formatTransomText, timeToPortalMouth, trackIndexOf } from '../metro/choreography';
+import { alignedPsdDoorOpen, createClarityTracker, evaluatePortalWaves, formatCountdown, formatTransomText, nextTrainFor, timeToPortalMouth, trackIndexOf } from '../metro/choreography';
 import { buildMetroImpostors } from './metro/impostors';
 import { createMetroMaterials } from './metro/materials';
 import { buildEscalators } from './metro/escalators';
@@ -21,7 +21,7 @@ import { buildCrossing } from './metro/crossing';
 import { buildHalcyonHall } from './metro/halcyon';
 import { buildPortals } from './metro/portals';
 import { buildWaterWall } from './metro/waterWall';
-import { buildOnyxWall } from './metro/onyxWall';
+import { buildRootWall } from './metro/rootWall';
 import { buildLiftsView } from './metro/liftsView';
 import { buildFunicularView } from './metro/funicularView';
 import { updateSensingHalo } from './metro/halo';
@@ -29,6 +29,9 @@ import { createTrainsView } from './metro/trainsView';
 import { buildDroplets } from './metro/droplets';
 import { buildMapWall } from './metro/mapWall';
 import { buildForest } from './metro/forest';
+import { buildInfoScreens } from './metro/infoScreens';
+import { setPsdClock } from './metro/psd';
+import { buildWalks } from './metro/walks';
 
 /** Meridian Deep (spec: docs/superpowers/specs/2026-10-06-meridian-deep-metro-design.md). Monolith & Machine cavern complete. */
 export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
@@ -46,14 +49,13 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const esc = buildEscalators(kit);
   voidGroup.add(esc.voidGroup);
   deepGroup.add(esc.deepGroup);
-  const shell = buildCavernShell(ctx.materials, kit, { omitPortalLiners: true, omitOnyxZone: true });
+  const shell = buildCavernShell(ctx.materials, kit, { omitPortalLiners: true });
   const sky = buildBuriedSky(ctx.materials, kit);
   const meridian = buildMeridianBridge(ctx.materials, kit);
   const crossing = buildCrossing(ctx.materials, kit, ctx.renderer);
   const halcyon = buildHalcyonHall(ctx.materials, kit, { omitPortalLiners: true });
   const portals = buildPortals(ctx.materials, kit);
   const waterWall = buildWaterWall(ctx.materials, kit);
-  const onyxWall = buildOnyxWall(ctx.materials, kit);
   const liftsView = buildLiftsView(ctx.materials, kit, ctx.renderer);
   const funicularView = buildFunicularView(ctx.materials, kit);
   const timetable = createTimetable({ seed: 42 });
@@ -61,11 +63,14 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const trainsView = createTrainsView(kit);
   const droplets = buildDroplets(kit);
   const mapWall = buildMapWall(ctx.materials, kit, ctx.renderer);
+  const infoScreens = buildInfoScreens(ctx.materials, kit);
   const forest = buildForest(ctx.renderer);
+  const walks = buildWalks(ctx.renderer, kit);
+  const rootWall = buildRootWall(ctx.renderer);
   voidGroup.add(liftsView.voidGroup, funicularView.voidGroup);
   deepGroup.add(
     shell.group, sky.group, meridian.group, crossing.group, halcyon.group, portals.group,
-    waterWall.group, onyxWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group, mapWall.group, forest.group,
+    waterWall.group, liftsView.deepGroup, funicularView.deepGroup, trainsView.object, droplets.group, mapWall.group, forest.group, walks.group, rootWall.group, infoScreens.group,
   );
   // 6 PSD row controllers ordered identically to TRACKS [meridian0, meridian1, vesper0, vesper1, halcyon0, halcyon1]
   const psdRows = [
@@ -78,10 +83,14 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const displayByTrack: Array<TrainState | null> = [null, null, null, null, null, null];
   const waveBuf = new Float32Array(portals.boreCount * portals.segmentCount);
   const lastPulsedIdByTrack: number[] = [-1, -1, -1, -1, -1, -1];
+  /** One electrochromic-glass tracker per track (frosted idle, clear from ~8 s before arrival until 3 s after departure). */
+  const clarityByTrack = TRACKS.map(() => createClarityTracker());
   const PULSE_WEIGHT = { meridian: 1.0, vesper: 0.9, halcyon: 0.65 } as const;
   const HALF_LEN = METRO_TRAIN.length / 2;
 
-  const syncPsds = (trains: readonly TrainState[]): void => {
+  /** Seconds to the next arrival per track (timetable lookahead), in TRACKS order, for the info boards. */
+  const etaForTracks = (): Array<number | null> => TRACKS.map((tr) => timetable.nextArrivalIn(tr.line, tr.track));
+  const syncPsds = (trains: readonly TrainState[], dt = 0, snapClarity = false): void => {
     for (let i = 0; i < 6; i++) { stoppedByTrack[i] = null; displayByTrack[i] = null; }
     for (let k = 0; k < trains.length; k++) {
       const t = trains[k]!;
@@ -111,6 +120,9 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
         row.setOpen(d, alignedPsdDoorOpen(centres[d]!, st));
       }
       row.setDisplay(formatTransomText(tr.line, tr.track, displayByTrack[idx]!, hadDoorsOpen[idx]!));
+      const next = nextTrainFor(trains, idx);
+      row.setCountdown(formatCountdown(next, timetable.nextArrivalIn(tr.line, tr.track)));
+      row.setClarity(clarityByTrack[idx]!.update(dt, next, snapClarity));
     }
   };
 
@@ -137,6 +149,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   let realClock = 0;
   onMetroFrame((dt, feet) => {
     realClock += dt;
+    setPsdClock(realClock);
     sinking.update(disc.y, disc.gateOpen('bottom'));
     oculus.update(disc.gateOpen('top'));
     fixtures.update(dt, feet);
@@ -154,8 +167,8 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   root.userData.deepMaterials = [
     ...kit.deepList, ...shell.deepMaterials, ...sky.deepMaterials, ...meridian.deepMaterials,
     ...crossing.deepMaterials, ...halcyon.deepMaterials, ...portals.deepMaterials,
-    ...waterWall.deepMaterials, ...onyxWall.deepMaterials, ...liftsView.deepMaterials, ...funicularView.deepMaterials,
-    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials, ...mapWall.deepMaterials, ...forest.deepMaterials,
+    ...waterWall.deepMaterials, ...liftsView.deepMaterials, ...funicularView.deepMaterials,
+    ...sinking.wellDeepMaterials, ...esc.deepMaterials, ...trainsView.pbrMaterials, ...droplets.deepMaterials, ...mapWall.deepMaterials, ...forest.deepMaterials, ...walks.deepMaterials, ...infoScreens.deepMaterials, ...rootWall.deepMaterials,
   ];
   root.userData.bothZoneMaterials = [...liftsView.bothZoneMaterials, ...funicularView.bothZoneMaterials];
   const voidMats = new Set<THREE.MeshStandardMaterial>();
@@ -180,6 +193,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
       track: tr.track,
       maxOpen: psdRows[i]!.maxOpen(),
       display: psdRows[i]!.getDisplay(),
+      clarity: psdRows[i]!.getClarity(),
     }));
   root.userData.getMapState = () => mapWall.snapshot();
   root.userData.stageTrainsForPreset = (preset: PresetName): void => {
@@ -202,9 +216,10 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
     }
     const ts = timetable.trains();
     trainsView.update(ts, ctx.camera.position);
-    syncPsds(ts);
+    syncPsds(ts, 0, true);
     syncPortalWaves(ts, realClock);
     mapWall.updateTrains(ts);
+    infoScreens.update(ts, realClock, etaForTracks(), true);
   };
 
   return {
@@ -214,8 +229,9 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
       timetable.update(f.dt);
       const ts = timetable.trains();
       trainsView.update(ts, f.camera.position);
-      syncPsds(ts);
+      syncPsds(ts, f.dt);
       mapWall.updateTrains(ts);
+      infoScreens.update(ts, realClock, etaForTracks());
       droplets.updateSim(timetable.time);
       for (let k = 0; k < ts.length; k++) {
         const t = ts[k]!;

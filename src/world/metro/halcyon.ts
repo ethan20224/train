@@ -8,6 +8,7 @@ import { trackOf } from '../../metro/tracks';
 import { formatTransomText } from '../../metro/choreography';
 import { LINE_COLORS } from '../../metro/trainModel';
 import { GeoBag, boxMM, sweep, v3, type Frame, type P2 } from '../concourse/geo';
+import { vertexGlow } from './glow';
 import { installSensingHalo } from './halo';
 import type { MetroMaterials } from './materials';
 import { createPsdBank, type PsdController } from './psd';
@@ -198,7 +199,6 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
   const BODY_RGB: RGB = [0.13, 0.145, 0.17];
   const OXBLOOD_RGB: RGB = [LINE_COLORS.halcyon[0] * 0.36, LINE_COLORS.halcyon[1] * 0.36, LINE_COLORS.halcyon[2] * 0.36];
   const STAINLESS_RGB: RGB = [0.96, 0.97, 0.99];
-  const CLIP_RGB: RGB = [0.22, 0.24, 0.28];
 
   const addShell = (g: THREE.BufferGeometry, rgb: RGB = STONE_RGB): void => {
     const ng = lib.applyWorldUVs(g.index ? g.toNonIndexed() : g, kit.metersPerTile.honedLimestone);
@@ -694,19 +694,16 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
     lib,
   );
   if (trackGeos.plinths) addMatte(trackGeos.plinths, CONCRETE_RGB);
-  if (trackGeos.rails) {
-    // Already carries vertex colours (dark web + gleaming steel running head)
-    const r = trackGeos.rails.index ? trackGeos.rails.toNonIndexed() : trackGeos.rails;
-    for (const k of Object.keys(r.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv' && k !== 'color') r.deleteAttribute(k);
-    if (!r.getAttribute('uv')) r.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(r.getAttribute('position').count * 2), 2));
-    steelParts.push(r);
-  }
-  // Bake track fastenings into halcyonSteel (keeps total Halcyon budget at exactly 10 calls; ~24k tris)
+  // Steel (UIC60 rails, third-rail conductor, stainless equipment, LEDs as vertex glow) and composite (cover, signal heads) already
+  // carry vertex colours and the position/normal/uv/color attribute set the merged halcyon meshes need.
+  if (trackGeos.steel) steelParts.push(trackGeos.steel);
+  if (trackGeos.composite) matteParts.push(trackGeos.composite);
+  // Bake track fastenings into halcyonSteel (keeps total Halcyon budget at exactly 10 calls; 50 tris each)
   const clipBase = trackGeos.clipPrototype.index ? trackGeos.clipPrototype.toNonIndexed() : trackGeos.clipPrototype;
   for (const cm of trackGeos.clipMatrices) {
     const cg = clipBase.clone();
     cg.applyMatrix4(cm);
-    addSteel(cg, CLIP_RGB);
+    steelParts.push(cg);
   }
   clipBase.dispose();
   if (trackGeos.edgeLights) lightParts.push(trackGeos.edgeLights);
@@ -733,6 +730,7 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
     roughness: 0.22,
     envMapIntensity: 1.2,
   });
+  vertexGlow(steelMat); // track status LEDs / signal lenses / marker lights (vertex colour > 1.2) share the steel call
 
   const addM = (geo: THREE.BufferGeometry | null, mat: THREE.Material, name: string, noShadow = false): void => {
     if (!geo) return;

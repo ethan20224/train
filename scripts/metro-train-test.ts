@@ -146,4 +146,53 @@ test('unsubscribe stops delivery', () => {
   for (let i = 0; i < 3000; i++) tt.update(DT); assert.equal(n, 0);
 });
 
+test('fork is an independent, bit-identical copy of the schedule', () => {
+  const tt = createTimetable({ seed: 7 });
+  for (let i = 0; i < 3000; i++) tt.update(0.1);
+  const before = JSON.stringify(tt.trains());
+  const f = tt.fork();
+  for (let i = 0; i < 6000; i++) f.update(0.1);
+  assert.equal(JSON.stringify(tt.trains()), before, 'advancing the fork must not touch the original');
+  const g = tt.fork();
+  for (let i = 0; i < 6000; i++) { tt.update(0.1); g.update(0.1); }
+  assert.equal(JSON.stringify(g.trains()), JSON.stringify(tt.trains()), 'fork and original stay identical under identical steps');
+});
+
+test('nextArrivalIn: 0 standing, exact eta approaching, lookahead otherwise; matches reality within +-10 s for 20 arrivals per track', () => {
+  const tt = createTimetable({ seed: 42 });
+  const pending: Array<Array<number>> = TRACKS.map(() => []); // predicted absolute arrival times, made when the previous train departed
+  const errs: number[][] = TRACKS.map(() => []);
+  const idxOf = (t: TrainState): number => TRACKS.findIndex((x) => x.line === t.line && x.track === t.track);
+  tt.subscribe((e) => {
+    if (e.type !== 'arrived') return;
+    const i = idxOf(e.train);
+    const pred = pending[i]!.shift();
+    if (pred !== undefined && errs[i]!.length < 20) errs[i]!.push(Math.abs(pred - e.t));
+  });
+  const departed = new Set<number>();
+  const dt = 1 / 30;
+  for (let step = 0; step < 3 * 3600 / dt && errs.some((e) => e.length < 20); step++) {
+    tt.update(dt);
+    for (const t of tt.trains()) {
+      const i = idxOf(t);
+      const tr = TRACKS[i]!;
+      if (t.phase === 'stopped') assert.equal(tt.nextArrivalIn(tr.line, tr.track), 0);
+      if (t.phase === 'departing' && !departed.has(t.id)) {
+        departed.add(t.id);
+        if (!tt.trains().some((x) => idxOf(x) === i && (x.phase === 'approaching' || x.phase === 'stopped'))) {
+          const n = tt.nextArrivalIn(tr.line, tr.track);
+          assert.ok(n !== null && n >= 0, 'lookahead always finds the next arrival');
+          pending[i]!.push(tt.time + n!);
+        }
+      }
+      if (t.phase === 'approaching') assert.ok(Math.abs(tt.nextArrivalIn(tr.line, tr.track)! - t.eta) < 1e-9 || tt.trains().filter((x) => idxOf(x) === i && x.phase === 'approaching').length > 1);
+    }
+  }
+  for (let i = 0; i < TRACKS.length; i++) {
+    assert.ok(errs[i]!.length >= 20, `track ${i}: only ${errs[i]!.length} checked arrivals`);
+    const worst = Math.max(...errs[i]!);
+    assert.ok(worst <= 10, `track ${i}: worst prediction error ${worst.toFixed(2)} s`);
+  }
+});
+
 console.log(`\n${passed} passed | trains ${A.stats.spawned.size} | max moving ${A.stats.maxMoving} | max present ${A.stats.maxPresent} | max stop err ${A.stopErr.reduce((m, x) => Math.max(m, x), 0).toFixed(4)} m`);

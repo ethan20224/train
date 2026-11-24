@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../core/types';
-import { CAVERN, DISC, MERIDIAN, OCULUS, PSD, SKY } from '../../layoutMetro';
+import { CANOPY_WALK, CAVERN, DISC, MERIDIAN, OCULUS, PSD, SKY } from '../../layoutMetro';
 import { trackOf } from '../../metro/tracks';
 import { formatTransomText } from '../../metro/choreography';
 import { LINE_COLORS } from '../../metro/trainModel';
@@ -360,7 +360,10 @@ export function buildMeridianBridge(lib: MaterialLibrary, kit: MetroMaterials): 
 
     // Island south and north end balustrades (spanning between the two PSD lines x = ±8.65)
     const xPsd = isl.xMax - PSD.inset;
-    addGlassRun([[-xPsd, isl.zMin + 0.06], [xPsd, isl.zMin + 0.06]]);
+    // The south end is open for the canopy walk (CANOPY_WALK.gapHalf either side of x = 0, src/metro/walks.ts)
+    const gap = CANOPY_WALK.gapHalf;
+    addGlassRun([[-xPsd, isl.zMin + 0.06], [-gap, isl.zMin + 0.06]]);
+    addGlassRun([[gap, isl.zMin + 0.06], [xPsd, isl.zMin + 0.06]]);
     addGlassRun([[-xPsd, isl.zMax - 0.06], [xPsd, isl.zMax - 0.06]]);
 
     // Precision brushed-stainless soffit collar ring on the underside of the disc well opening (0 extra draw calls)

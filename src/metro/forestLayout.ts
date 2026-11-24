@@ -4,6 +4,7 @@
  * envelopes, F5 truss, cavern walls) before it is accepted. Geometry is built from this data in src/world/metro/forest.ts.
  */
 import { CAVERN, CROSS_OUTLINE, FLIGHTS, ESCALATOR_BANDS, FOREST, VESPER } from '../layoutMetro';
+import { walkSamples } from './walks';
 
 export type TreeKind = 'canopy' | 'umbrella';
 
@@ -93,6 +94,47 @@ const inBed = (b: (typeof FOREST.beds)[number], x: number, z: number, m: number)
   x >= b.xMin + m && x <= b.xMax - m && z >= b.zMin + m && z <= b.zMax - m;
 const inAnyBed = (x: number, z: number, m: number): boolean => FOREST.beds.some((b) => inBed(b, x, z, m));
 
+
+// ---- walk keep-out (canopy walk + boardwalks, src/metro/walks.ts) ---------------------------------------------------------
+
+const d2 = (ax: number, az: number, bx: number, bz: number): number => (ax - bx) ** 2 + (az - bz) ** 2;
+/** True if (x, z) is within r of any ground-level walk sample (boardwalk, stairs, bridge, landings). */
+const nearGroundWalk = (x: number, z: number, r: number): boolean => walkSamples().ground.some((q) => d2(q.x, q.z, x, z) < r * r);
+const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+
+/** Trunk of `t` reaches into the canopy walk corridor (not fixable by a smaller crown). */
+function trunkHitsWalk(t: ForestTree): boolean {
+  // buttress flare at the base is up to ~3.3 x trunkR; the boardwalk rail line sits 0.9-1.0 m off its centre
+  if (nearGroundWalk(t.x, t.z, t.trunkR * 3.4 + 1.45)) return true;
+  const top = t.crownY + t.crownRV, gy = Y0 + 0.5;
+  for (const q of walkSamples().air) {
+    if (q.y - 0.6 >= top) continue;
+    const f = clamp01((q.y - gy) / (top - gy));
+    if (d2(t.x + (t.crownX - t.x) * f, t.z + (t.crownZ - t.z) * f, q.x, q.z) < (1.0 + t.trunkR + 0.9) ** 2) return true;
+  }
+  return false;
+}
+/** Branches / crown of `t` reach the canopy walk corridor (a smaller crown may clear it). */
+function crownHitsWalk(t: ForestTree): boolean {
+  const top = t.crownY + t.crownRV;
+  for (const q of walkSamples().air) {
+    if (q.y + 2.3 < t.crownY - t.crownRV - 0.3 || q.y - 0.8 >= top) continue;
+    if (d2(t.crownX, t.crownZ, q.x, q.z) < (t.crownRH * 0.8 + 1.0) ** 2) return true;
+  }
+  return false;
+}
+/** Keep the walks clear: drop trees whose trunk is in the way, shrink crowns that brush the canopy walk. */
+function clearOfWalks(trees: readonly ForestTree[]): ForestTree[] {
+  const out: ForestTree[] = [];
+  for (const t of trees) {
+    if (trunkHitsWalk(t)) continue;
+    let cur = t;
+    for (let rh = t.crownRH; crownHitsWalk(cur) && rh > 2.2; rh -= 0.3) cur = { ...t, crownRH: Math.max(2.2, rh - 0.3) };
+    if (!crownHitsWalk(cur)) out.push(cur);
+  }
+  return out;
+}
+
 export function planForest(seed: number = FOREST.seed): ForestPlan {
   const rnd = mulberry32(seed);
   const trees: ForestTree[] = [];
@@ -134,6 +176,11 @@ export function planForest(seed: number = FOREST.seed): ForestPlan {
     }
   }
 
+  // Same stream as without walks: the corridor trees are removed (or their crowns trimmed) afterwards, so the rest of the forest is unchanged.
+  const planted = clearOfWalks(trees);
+  trees.length = 0;
+  trees.push(...planted);
+
   const treeFerns: ForestTreeFern[] = [];
   const ferns: ForestFern[] = [];
   const boulders: ForestBoulder[] = [];
@@ -144,7 +191,7 @@ export function planForest(seed: number = FOREST.seed): ForestPlan {
         const jx = x + (rnd() - 0.5) * 2.2, jz = z + (rnd() - 0.5) * 2.2;
         if ((transept && Math.abs(jx) < CAVERN.nave.xMax) || !inAnyBed(jx, jz, 0.7) || rnd() > 0.32) continue;
         if (trees.some((t) => (t.x - jx) ** 2 + (t.z - jz) ** 2 < 2.2 ** 2)) continue;
-        if (treeFerns.some((f) => (f.x - jx) ** 2 + (f.z - jz) ** 2 < 2.4 ** 2)) continue;
+        if (treeFerns.some((f) => (f.x - jx) ** 2 + (f.z - jz) ** 2 < 2.4 ** 2) || nearGroundWalk(jx, jz, 1.5)) continue;
         treeFerns.push({ x: jx, z: jz, height: 1.8 + rnd() * 3.4, seed: Math.floor(rnd() * 1e9) });
       }
     }
@@ -152,7 +199,7 @@ export function planForest(seed: number = FOREST.seed): ForestPlan {
       for (let z = bed.zMin + 0.4; z <= bed.zMax - 0.4; z += 1.05) {
         const jx = x + (rnd() - 0.5) * 1.0, jz = z + (rnd() - 0.5) * 1.0;
         if ((transept && Math.abs(jx) < CAVERN.nave.xMax) || !inAnyBed(jx, jz, 0.3) || rnd() > 0.72) continue;
-        if (trees.some((t) => (t.x - jx) ** 2 + (t.z - jz) ** 2 < (t.trunkR * 2.6) ** 2)) continue;
+        if (trees.some((t) => (t.x - jx) ** 2 + (t.z - jz) ** 2 < (t.trunkR * 2.6) ** 2) || nearGroundWalk(jx, jz, 1.15)) continue;
         ferns.push({ x: jx, z: jz, size: 0.85 + rnd() * 0.95, seed: Math.floor(rnd() * 1e9) });
       }
     }
@@ -161,7 +208,9 @@ export function planForest(seed: number = FOREST.seed): ForestPlan {
       const x = bed.xMin + 1 + rnd() * (bed.xMax - bed.xMin - 2), z = bed.zMin + 1 + rnd() * (bed.zMax - bed.zMin - 2);
       if (transept && Math.abs(x) < CAVERN.nave.xMax) continue;
       if (trees.some((t) => (t.x - x) ** 2 + (t.z - z) ** 2 < 2.5 ** 2)) continue;
-      boulders.push({ x, z, r: 0.35 + rnd() * 0.9, seed: Math.floor(rnd() * 1e9) });
+      const r = 0.35 + rnd() * 0.9, seed = Math.floor(rnd() * 1e9);
+      if (nearGroundWalk(x, z, r * 1.3 + 1.1)) continue;
+      boulders.push({ x, z, r, seed });
     }
   }
   return { trees, treeFerns, ferns, boulders };

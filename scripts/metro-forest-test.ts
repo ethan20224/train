@@ -1,5 +1,6 @@
 // Cloud forest placement invariants (src/metro/forestLayout.ts). Run: node_modules/.bin/tsx scripts/metro-forest-test.ts
 import { FOREST, MERIDIAN, VESPER } from '../src/layoutMetro';
+import { walkSamples } from '../src/metro/walks';
 import { crownFits, crownTopLimit, planForest } from '../src/metro/forestLayout';
 
 let passed = 0;
@@ -36,5 +37,18 @@ const vesperOk = plan.trees.every((t) => VESPER.trackZ.every((tz) =>
 check('Vesper trains pass under every overhanging crown', vesperOk);
 check('crownTopLimit rejects a footprint through the cavern wall', !isFinite(crownTopLimit(19.5, 40, 3)));
 check('canopy trees reach real height (tallest > 22 m)', Math.max(...plan.trees.map((t) => t.crownY + t.crownRV + 72.5)) > 22);
+
+// Walks: no trunk base within its flared radius + the rail line + 0.4 m of the boardwalk; canopy-walk trunks/branches clear of the deck.
+const ws = walkSamples();
+check('no trunk base within reach of a boardwalk, stair or landing', plan.trees.every((t) => ws.ground.every((q) => Math.hypot(q.x - t.x, q.z - t.z) >= t.trunkR * 3.3 + 0.9 + 0.4)));
+check('no fern or boulder on the boardwalk deck', plan.ferns.every((f) => ws.ground.every((q) => Math.hypot(q.x - f.x, q.z - f.z) >= 1.1))
+  && plan.boulders.every((b) => ws.ground.every((q) => Math.hypot(q.x - b.x, q.z - b.z) >= b.r + 0.9)));
+check('canopy walk: no trunk through the deck, crowns trimmed clear of its centre line', plan.trees.every((t) => ws.air.every((q) => {
+  if (q.y - 0.6 >= t.crownY + t.crownRV) return true;
+  const f = Math.min(1, Math.max(0, (q.y - (-72.0)) / (t.crownY + t.crownRV + 72.0)));
+  const trunk = Math.hypot(t.x + (t.crownX - t.x) * f - q.x, t.z + (t.crownZ - t.z) * f - q.z) >= 1.0 + t.trunkR;
+  const crownTouches = q.y + 2.3 >= t.crownY - t.crownRV - 0.3 && q.y - 0.8 < t.crownY + t.crownRV;
+  return trunk && (!crownTouches || Math.hypot(t.crownX - q.x, t.crownZ - q.z) >= t.crownRH * 0.8 + 1.0 - 1e-6);
+})));
 
 console.log(`${passed} forest checks passed | trees ${plan.trees.length} (umbrella ${plan.trees.filter((t) => t.kind === 'umbrella').length}) | tree ferns ${plan.treeFerns.length} | ferns ${plan.ferns.length} | boulders ${plan.boulders.length}`);

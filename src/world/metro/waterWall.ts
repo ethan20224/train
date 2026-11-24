@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { dayNight } from '../../metro/dayNight';
 import type { MaterialLibrary } from '../../core/types';
 import { TRENCH, VESPER, WATER_WALL, WATERFALL } from '../../layoutMetro';
 import type { MetroMaterials } from './materials';
@@ -144,6 +145,10 @@ export function buildWaterWall(_lib: MaterialLibrary, _kit: MetroMaterials): Wat
     deepMaterials: [rock.material, water.material, poolMat],
     update(realTimeSec: number): void {
       uTime.value = realTimeSec;
+      // Unlit mist billboards follow the light level (day/night): white by day, warm at golden hour, a faint veil at night.
+      const dn = dayNight.state;
+      const k = 1 - 0.9 * dn.night;
+      (mistMesh.material as THREE.MeshBasicMaterial).color.setRGB(k * (1 + 0.15 * dn.golden), k, k * (1 - 0.15 * dn.golden));
     },
   };
 }
