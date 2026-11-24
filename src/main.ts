@@ -8,6 +8,7 @@ import { createMaterialLibrary } from './materials/library';
 import { PlayerControls } from './player/controls';
 import { UI } from './ui/intro';
 import { TicketUI } from './ui/ticketUi';
+import { SkyHintUI } from './ui/skyHint';
 import { Interaction } from './core/interaction';
 import { tickets, type Ticket } from './core/ticket';
 import { setDynamicRegions, setRequireTicketOverride } from './player/navigation';
@@ -68,6 +69,8 @@ declare global {
       setRequireTicket?: (v: boolean | null) => void;
       /** Phase 4 debug: ticket UI state. */
       ticketUi?: () => { card: string; badge: boolean; prompt: string };
+      /** Meridian Deep day/night discovery prompt state. */
+      skyHint?: () => { state: string; visible: boolean; paused: boolean };
       metro?: () => unknown;
       startAudio?: () => Promise<void>;
     };
@@ -86,6 +89,7 @@ window.__meridian = { fps: 0, drawCalls: 0, triangles: 0, ready: false, timescal
 
 const ui = new UI();
 const ticketUi = new TicketUI();
+const skyHint = new SkyHintUI({ disabled: !!camPreset });
 
 /** Monotonic loading progress shown on the intro line. */
 let progress = 0;
@@ -99,6 +103,7 @@ THREE.DefaultLoadingManager.onProgress = (_url, loaded, total) => setProgress((l
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'KeyN' || e.repeat || (e.target as HTMLElement | null)?.closest?.('input, textarea')) return;
   dayNight.toggle();
+  skyHint.notifyKeyN();
 });
 
 async function boot(): Promise<void> {
@@ -164,6 +169,7 @@ async function boot(): Promise<void> {
   window.__meridian.interact = () => interaction.perform() as 'window' | 'bell' | 'liftCall' | 'liftFloor' | null;
   window.__meridian.setRequireTicket = setRequireTicketOverride;
   window.__meridian.ticketUi = () => ticketUi.debugState;
+  window.__meridian.skyHint = () => skyHint.debugState;
   const ctx: BuildContext = { renderer, scene, camera, materials, audio, quality: quality.state };
 
   setDynamicRegions(metroDynamicRegions);
@@ -260,6 +266,7 @@ async function boot(): Promise<void> {
     audio.update(frame);
 
     dayNight.update(dt);
+    skyHint.update(controls.feet.y, controls.isLocked && !document.hidden);
     depthLook.update(camera.position.y);
     if (!notifiedDeep && depthLook.airlock.zone === 'deep') {
       notifiedDeep = true;

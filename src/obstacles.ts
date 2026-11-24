@@ -51,6 +51,6 @@ export const METRO_OBSTACLES: readonly PropObstacle[] = [
   ...infoScreenObstacleCircles(),
   // Platform life and station kit (world/metro/platformKit.ts): every solid object of PLATFORM_KIT at its platform's level.
   ...kitObstacleCircles(),
-  // Halcyon island planter beds and the benches facing them (world/metro/halcyonArt.ts), at the Halcyon platform level.
+  // Halcyon island planter beds and their benches (world/metro/halcyonArt.ts), at the Halcyon platform level.
   ...halcyonPlanterObstacleCircles().map((c) => ({ ...c, level: HALCYON.topY })),
 ];

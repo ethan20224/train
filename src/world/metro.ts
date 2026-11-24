@@ -55,7 +55,7 @@ export async function buildMetro(ctx: BuildContext): Promise<WorldModule> {
   const sky = buildBuriedSky(ctx.materials, kit);
   const meridian = buildMeridianBridge(ctx.materials, kit);
   const crossing = buildCrossing(ctx.materials, kit, ctx.renderer);
-  const halcyon = buildHalcyonHall(ctx.materials, kit, { omitPortalLiners: true });
+  const halcyon = buildHalcyonHall(ctx.materials, kit, { omitPortalLiners: true, renderer: ctx.renderer });
   const portals = buildPortals(ctx.materials, kit);
   const waterWall = buildWaterWall(ctx.materials, kit);
   const liftsView = buildLiftsView(ctx.materials, kit, ctx.renderer);

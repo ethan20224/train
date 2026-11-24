@@ -59,7 +59,7 @@ export const PRESET_NAMES = [
   'shopseast',
   'throat',
   'throatbridge',
-  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'droplets', 'escalator', 'speedgates', 'tickethall', 'disc', 'lifts', 'lift', 'twin', 'wellgate', 'canopy', 'boardwalk', 'walkbridge', 'koi', 'platformlife', 'waitinglounge', 'halcyon',
+  'oculus', 'oculusdown', 'rim', 'void', 'strata', 'threshold', 'skyhole', 'sun', 'skyride', 'crossing', 'floor', 'meridian', 'portal', 'glassfloor', 'glassup', 'mapwall', 'waterwall', 'onyx', 'funicular', 'deep', 'train', 'droplets', 'escalator', 'speedgates', 'tickethall', 'disc', 'lifts', 'lift', 'twin', 'wellgate', 'canopy', 'boardwalk', 'walkbridge', 'koi', 'platformlife', 'waitinglounge', 'halcyon', 'halcyonads', 'halcyonend',
 ] as const;
 export type PresetName = (typeof PRESET_NAMES)[number];
 
@@ -227,10 +227,20 @@ export const PRESETS: Record<PresetName, CameraPreset> = {
   wellgate: { position: [-3.2, VESPER.topY + EYE, 65.5], target: [0, VESPER.topY + 0.75, OCULUS.cz - 3.2], fov: 62, intent: 'Crossing floor: 2035 Monolith circular ultra-clear glass well ring and curved sliding glass leaves in slim stainless frames (closed while the disc is docked above).' },
   deep: { position: [-35, HALCYON.topY + EYE, 59], target: [0, HALCYON.topY + 1, 94], intent: 'Along the Halcyon platform diagonal.' },
   halcyon: (() => {
-    // On the south-east lane just east of the lift landings, looking east along the hall: the planted island with benches facing it,
+    // On the south-east lane just east of the lift landings, looking east along the hall: the planted island with benches facing outward,
     // the warm oak slat ceiling and its light lines, the dappled-light art ribbon on the left wall.
     const [px, pz] = halcyonPoint(1.0, -3.6), [tx, tz] = halcyonPoint(34, 0.8);
-    return { position: [px, HALCYON.topY + EYE, pz] as Vec3, target: [tx, HALCYON.topY + 1.6, tz] as Vec3, fov: 66, intent: 'Halcyon after the makeover: planted central island with benches facing it, warm slatted oak ceiling with recessed light lines, the slow dappled-light art wall.' };
+    return { position: [px, HALCYON.topY + EYE, pz] as Vec3, target: [tx, HALCYON.topY + 1.6, tz] as Vec3, fov: 66, intent: 'Halcyon after the makeover: planted central island with benches facing outward, warm slatted oak ceiling with recessed light lines, the slow dappled-light art wall.' };
+  })(),
+  halcyonads: (() => {
+    // SW end of Halcyon platform looking across Track 0 through the clear glass PSD at the 3 recessed NW editorial vitrines (Leica, Omega, Apple).
+    const [px, pz] = halcyonPoint(-43.2, -0.6), [tx, tz] = halcyonPoint(-36.0, 10.0);
+    return { position: [px, HALCYON.topY + EYE, pz] as Vec3, target: [tx, HALCYON.topY + 1.45, tz] as Vec3, fov: 64, intent: 'Halcyon SW end looking across Track 0 at the recessed Leica, Omega and Apple backlit architectural vitrines.' };
+  })(),
+  halcyonend: (() => {
+    // SW end plaza of Halcyon platform looking straight over the glass balustrade at the Hollow Bay hero vitrine between the two tunnel portals.
+    const [px, pz] = halcyonPoint(-42.5, 0.0), [tx, tz] = halcyonPoint(-55.0, 0.0);
+    return { position: [px, HALCYON.topY + EYE, pz] as Vec3, target: [tx, HALCYON.topY + 2.0, tz] as Vec3, fov: 62, intent: 'Halcyon SW end balustrade looking straight at the recessed Hollow Bay hero poster between the two tunnel portals.' };
   })(),
   train: {
     position: [45.2, VESPER.topY + EYE, 66.8],

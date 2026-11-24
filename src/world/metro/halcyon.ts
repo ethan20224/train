@@ -9,6 +9,7 @@ import { formatTransomText } from '../../metro/choreography';
 import { LINE_COLORS } from '../../metro/trainModel';
 import { GeoBag, boxMM, sweep, v3, type Frame, type P2 } from '../concourse/geo';
 import { vertexGlow } from './glow';
+import { buildHalcyonAds, halcyonNwBaySpan } from './halcyonAds';
 import { buildHalcyonArt } from './halcyonArt';
 import { installSensingHalo } from './halo';
 import type { MetroMaterials } from './materials';
@@ -264,6 +265,11 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
   const artJoints = Array.from({ length: wallCols + 1 }, (_, i) => -L_HALL + (2 * L_HALL * i) / wallCols)
     .filter((sj) => Math.abs(sj) <= HALCYON_ART.artWall.halfLength + 1.5);
   const artS0 = artJoints[0]!, artS1 = artJoints[artJoints.length - 1]!;
+  // Recessed editorial vitrine bays on the NW long wall (side = +1) and SW end-wall center pier (endSgn = -1)
+  const nwAdSpans = HALCYON_ART.ads.nwBays.map(halcyonNwBaySpan);
+  const [adNwY0, adNwY1] = HALCYON_ART.ads.nwY;
+  const [adEndT0, adEndT1] = HALCYON_ART.ads.endT;
+  const [adEndY0, adEndY1] = HALCYON_ART.ads.endY;
 
   // A. Long walls (t = +W_HALL NW, t = -W_HALL SE)
   for (const side of [-1, 1] as const) {
@@ -299,12 +305,16 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
       const inArtCourse = side === artSide && cy0 >= artY0 - 1e-4 && cy1 <= artY1 + 1e-4;
       for (let i = 0; i + 1 < sJoints.length; i++) {
         if (inArtCourse && sJoints[i]! >= artS0 - 1e-6 && sJoints[i + 1]! <= artS1 + 1e-6) continue; // light-art bay
+        const isNwAdBay = side === 1 && nwAdSpans.some(([a, b]) => sJoints[i]! >= a - 1e-4 && sJoints[i + 1]! <= b + 1e-4);
+        if (isNwAdBay && cy0 >= adNwY0 - 1e-4 && cy1 <= adNwY1 + 1e-4) continue; // recessed vitrine cavity
+        const panelYB = isNwAdBay && cy0 < adNwY0 - 1e-4 && cy1 > adNwY0 + 1e-4 ? adNwY0 - gap / 2 : yB;
+        if (panelYB - yA < 0.05) continue;
         for (const [sa, sb] of subtract1D(sJoints[i]!, sJoints[i + 1]!, cuts)) {
           const sA = sa + gap / 2, sB = sb - gap / 2;
           if (sB - sA < 0.06) continue;
           const t0 = side > 0 ? tFace : tFace - panelT;
           const t1 = side > 0 ? tFace + panelT : tFace;
-          addShell(stBox(sA, sB, yA, yB, t0, t1));
+          addShell(stBox(sA, sB, yA, panelYB, t0, t1));
         }
       }
     }
@@ -369,12 +379,16 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
       for (const [ya, yb] of subY) {
         const cuts = ya < boreY1 - 0.01 ? boreCutsT.map(([a, b]) => [a - 0.03, b + 0.03] as const) : [];
         for (let i = 0; i + 1 < tJoints.length; i++) {
+          const isEndAdBay = endSgn === -1 && tJoints[i]! >= adEndT0 - 1e-4 && tJoints[i + 1]! <= adEndT1 + 1e-4;
+          if (isEndAdBay && ya >= adEndY0 - 0.02 && yb <= adEndY1 + 0.02) continue; // recessed hero vitrine cavity
+          const panelYb = isEndAdBay && ya < adEndY0 - 0.02 && yb > adEndY0 + 0.02 ? adEndY0 - gap / 2 : yb;
+          if (panelYb - ya < 0.05) continue;
           for (const [ta, tb] of subtract1D(tJoints[i]!, tJoints[i + 1]!, cuts)) {
             const tA = ta + gap / 2, tB = tb - gap / 2;
             if (tB - tA < 0.06) continue;
             const s0 = endSgn > 0 ? sFace : sFace - panelT;
             const s1 = endSgn > 0 ? sFace + panelT : sFace;
-            addShell(stBox(s0, s1, ya, yb, tA, tB));
+            addShell(stBox(s0, s1, ya, panelYb, tA, tB));
           }
         }
       }
@@ -692,13 +706,14 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
   clipBase.dispose();
   if (trackGeos.edgeLights) lightParts.push(trackGeos.edgeLights);
 
-  // ---- 8. Oak ceiling, planted island, light-art ribbon (4 calls, halcyonArt.ts) ----
+  // ---- 8. Oak ceiling, planted island, light-art ribbon (4 calls, halcyonArt.ts) & recessed vitrines (3 calls, halcyonAds.ts) ----
   const art = buildHalcyonArt({
     renderer: opts.renderer,
     holesWorld: [wellHexWorld, f6SlotWorld],
     ceilY: Y_CEIL,
     art: { joints: artJoints, y0: artY0 + gap / 2 + 0.04, y1: artY1 - gap / 2 - 0.04 },
   });
+  const ads = buildHalcyonAds(kit, { renderer: opts.renderer });
 
   // ---- Assemble EXACTLY 14 draw calls ----
   const shellMat = kit.deep.honedLimestone.clone();
@@ -755,10 +770,11 @@ export function buildHalcyonHall(lib: MaterialLibrary, kit: MetroMaterials, opts
   }
   group.add(psdBank.group);
   group.add(art.group);
+  group.add(ads.group);
 
   return {
     group,
     psdRows: [psdBank.rows[0]!, psdBank.rows[1]!],
-    deepMaterials: [shellMat, matteMat, steelMat, ...psdBank.deepMaterials, ...art.deepMaterials],
+    deepMaterials: [shellMat, matteMat, steelMat, ...psdBank.deepMaterials, ...art.deepMaterials, ...ads.deepMaterials],
   };
 }

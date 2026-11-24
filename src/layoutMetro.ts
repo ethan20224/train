@@ -1262,7 +1262,7 @@ export const ZONES = {
  * the F6 cutting side), y = world height. The island walking surface is HALCYON.topY and the PSD door line sits at t = +-4.65.
  *
  *  - ceiling: warm oak slat bays along the hall axis at HALCYON.ceilingY, recessed warm light lines between the bays.
- *  - planter: kerbed oak beds down the island centre line, benches facing them on both sides. Beds stay out of the F6 landing
+ *  - planter: kerbed oak beds down the island centre line, benches along both sides facing outward. Beds stay out of the F6 landing
  *    (s -23..-3) and the lift landings (s -1.5..9.5) and keep a 2.5 m walking lane each side of the benches; the gaps between beds
  *    are the cross-overs between the two track sides.
  *  - artWall: the SE long wall (t = -10) between the two light slots' courses becomes the light-art ribbon.
@@ -1287,7 +1287,7 @@ export const HALCYON_ART = {
       { id: 'E1', s0: 11.5, s1: 24.0 },
       { id: 'E2', s0: 26.4, s1: 38.5 },
     ] as ReadonlyArray<{ readonly id: string; readonly s0: number; readonly s1: number }>,
-    /** Bench: gap between kerb and seat (leg room), seat depth/length/height, spacing between benches, backrest top. */
+    /** Bench: clearance between kerb and backrest, seat depth/length/height, spacing between benches, backrest top. */
     bench: { gap: 0.35, depth: 0.45, length: 2.2, seatY: 0.45, spacing: 1.6, backTop: 0.8 },
     /** Hand-placed plant specimens (bed centre line offsets t). Tree ferns and small trees keep clear of the ceiling-hung info boards. */
     specimens: [
@@ -1313,6 +1313,31 @@ export const HALCYON_ART = {
     /** Day/night: night weight multiplies the ribbon down to this fraction of its day light. */
     nightGain: 0.16,
   },
+  /**
+   * Recessed museum-grade backlit editorial vitrines at the SW end of the Halcyon hall (user-approved 2026-11-24,
+   * src/world/metro/halcyonAds.ts). Snapped cleanly to the limestone stack-bond grid:
+   *  - NW long wall (t = +10, eye-level behind Track 0 screen doors): 3 landscape frames on alternating stone bays [4, 6, 8]
+   *    (Leica past the train nose; Omega and Apple along the clear fixed glass beside planter W1, hidden when a train docks).
+   *  - SW end wall (s = -55, center pier between the two tunnel portals): 1 tall vertical hero frame ("Hollow Bay").
+   */
+  ads: {
+    /** Stack-bond column indices on the NW long wall (side = +1, 37 cols of ~2.973 m across ±55 m). */
+    nwBays: [4, 6, 8] as readonly number[],
+    /** Vertical recess opening (world y) on the NW long wall: cleanly below the 2.4 m cool light slot, eye-level behind PSD glass. */
+    nwY: [-81.55, -79.6475] as readonly [number, number],
+    /** Center pier bay (t range) and vertical recess opening (world y, aligned to tunnel portal lintels -78.2) on the SW end wall. */
+    endT: [-1.35, 1.35] as readonly [number, number],
+    endY: [-81.65, -78.20] as readonly [number, number],
+    /** Frame geometry (metres): shadow gap outside stainless frame, bezel face width, proud projection, recess depth, glass/print offsets. */
+    shadowGap: 0.012,
+    bezelW: 0.042,
+    proud: 0.008,
+    recessDepth: 0.044,
+    glassInset: 0.002,
+    printInset: 0.036,
+    /** Day/night dimming of the backlit diffuser at full night (stays serene and luminous, never blasts the dark hall). */
+    nightGain: 0.42,
+  },
 } as const;
 
 /** World (x, z) of hall-local (s, t). */
@@ -1328,7 +1353,7 @@ export function halcyonLocal(x: number, z: number): [number, number] {
   return [dx * ux + dz * uz, -dx * uz + dz * ux];
 }
 
-/** Benches facing the beds: centre s and side (+1 = NW, -1 = SE). Centred in each bed, both sides mirrored. */
+/** Benches along the beds (facing outward): centre s and side (+1 = NW, -1 = SE). Centred in each bed, both sides mirrored. */
 export function halcyonBenches(): Array<{ s: number; side: 1 | -1; bed: string }> {
   const { beds, bench } = HALCYON_ART.planter;
   const out: Array<{ s: number; side: 1 | -1; bed: string }> = [];
@@ -1342,7 +1367,7 @@ export function halcyonBenches(): Array<{ s: number; side: 1 | -1; bed: string }
   return out;
 }
 
-/** Collision circles (level HALCYON.topY) for every bed and bench (benches include the leg-room gap, so it is not a squeeze). */
+/** Collision circles (level HALCYON.topY) for every bed and bench (benches include the gap behind the backrest, so it is not a squeeze). */
 export function halcyonPlanterObstacleCircles(): Array<{ x: number; z: number; r: number }> {
   const { beds, bench, halfWidth } = HALCYON_ART.planter;
   const out: Array<{ x: number; z: number; r: number }> = [];

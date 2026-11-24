@@ -8,8 +8,8 @@ import { makeOakTexture } from './walkKit';
 
 /**
  * Halcyon makeover (user-approved 2026-11-24; coordinates in HALCYON_ART, layoutMetro.ts): the warm slatted oak ceiling with its
- * recessed light lines, the planted central island (kerbed oak beds, tree ferns, small trees, ferns, moss, boulders, benches facing
- * them) and the dappled-light art wall (a backlit translucent stone ribbon with a slow leaf-shadow shader).
+ * recessed light lines, the planted central island (kerbed oak beds, tree ferns, small trees, ferns, moss, boulders, benches along
+ * both sides facing outward) and the dappled-light art wall (a backlit translucent stone ribbon with a slow leaf-shadow shader).
  *
  * Draw calls: 4. halcyonOak (ceiling, kerbs, benches; vertex glow = the warm light lines), halcyonPlanterSoil (soil, moss, boulders,
  * bark), halcyonPlanterFoliage (atlas cards, wind sway), halcyonLightArt (the ribbon). No real lights.
@@ -299,7 +299,7 @@ function addBeds(b: OakBuf): void {
       b.box(sa, sb, y0, y1, -hw + PL.wallT, hw - PL.wallT, { col: kerb, skip: ['bot', 't0', 't1'], vOff: vo + 0.25, vScale: 1.0 });
     }
   }
-  // benches facing the beds
+  // benches along the beds, facing outward toward the tracks
   const { gap, depth, length, seatY, backTop } = PL.bench;
   const seat: RGB = [1.0, 0.88, 0.7];
   for (const bn of halcyonBenches()) {
@@ -316,11 +316,11 @@ function addBeds(b: OakBuf): void {
     for (const e of [0.2, length - 0.27]) {
       // seat support slab and the back post rising from it
       b.box(sa + e, sa + e + 0.07, Y_TOP, ySeat - 0.04, tLo + 0.03, tHi - 0.03, { col: seat, skip: ['bot'], vOff: 0.5 });
-      const tPost0 = sg > 0 ? tHi - 0.045 : tLo, tPost1 = sg > 0 ? tHi : tLo + 0.045;
+      const tPost0 = sg > 0 ? tLo : tHi - 0.045, tPost1 = sg > 0 ? tLo + 0.045 : tHi;
       b.box(sa + e, sa + e + 0.07, ySeat - 0.04, Y_TOP + backTop, tPost0, tPost1, { col: seat, vOff: 0.1 });
     }
-    // backrest on the far side: two oak rails between the posts
-    const tB0 = sg > 0 ? tHi - 0.04 : tLo + 0.01, tB1 = sg > 0 ? tHi - 0.01 : tLo + 0.04;
+    // backrest on the bed side: two oak rails between the posts
+    const tB0 = sg > 0 ? tLo + 0.01 : tHi - 0.04, tB1 = sg > 0 ? tLo + 0.04 : tHi - 0.01;
     for (const [ya, yb] of [[ySeat + 0.14, ySeat + 0.215], [ySeat + 0.255, ySeat + 0.33]] as const) {
       b.box(sa + 0.02, sb - 0.02, ya, yb, tB0, tB1, { col: seat, vOff: 0.35, vScale: 1.0 });
     }

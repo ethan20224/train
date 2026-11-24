@@ -1,12 +1,19 @@
 /**
- * Day / night for the buried sky (user ruling 2026-11-23): noon by default, N toggles to night and back. The change runs in
- * REAL time over DAY_NIGHT.transitionSec through a rich golden hour (sun sinking, warm low light, pink-gold clouds), then the
- * sun sets, the moon takes over the single directional light, stars, fireflies and glowing moss come up.
+ * Day / golden hour / night for the buried sky (user ruling 2026-11-23): noon by default; N cycles day -> golden hour -> night -> day.
+ * Transitions run in REAL time at 1 / DAY_NIGHT.transitionSec across s in [0, 1]: day (0) glides into a rich golden hour
+ * (holding at DAY_NIGHT.goldenPos: sun low at 38 deg, warm light, pink-gold clouds), then sets into night (1: moon takes over
+ * the single directional light, stars, fireflies and glowing moss come up), and night glides back to day.
  * Pure state + curves (no three.js) so Node tests import it. `?night=1` / `?golden=1` start in that state (presets, shots).
  */
 
+export type DayNightMode = 'day' | 'golden' | 'night';
+
+const MODE_ORDER: readonly DayNightMode[] = ['day', 'golden', 'night'];
+
 export const DAY_NIGHT = {
   transitionSec: 14,
+  /** Transition position s where golden-hour mode rests (peak golden = 1, sun at lowElevDeg, before dusk dimming). */
+  goldenPos: 0.45,
   /** Sun elevation (deg) at noon and at the end of golden hour; azimuth stays the deep sun's SSE. */
   noonElevDeg: 70, lowElevDeg: 38,
   /** Moon: elevation/azimuth (deg, azimuth from +x toward +z) and light gain relative to the noon sun. */
@@ -16,6 +23,12 @@ export const DAY_NIGHT = {
   /** State where the light swaps from the set sun to the moon (both gains are ~0 here, so the shadow refit is invisible). */
   swapAt: 0.67,
 } as const;
+
+const MODE_TARGET: Readonly<Record<DayNightMode, number>> = {
+  day: 0,
+  golden: DAY_NIGHT.goldenPos,
+  night: 1,
+};
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const smooth = (a: number, b: number, x: number): number => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -79,22 +92,29 @@ export function evaluateDayNight(s: number, t: number): DayNightState {
   };
 }
 
-/** Real-time controller: owns the target, eases toward it. */
+/** Real-time controller: owns the target mode, eases toward its s position. */
 export class DayNight {
+  private targetMode: DayNightMode = 'day';
   private target = 0;
   private pos = 0;
   private time = 0;
   state: DayNightState = evaluateDayNight(0, 0);
-  constructor(initial: 'day' | 'golden' | 'night' = 'day') {
-    this.pos = initial === 'night' ? 1 : initial === 'golden' ? 0.4 : 0;
-    this.target = initial === 'night' ? 1 : 0;
-    if (initial === 'golden') this.target = 0.4;
+  constructor(initial: DayNightMode = 'day') {
+    this.targetMode = initial;
+    this.target = MODE_TARGET[initial];
+    this.pos = this.target;
     this.state = evaluateDayNight(this.pos, 0);
   }
-  get isNightTarget(): boolean { return this.target >= 0.5; }
+  get mode(): DayNightMode { return this.targetMode; }
+  get isNightTarget(): boolean { return this.targetMode === 'night'; }
   /** Real seconds since boot (cloud drift, star twinkle). */
   get realTime(): number { return this.time; }
-  toggle(): void { this.target = this.target >= 0.5 ? 0 : 1; }
+  /** Cycle to the next mode: day -> golden -> night -> day. */
+  toggle(): void {
+    const next = MODE_ORDER[(MODE_ORDER.indexOf(this.targetMode) + 1) % MODE_ORDER.length]!;
+    this.targetMode = next;
+    this.target = MODE_TARGET[next];
+  }
   update(dt: number): DayNightState {
     this.time += dt;
     const step = dt / DAY_NIGHT.transitionSec;
